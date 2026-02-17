@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  scraper:
+    build: .
+    container_name: laanonima-scraper
+    volumes:
+      - ./data:/app/data
+      - ./config.yaml:/app/config.yaml:ro
+    environment:
+      - PYTHONUNBUFFERED=1
+    command: python -m src.cli scrape --basket cba
+    
+  # Optional: PostgreSQL database
+  postgres:
+    image: postgres:15-alpine
+    container_name: laanonima-db
+    environment:
+      POSTGRES_DB: laanonima_tracker
+      POSTGRES_USER: tracker
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-tracker_password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    profiles:
+      - with-db
+
+  # Optional: Scheduler service
+  scheduler:
+    build: .
+    container_name: laanonima-scheduler
+    volumes:
+      - ./data:/app/data
+      - ./config.yaml:/app/config.yaml:ro
+    environment:
+      - PYTHONUNBUFFERED=1
+    command: >
+      sh -c "
+        echo '0 12 1,15 * * cd /app && python -m src.cli scrape --basket cba' | crontab - &&
+        cron -f
+      "
+    profiles:
+      - scheduler
+
+volumes:
+  postgres_data:

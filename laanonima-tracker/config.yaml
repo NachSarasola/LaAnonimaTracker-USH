@@ -1,0 +1,563 @@
+# La Anónima Price Tracker Configuration
+# ======================================
+
+# Branch Configuration
+# -------------------
+branch:
+  postal_code: "9410"
+  branch_name: "USHUAIA 5"
+  branch_id: "75"  # Internal ID for the branch
+  province: "Tierra del Fuego"
+  city: "Ushuaia"
+
+# Website Configuration
+# ---------------------
+website:
+  base_url: "https://laanonima.com.ar/supermercado/"
+  search_url: "https://laanonima.com.ar/supermercado/buscar/"
+  timeout: 30000  # milliseconds
+  retry_attempts: 3
+  retry_delay: 2  # seconds
+  headless: true
+
+# Basket Definitions
+# ------------------
+# Basket A: INDEC Canasta Básica Alimentaria (CBA)
+# Based on official INDEC product list for Greater Buenos Aires
+# Adapted for availability at La Anónima
+
+baskets:
+  # Basket A: INDEC CBA - Essential food basket
+  cba:
+    name: "Canasta Básica Alimentaria (INDEC)"
+    description: "Official INDEC basic food basket for poverty line measurement"
+    base_period: "2024-01"
+    items:
+      # Panadería (Bakery)
+      - id: "cba_pan_fam"
+        name: "Pan flauta/familia"
+        keywords: ["pan flauta", "pan familia"]
+        category: "panaderia"
+        unit: "kg"
+        quantity: 4.5
+        matching: "loose"
+        
+      - id: "cba_galletitas"
+        name: "Galletitas de agua"
+        keywords: ["galletitas agua", "galletas agua"]
+        brand_hint: ["Terrabusi", "Bagley", "Don Satur"]
+        category: "panaderia"
+        unit: "paquete"
+        quantity: 3
+        matching: "loose"
+        
+      # Carnes (Meat)
+      - id: "cba_bife"
+        name: "Bife de chorizo"
+        keywords: ["bife chorizo", "bife angosto"]
+        category: "carnes"
+        unit: "kg"
+        quantity: 2
+        matching: "loose"
+        
+      - id: "cba_carne_picada"
+        name: "Carne picada común"
+        keywords: ["carne picada", "picada comun"]
+        category: "carnes"
+        unit: "kg"
+        quantity: 1.5
+        matching: "loose"
+        
+      - id: "cba_pollo"
+        name: "Pollo entero"
+        keywords: ["pollo entero", "pollo fresco"]
+        category: "carnes"
+        unit: "kg"
+        quantity: 3
+        matching: "loose"
+        
+      - id: "cba_paleta"
+        name: "Paleta de cerdo"
+        keywords: ["paleta cerdo", "paleta de cerdo"]
+        category: "carnes"
+        unit: "kg"
+        quantity: 1.5
+        matching: "loose"
+        
+      # Lácteos (Dairy)
+      - id: "cba_leche"
+        name: "Leche fluida entera"
+        keywords: ["leche entera", "leche fluida"]
+        brand_hint: ["La Serenísima", "Verónica", "Sancor"]
+        category: "lacteos"
+        unit: "litro"
+        quantity: 6
+        matching: "loose"
+        
+      - id: "cba_queso_cremoso"
+        name: "Queso cremoso"
+        keywords: ["queso cremoso", "queso fresco"]
+        category: "lacteos"
+        unit: "kg"
+        quantity: 1.2
+        matching: "loose"
+        
+      - id: "cba_queso_rallado"
+        name: "Queso rallado"
+        keywords: ["queso rallado", "rallado"]
+        category: "lacteos"
+        unit: "kg"
+        quantity: 0.15
+        matching: "loose"
+        
+      - id: "cba_manteca"
+        name: "Manteca"
+        keywords: ["manteca", "mantequilla"]
+        brand_hint: ["La Serenísima", "Sancor", "Milkaut"]
+        category: "lacteos"
+        unit: "kg"
+        quantity: 0.3
+        matching: "loose"
+        
+      - id: "cba_yogur"
+        name: "Yogur bebible"
+        keywords: ["yogur bebible", "yogur drink"]
+        category: "lacteos"
+        unit: "litro"
+        quantity: 3
+        matching: "loose"
+        
+      # Huevos
+      - id: "cba_huevos"
+        name: "Huevos"
+        keywords: ["huevos", "huevo"]
+        category: "huevos"
+        unit: "docena"
+        quantity: 2
+        matching: "loose"
+        
+      # Aceite y grasas
+      - id: "cba_aceite"
+        name: "Aceite de girasol"
+        keywords: ["aceite girasol", "aceite de girasol"]
+        brand_hint: ["Natura", "Cocinero"]
+        category: "aceites"
+        unit: "litro"
+        quantity: 1.5
+        matching: "loose"
+        
+      # Azúcar y dulces
+      - id: "cba_azucar"
+        name: "Azúcar"
+        keywords: ["azucar", "azúcar"]
+        category: "azucar"
+        unit: "kg"
+        quantity: 2
+        matching: "loose"
+        
+      - id: "cba_dulce_leche"
+        name: "Dulce de leche"
+        keywords: ["dulce leche", "dulce de leche"]
+        brand_hint: ["La Serenísima", "Sancor", "Milkaut"]
+        category: "azucar"
+        unit: "kg"
+        quantity: 0.5
+        matching: "loose"
+        
+      - id: "cba_mermelada"
+        name: "Mermelada"
+        keywords: ["mermelada", "jalea"]
+        category: "azucar"
+        unit: "kg"
+        quantity: 0.3
+        matching: "loose"
+        
+      # Bebidas
+      - id: "cba_yerba"
+        name: "Yerba mate"
+        keywords: ["yerba mate", "yerba"]
+        brand_hint: ["Taragüi", "Amanda", "Rosamonte", "La Tranquera"]
+        category: "bebidas"
+        unit: "kg"
+        quantity: 2
+        matching: "loose"
+        
+      - id: "cba_cafe"
+        name: "Café molido"
+        keywords: ["cafe molido", "café molido"]
+        brand_hint: ["Nescafé", "Arlistán", "La Virginia"]
+        category: "bebidas"
+        unit: "kg"
+        quantity: 0.25
+        matching: "loose"
+        
+      - id: "cba_te"
+        name: "Té en saquitos"
+        keywords: ["te saquitos", "té saquitos", "te en saquitos"]
+        brand_hint: ["Taragüi", "La Virginia", "Green Hills"]
+        category: "bebidas"
+        unit: "caja"
+        quantity: 1
+        matching: "loose"
+        
+      # Arroz, pastas y legumbres
+      - id: "cba_arroz"
+        name: "Arroz"
+        keywords: ["arroz", "arroz largo"]
+        category: "legumbres"
+        unit: "kg"
+        quantity: 1.5
+        matching: "loose"
+        
+      - id: "cba_fideos"
+        name: "Fideos secos"
+        keywords: ["fideos", "fideo", "espagueti", "tallarin"]
+        brand_hint: ["Terrabusi", "Matarazzo", "Lucchetti"]
+        category: "legumbres"
+        unit: "kg"
+        quantity: 2
+        matching: "loose"
+        
+      - id: "cba_porotos"
+        name: "Porotos"
+        keywords: ["porotos", "frijoles", "poroto"]
+        category: "legumbres"
+        unit: "kg"
+        quantity: 0.3
+        matching: "loose"
+        
+      - id: "cba_lentejas"
+        name: "Lentejas"
+        keywords: ["lentejas", "lenteja"]
+        category: "legumbres"
+        unit: "kg"
+        quantity: 0.3
+        matching: "loose"
+        
+      # Verduras y frutas (fresh produce - may be limited online)
+      - id: "cba_papa"
+        name: "Papas"
+        keywords: ["papa", "papas"]
+        category: "verduras"
+        unit: "kg"
+        quantity: 3
+        matching: "loose"
+        
+      - id: "cba_cebolla"
+        name: "Cebolla"
+        keywords: ["cebolla", "cebollas"]
+        category: "verduras"
+        unit: "kg"
+        quantity: 1.5
+        matching: "loose"
+        
+      - id: "cba_zanahoria"
+        name: "Zanahoria"
+        keywords: ["zanahoria", "zanahorias"]
+        category: "verduras"
+        unit: "kg"
+        quantity: 1.5
+        matching: "loose"
+        
+      - id: "cba_tomate"
+        name: "Tomate"
+        keywords: ["tomate", "tomates"]
+        category: "verduras"
+        unit: "kg"
+        quantity: 2.5
+        matching: "loose"
+        
+      - id: "cba_lechuga"
+        name: "Lechuga"
+        keywords: ["lechuga", "lechugas"]
+        category: "verduras"
+        unit: "kg"
+        quantity: 1
+        matching: "loose"
+        
+      - id: "cba_manzana"
+        name: "Manzana"
+        keywords: ["manzana", "manzanas"]
+        category: "frutas"
+        unit: "kg"
+        quantity: 2
+        matching: "loose"
+        
+      - id: "cba_naranja"
+        name: "Naranja"
+        keywords: ["naranja", "naranjas"]
+        category: "frutas"
+        unit: "kg"
+        quantity: 2
+        matching: "loose"
+        
+      - id: "cba_banana"
+        name: "Banana"
+        keywords: ["banana", "bananas", "plátano"]
+        category: "frutas"
+        unit: "kg"
+        quantity: 2
+        matching: "loose"
+        
+      # Sal y condimentos
+      - id: "cba_sal"
+        name: "Sal fina"
+        keywords: ["sal fina", "sal de mesa"]
+        category: "condimentos"
+        unit: "kg"
+        quantity: 0.3
+        matching: "loose"
+        
+      - id: "cba_mayonesa"
+        name: "Mayonesa"
+        keywords: ["mayonesa"]
+        brand_hint: ["Hellmann's", "Natura", "Heinz"]
+        category: "condimentos"
+        unit: "kg"
+        quantity: 0.3
+        matching: "loose"
+        
+      # Bebidas alcohólicas (wine for CBT)
+      - id: "cba_vino"
+        name: "Vino común"
+        keywords: ["vino común", "vino mesa", "vino tinto"]
+        category: "bebidas_alcoholicas"
+        unit: "litro"
+        quantity: 1.5
+        matching: "loose"
+
+  # Basket B: Extended Products
+  extended:
+    name: "Extended Product Basket"
+    description: "Additional products for comprehensive price tracking"
+    items:
+      - id: "ext_harina"
+        name: "Harina de trigo 000"
+        keywords: ["harina 000", "harina trigo"]
+        category: "panaderia"
+        unit: "kg"
+        quantity: 4
+        matching: "loose"
+        
+      - id: "ext_aceite_oliva"
+        name: "Aceite de oliva"
+        keywords: ["aceite oliva", "aceite de oliva"]
+        category: "aceites"
+        unit: "litro"
+        quantity: 0.5
+        matching: "loose"
+        
+      - id: "ext_azucar_morena"
+        name: "Azúcar morena"
+        keywords: ["azucar morena", "azúcar morena"]
+        category: "azucar"
+        unit: "kg"
+        quantity: 1
+        matching: "loose"
+        
+      - id: "ext_galletas_dulces"
+        name: "Galletitas dulces"
+        keywords: ["galletitas dulces", "galletas dulces", "cookies"]
+        category: "panaderia"
+        unit: "paquete"
+        quantity: 2
+        matching: "loose"
+        
+      - id: "ext_jugo"
+        name: "Jugo en polvo"
+        keywords: ["jugo polvo", "jugo en polvo", "refresco"]
+        brand_hint: ["Tang", "Clight"]
+        category: "bebidas"
+        unit: "sobre"
+        quantity: 6
+        matching: "loose"
+        
+      - id: "ext_gaseosa"
+        name: "Gaseosa"
+        keywords: ["gaseosa", "refresco", "soda"]
+        brand_hint: ["Coca-Cola", "Pepsi", "Sprite"]
+        category: "bebidas"
+        unit: "litro"
+        quantity: 3
+        matching: "loose"
+        
+      - id: "ext_atun"
+        name: "Atún en lata"
+        keywords: ["atun lata", "atún en lata"]
+        category: "conservas"
+        unit: "lata"
+        quantity: 2
+        matching: "loose"
+        
+      - id: "ext_arvejas"
+        name: "Arvejas en lata"
+        keywords: ["arvejas lata", "arvejas en lata"]
+        category: "conservas"
+        unit: "lata"
+        quantity: 2
+        matching: "loose"
+        
+      - id: "ext_choclo"
+        name: "Choclo en lata"
+        keywords: ["choclo lata", "choclo en lata", "maíz dulce"]
+        category: "conservas"
+        unit: "lata"
+        quantity: 2
+        matching: "loose"
+        
+      - id: "ext_pure_tomate"
+        name: "Puré de tomate"
+        keywords: ["pure tomate", "puré de tomate"]
+        category: "conservas"
+        unit: "lata"
+        quantity: 3
+        matching: "loose"
+        
+      - id: "ext_shampoo"
+        name: "Shampoo"
+        keywords: ["shampoo", "shampoo"]
+        category: "higiene"
+        unit: "unidad"
+        quantity: 1
+        matching: "loose"
+        
+      - id: "ext_jabon"
+        name: "Jabón de tocador"
+        keywords: ["jabon tocador", "jabón de tocador"]
+        category: "higiene"
+        unit: "unidad"
+        quantity: 3
+        matching: "loose"
+        
+      - id: "ext_pasta_dental"
+        name: "Pasta dental"
+        keywords: ["pasta dental", "dentifrico", "dentífrico"]
+        category: "higiene"
+        unit: "unidad"
+        quantity: 1
+        matching: "loose"
+        
+      - id: "ext_desodorante"
+        name: "Desodorante"
+        keywords: ["desodorante"]
+        category: "higiene"
+        unit: "unidad"
+        quantity: 1
+        matching: "loose"
+        
+      - id: "ext_papel_higienico"
+        name: "Papel higiénico"
+        keywords: ["papel higienico", "papel higiénico"]
+        category: "limpieza"
+        unit: "unidad"
+        quantity: 6
+        matching: "loose"
+        
+      - id: "ext_detergente"
+        name: "Detergente"
+        keywords: ["detergente", "jabón lavarropa"]
+        category: "limpieza"
+        unit: "unidad"
+        quantity: 1
+        matching: "loose"
+        
+      - id: "ext_lavandina"
+        name: "Lavandina"
+        keywords: ["lavandina", "blanqueador"]
+        category: "limpieza"
+        unit: "litro"
+        quantity: 1
+        matching: "loose"
+
+# Storage Configuration
+# ---------------------
+storage:
+  # Options: sqlite, postgresql
+  default_backend: "sqlite"
+  
+  sqlite:
+    database_path: "data/laanonima_prices.db"
+    
+  postgresql:
+    host: "${DB_HOST:localhost}"
+    port: "${DB_PORT:5432}"
+    database: "${DB_NAME:laanonima_tracker}"
+    user: "${DB_USER:tracker}"
+    password: "${DB_PASSWORD:}"
+    
+  exports:
+    csv_path: "data/exports/csv"
+    parquet_path: "data/exports/parquet"
+
+# Scraping Configuration
+# ----------------------
+scraping:
+  # Delay between requests (milliseconds)
+  request_delay: 1000
+  
+  # Max products to check per search
+  max_results_per_search: 5
+  
+  # Browser settings
+  browser:
+    headless: true
+    viewport:
+      width: 1920
+      height: 1080
+    user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    
+  # Selectors (may need updating if site changes)
+  selectors:
+    branch_trigger: "a[data-toggle='codigo-postal']"
+    postal_input: "#idCodigoPostalUnificado"
+    branch_options: "#opcionesSucursal"
+    branch_radio: "input[name='sucursalSuper']"
+    confirm_button: "#btn_setSucursalSuper"
+    current_branch_label: ".sucursal-actual"
+    search_input: "#idBuscarProducto"
+    search_button: ".btn-buscar"
+    product_list: ".producto"
+    product_name: ".nombre-producto"
+    product_price: ".precio-actual"
+    product_price_old: ".precio-anterior"
+    product_unit_price: ".precio-unitario"
+    product_url: "a[href*='producto']"
+    product_image: "img"
+    out_of_stock: ".sin-stock"
+    
+# Scheduling Configuration
+# ------------------------
+scheduling:
+  # Cron expression for GitHub Actions
+  # Runs on 1st and 15th of each month at 9:00 AM ART (Argentina Time)
+  cron_expression: "0 12 1,15 * *"
+  
+  # Alternative: specific days
+  run_days: [1, 15]
+  run_time: "09:00"
+  timezone: "America/Argentina/Buenos_Aires"
+
+# Analysis Configuration
+# ----------------------
+analysis:
+  # Base period for index calculation (YYYY-MM)
+  base_period: "2024-01"
+  
+  # Index type: laspeyres, paasche, or fisher
+  index_type: "laspeyres"
+  
+  # CPI comparison file path (CSV format)
+  cpi_file: "data/cpi/ipc_indec.csv"
+  
+  # Output settings
+  output_dir: "data/analysis"
+  plots_dir: "data/analysis/plots"
+  
+# Logging Configuration
+# ---------------------
+logging:
+  level: "INFO"
+  format: "{time:YYYY-MM-DD HH:mm:ss} | {level} | {name} | {message}"
+  file: "data/logs/tracker.log"
+  rotation: "1 week"
+  retention: "1 month"

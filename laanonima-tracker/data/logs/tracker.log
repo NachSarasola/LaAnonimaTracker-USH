@@ -1,0 +1,760 @@
+2026-02-17 18:48:18 | INFO     | __main__ | La Anónima Price Tracker initialized
+2026-02-17 19:06:21 | INFO     | __main__ | La Anónima Price Tracker initialized
+2026-02-17 19:06:21 | INFO     | __main__ | Initializing tracker...
+2026-02-17 19:06:21 | ERROR    | __main__ | Initialization failed
+Traceback (most recent call last):
+
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+
+  File "C:\Users\Usuario\Desktop\Proyectos IA\laanonima-tracker\src\cli.py", line 398, in <module>
+    cli()
+    └ <Group cli>
+
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\click\core.py", line 1462, in __call__
+    return self.main(*args, **kwargs)
+           │    │     │       └ {}
+           │    │     └ ()
+           │    └ <function Command.main at 0x0000018FBBDFEB60>
+           └ <Group cli>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\click\core.py", line 1383, in main
+    rv = self.invoke(ctx)
+         │    │      └ <click.core.Context object at 0x0000018FD942C110>
+         │    └ <function Group.invoke at 0x0000018FBBDFFA60>
+         └ <Group cli>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\click\core.py", line 1850, in invoke
+    return _process_result(sub_ctx.command.invoke(sub_ctx))
+           │               │       │       │      └ <click.core.Context object at 0x0000018FD942BFD0>
+           │               │       │       └ <function Command.invoke at 0x0000018FBBDFE840>
+           │               │       └ <Command init>
+           │               └ <click.core.Context object at 0x0000018FD942BFD0>
+           └ <function Group.invoke.<locals>._process_result at 0x0000018FD9416340>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\click\core.py", line 1246, in invoke
+    return ctx.invoke(self.callback, **ctx.params)
+           │   │      │    │           │   └ {}
+           │   │      │    │           └ <click.core.Context object at 0x0000018FD942BFD0>
+           │   │      │    └ <function init at 0x0000018FD9416160>
+           │   │      └ <Command init>
+           │   └ <function Context.invoke at 0x0000018FBBDFDA80>
+           └ <click.core.Context object at 0x0000018FD942BFD0>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\click\core.py", line 814, in invoke
+    return callback(*args, **kwargs)
+           │         │       └ {}
+           │         └ ()
+           └ <function init at 0x0000018FD9416160>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\click\decorators.py", line 34, in new_func
+    return f(get_current_context(), *args, **kwargs)
+           │ │                       │       └ {}
+           │ │                       └ ()
+           │ └ <function get_current_context at 0x0000018FBBDD0220>
+           └ <function init at 0x0000018FD94160C0>
+
+> File "C:\Users\Usuario\Desktop\Proyectos IA\laanonima-tracker\src\cli.py", line 242, in init
+    click.echo("✓ Directories created")
+    │     └ <function echo at 0x0000018FBBDD09A0>
+    └ <module 'click' from 'C:\\Users\\Usuario\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\click\\__init__.py'>
+
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\click\utils.py", line 321, in echo
+    file.write(out)  # type: ignore
+    │    │     └ '✓ Directories created\n'
+    │    └ <method 'write' of '_io.TextIOWrapper' objects>
+    └ <_io.TextIOWrapper name='<stdout>' mode='w' encoding='cp1252'>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           │      │              │     │    │      └ <EncodingMap object at 0x0000018FB974C630>
+           │      │              │     │    └ 'surrogateescape'
+           │      │              │     └ <encodings.cp1252.IncrementalEncoder object at 0x0000018FBB4B50D0>
+           │      │              └ '✓ Directories created\r\n'
+           │      └ <built-in function charmap_encode>
+           └ <module 'codecs' (frozen)>
+
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2713' in position 0: character maps to <undefined>
+2026-02-17 19:06:31 | INFO     | __main__ | La Anónima Price Tracker initialized
+2026-02-17 19:06:31 | INFO     | __main__ | Initializing tracker...
+2026-02-17 19:06:37 | INFO     | __main__ | La Anónima Price Tracker initialized
+2026-02-17 19:06:37 | INFO     | __main__ | Starting scrape: basket=cba, headless=True, backend=sqlite, limit=5
+2026-02-17 19:06:37 | INFO     | src.scraper | Scraper initialized (headless=True)
+2026-02-17 19:06:37 | INFO     | src.scraper | Starting browser...
+2026-02-17 19:06:39 | INFO     | src.scraper | Browser started successfully
+2026-02-17 19:06:39 | INFO     | src.scraper | Selecting branch...
+2026-02-17 19:06:39 | INFO     | src.scraper | Selecting branch: USHUAIA 5 (CP: 9410)
+2026-02-17 19:06:39 | INFO     | src.scraper | Navigating to https://laanonima.com.ar/supermercado/
+2026-02-17 19:06:49 | INFO     | src.scraper | Current branch: None, need to change to USHUAIA 5
+2026-02-17 19:06:49 | INFO     | src.scraper | Clicking branch selector: a[data-toggle='codigo-postal']
+2026-02-17 19:07:19 | ERROR    | src.scraper | Branch selection failed: Locator.click: Timeout 30000ms exceeded.
+Call log:
+  - waiting for locator("a[data-toggle='codigo-postal']").first
+    - locator resolved to <a title="" tabindex="0" aria-haspopup="dialog" data-toggle="codigo-postal" aria-controls="codigo-postal" class="colorffffff font-size-14 bold seleccionar-sucursal">…</a>
+  - attempting click action
+    2 × waiting for element to be visible, enabled and stable
+      - element is visible, enabled and stable
+      - scrolling into view if needed
+      - done scrolling
+      - <div class="reveal-overlay">…</div> intercepts pointer events
+    - retrying click action
+    - waiting 20ms
+    2 × waiting for element to be visible, enabled and stable
+      - element is visible, enabled and stable
+      - scrolling into view if needed
+      - done scrolling
+      - <div class="reveal-overlay">…</div> intercepts pointer events
+    - retrying click action
+      - waiting 100ms
+    55 × waiting for element to be visible, enabled and stable
+       - element is visible, enabled and stable
+       - scrolling into view if needed
+       - done scrolling
+       - <div class="reveal-overlay">…</div> intercepts pointer events
+     - retrying click action
+       - waiting 500ms
+
+2026-02-17 19:07:20 | INFO     | src.scraper | Error screenshot saved to data/logs/branch_error_20260217_190719.png
+2026-02-17 19:07:22 | INFO     | src.scraper | Selecting branch: USHUAIA 5 (CP: 9410)
+2026-02-17 19:07:22 | INFO     | src.scraper | Navigating to https://laanonima.com.ar/supermercado/
+2026-02-17 19:07:28 | INFO     | src.scraper | Current branch: None, need to change to USHUAIA 5
+2026-02-17 19:07:28 | INFO     | src.scraper | Clicking branch selector: a[data-toggle='codigo-postal']
+2026-02-17 19:07:28 | INFO     | src.scraper | Branch selector clicked
+2026-02-17 19:07:29 | INFO     | src.scraper | Filling postal code: 9410
+2026-02-17 19:07:29 | INFO     | src.scraper | Waiting for branch options...
+2026-02-17 19:07:41 | ERROR    | src.scraper | Branch selection failed: Page.wait_for_selector: Timeout 10000ms exceeded.
+Call log:
+  - waiting for locator("#opcionesSucursal input[name='sucursalSuper']") to be visible
+    24 × locator resolved to hidden <input value="75" type="radio" id="sucursal_75" name="sucursalSuper" data-sucursal="USHUAIA 5"/>
+
+2026-02-17 19:07:41 | INFO     | src.scraper | Error screenshot saved to data/logs/branch_error_20260217_190741.png
+2026-02-17 19:07:43 | INFO     | src.scraper | Selecting branch: USHUAIA 5 (CP: 9410)
+2026-02-17 19:07:43 | INFO     | src.scraper | Navigating to https://laanonima.com.ar/supermercado/
+2026-02-17 19:07:49 | INFO     | src.scraper | Current branch: None, need to change to USHUAIA 5
+2026-02-17 19:07:49 | INFO     | src.scraper | Clicking branch selector: a[data-toggle='codigo-postal']
+2026-02-17 19:07:49 | INFO     | src.scraper | Branch selector clicked
+2026-02-17 19:07:50 | INFO     | src.scraper | Filling postal code: 9410
+2026-02-17 19:07:50 | INFO     | src.scraper | Waiting for branch options...
+2026-02-17 19:08:02 | ERROR    | src.scraper | Branch selection failed: Page.wait_for_selector: Timeout 10000ms exceeded.
+Call log:
+  - waiting for locator("#opcionesSucursal input[name='sucursalSuper']") to be visible
+    24 × locator resolved to hidden <input value="75" type="radio" id="sucursal_75" name="sucursalSuper" data-sucursal="USHUAIA 5"/>
+
+2026-02-17 19:08:03 | INFO     | src.scraper | Error screenshot saved to data/logs/branch_error_20260217_190802.png
+2026-02-17 19:08:03 | INFO     | src.scraper | Stopping browser...
+2026-02-17 19:08:03 | INFO     | src.scraper | Browser stopped
+2026-02-17 19:08:03 | ERROR    | src.scraper | Scrape failed: Failed to select branch: Page.wait_for_selector: Timeout 10000ms exceeded.
+Call log:
+  - waiting for locator("#opcionesSucursal input[name='sucursalSuper']") to be visible
+    24 × locator resolved to hidden <input value="75" type="radio" id="sucursal_75" name="sucursalSuper" data-sucursal="USHUAIA 5"/>
+
+2026-02-17 19:08:03 | ERROR    | __main__ | Scrape failed
+Traceback (most recent call last):
+
+  File "C:\Users\Usuario\Desktop\Proyectos IA\laanonima-tracker\src\scraper.py", line 243, in select_branch
+    self.page.wait_for_selector(f"{options_selector} {radio_selector}", timeout=10000)
+    │    │    └ <function Page.wait_for_selector at 0x0000019452F172E0>
+    │    └ <Page url='https://laanonima.com.ar/supermercado/'>
+    └ <src.scraper.LaAnonimaScraper object at 0x000001946FB2FF10>
+
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\playwright\sync_api\_generated.py", line 8217, in wait_for_selector
+    self._sync(
+    │    └ <function SyncBase._sync at 0x0000019452EE6DE0>
+    └ <Page url='https://laanonima.com.ar/supermercado/'>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\playwright\_impl\_sync_base.py", line 115, in _sync
+    return task.result()
+           │    └ <method 'result' of '_asyncio.Task' objects>
+           └ <Task finished name='Task-41' coro=<Page.wait_for_selector() done, defined at C:\Users\Usuario\AppData\Local\Programs\Python\...
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\playwright\_impl\_page.py", line 419, in wait_for_selector
+    return await self._main_frame.wait_for_selector(**locals_to_params(locals()))
+                 │    │           │                   └ <function locals_to_params at 0x0000019452D2F6A0>
+                 │    │           └ <function Frame.wait_for_selector at 0x0000019452EA1300>
+                 │    └ <Frame name= url='https://laanonima.com.ar/supermercado/'>
+                 └ <Page url='https://laanonima.com.ar/supermercado/'>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\playwright\_impl\_frame.py", line 369, in wait_for_selector
+    await self._channel.send(
+          │    │        └ <function Channel.send at 0x0000019452D2DE40>
+          │    └ <playwright._impl._connection.Channel object at 0x000001946FF88890>
+          └ <Frame name= url='https://laanonima.com.ar/supermercado/'>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\playwright\_impl\_connection.py", line 69, in send
+    return await self._connection.wrap_api_call(
+                 │    │           └ <function Connection.wrap_api_call at 0x0000019452DEE480>
+                 │    └ <playwright._impl._connection.Connection object at 0x000001946FB44D90>
+                 └ <playwright._impl._connection.Channel object at 0x000001946FF88890>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\playwright\_impl\_connection.py", line 559, in wrap_api_call
+    raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+          └ <function rewrite_error at 0x0000019452CD9760>
+
+playwright._impl._errors.TimeoutError: Page.wait_for_selector: Timeout 10000ms exceeded.
+Call log:
+  - waiting for locator("#opcionesSucursal input[name='sucursalSuper']") to be visible
+    24 × locator resolved to hidden <input value="75" type="radio" id="sucursal_75" name="sucursalSuper" data-sucursal="USHUAIA 5"/>
+
+
+
+During handling of the above exception, another exception occurred:
+
+
+Traceback (most recent call last):
+
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+
+  File "C:\Users\Usuario\Desktop\Proyectos IA\laanonima-tracker\src\cli.py", line 398, in <module>
+    cli()
+    └ <Group cli>
+
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\click\core.py", line 1462, in __call__
+    return self.main(*args, **kwargs)
+           │    │     │       └ {}
+           │    │     └ ()
+           │    └ <function Command.main at 0x000001945245EB60>
+           └ <Group cli>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\click\core.py", line 1383, in main
+    rv = self.invoke(ctx)
+         │    │      └ <click.core.Context object at 0x000001946FACC4D0>
+         │    └ <function Group.invoke at 0x000001945245FA60>
+         └ <Group cli>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\click\core.py", line 1850, in invoke
+    return _process_result(sub_ctx.command.invoke(sub_ctx))
+           │               │       │       │      └ <click.core.Context object at 0x000001946FACC650>
+           │               │       │       └ <function Command.invoke at 0x000001945245E840>
+           │               │       └ <Command scrape>
+           │               └ <click.core.Context object at 0x000001946FACC650>
+           └ <function Group.invoke.<locals>._process_result at 0x000001946FAB6340>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\click\core.py", line 1246, in invoke
+    return ctx.invoke(self.callback, **ctx.params)
+           │   │      │    │           │   └ {'basket': 'cba', 'limit': 5, 'headless': True, 'backend': 'sqlite'}
+           │   │      │    │           └ <click.core.Context object at 0x000001946FACC650>
+           │   │      │    └ <function scrape at 0x000001946FAB6520>
+           │   │      └ <Command scrape>
+           │   └ <function Context.invoke at 0x000001945245DA80>
+           └ <click.core.Context object at 0x000001946FACC650>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\click\core.py", line 814, in invoke
+    return callback(*args, **kwargs)
+           │         │       └ {'basket': 'cba', 'limit': 5, 'headless': True, 'backend': 'sqlite'}
+           │         └ ()
+           └ <function scrape at 0x000001946FAB6520>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\click\decorators.py", line 34, in new_func
+    return f(get_current_context(), *args, **kwargs)
+           │ │                       │       └ {'basket': 'cba', 'limit': 5, 'headless': True, 'backend': 'sqlite'}
+           │ │                       └ ()
+           │ └ <function get_current_context at 0x0000019452430220>
+           └ <function scrape at 0x000001946FAB6480>
+
+> File "C:\Users\Usuario\Desktop\Proyectos IA\laanonima-tracker\src\cli.py", line 96, in scrape
+    results = run_scrape(
+              └ <function run_scrape at 0x0000019452CB7240>
+
+  File "C:\Users\Usuario\Desktop\Proyectos IA\laanonima-tracker\src\scraper.py", line 587, in run_scrape
+    branch_success = scraper.select_branch()
+                     │       └ <function LaAnonimaScraper.select_branch at 0x000001945454F2E0>
+                     └ <src.scraper.LaAnonimaScraper object at 0x000001946FB2FF10>
+
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\tenacity\__init__.py", line 338, in wrapped_f
+    return copy(f, *args, **kw)
+           │    │   │       └ {}
+           │    │   └ (<src.scraper.LaAnonimaScraper object at 0x000001946FB2FF10>,)
+           │    └ <function LaAnonimaScraper.select_branch at 0x000001945454F1A0>
+           └ <Retrying object at 0x1946ff1fbd0 (stop=<tenacity.stop.stop_after_attempt object at 0x00000194544AB550>, wait=<tenacity.wait....
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\tenacity\__init__.py", line 477, in __call__
+    do = self.iter(retry_state=retry_state)
+         │    │                └ <RetryCallState 1737040778128: attempt #3; slept for 4.0; last result: failed (BranchSelectionError Failed to select branch: ...
+         │    └ <function BaseRetrying.iter at 0x0000019452F94360>
+         └ <Retrying object at 0x1946ff1fbd0 (stop=<tenacity.stop.stop_after_attempt object at 0x00000194544AB550>, wait=<tenacity.wait....
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\tenacity\__init__.py", line 378, in iter
+    result = action(retry_state)
+             │      └ <RetryCallState 1737040778128: attempt #3; slept for 4.0; last result: failed (BranchSelectionError Failed to select branch: ...
+             └ <function BaseRetrying._post_stop_check_actions.<locals>.exc_check at 0x000001946FF68720>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\tenacity\__init__.py", line 420, in exc_check
+    raise retry_exc.reraise()
+          │         └ <function RetryError.reraise at 0x0000019452F7F880>
+          └ RetryError(<Future at 0x1947006fa10 state=finished raised BranchSelectionError>)
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\tenacity\__init__.py", line 187, in reraise
+    raise self.last_attempt.result()
+          │    │            └ <function Future.result at 0x0000019452972520>
+          │    └ <Future at 0x1947006fa10 state=finished raised BranchSelectionError>
+          └ RetryError(<Future at 0x1947006fa10 state=finished raised BranchSelectionError>)
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\concurrent\futures\_base.py", line 449, in result
+    return self.__get_result()
+           └ None
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\concurrent\futures\_base.py", line 401, in __get_result
+    raise self._exception
+          └ None
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\tenacity\__init__.py", line 480, in __call__
+    result = fn(*args, **kwargs)
+             │   │       └ {}
+             │   └ (<src.scraper.LaAnonimaScraper object at 0x000001946FB2FF10>,)
+             └ <function LaAnonimaScraper.select_branch at 0x000001945454F1A0>
+
+  File "C:\Users\Usuario\Desktop\Proyectos IA\laanonima-tracker\src\scraper.py", line 333, in select_branch
+    raise BranchSelectionError(f"Failed to select branch: {e}")
+          └ <class 'src.scraper.BranchSelectionError'>
+
+src.scraper.BranchSelectionError: Failed to select branch: Page.wait_for_selector: Timeout 10000ms exceeded.
+Call log:
+  - waiting for locator("#opcionesSucursal input[name='sucursalSuper']") to be visible
+    24 × locator resolved to hidden <input value="75" type="radio" id="sucursal_75" name="sucursalSuper" data-sucursal="USHUAIA 5"/>
+
+2026-02-17 19:08:41 | INFO     | __main__ | La Anónima Price Tracker initialized
+2026-02-17 19:08:41 | INFO     | __main__ | Starting scrape: basket=cba, headless=True, backend=sqlite, limit=5
+2026-02-17 19:08:41 | INFO     | src.scraper | Scraper initialized (headless=True)
+2026-02-17 19:08:41 | INFO     | src.scraper | Starting browser...
+2026-02-17 19:08:43 | INFO     | src.scraper | Browser started successfully
+2026-02-17 19:08:43 | INFO     | src.scraper | Selecting branch...
+2026-02-17 19:08:43 | INFO     | src.scraper | Selecting branch: USHUAIA 5 (CP: 9410)
+2026-02-17 19:08:43 | INFO     | src.scraper | Navigating to https://laanonima.com.ar/supermercado/
+2026-02-17 19:08:55 | INFO     | src.scraper | Current branch: None, need to change to USHUAIA 5
+2026-02-17 19:08:55 | INFO     | src.scraper | Clicking branch selector: a[data-toggle='codigo-postal']
+2026-02-17 19:09:25 | ERROR    | src.scraper | Branch selection failed: Locator.click: Timeout 30000ms exceeded.
+Call log:
+  - waiting for locator("a[data-toggle='codigo-postal']").first
+    - locator resolved to <a title="" tabindex="0" aria-haspopup="dialog" data-toggle="codigo-postal" aria-controls="codigo-postal" class="colorffffff font-size-14 bold seleccionar-sucursal">…</a>
+  - attempting click action
+    2 × waiting for element to be visible, enabled and stable
+      - element is visible, enabled and stable
+      - scrolling into view if needed
+      - done scrolling
+      - <div class="reveal-overlay">…</div> intercepts pointer events
+    - retrying click action
+    - waiting 20ms
+    2 × waiting for element to be visible, enabled and stable
+      - element is visible, enabled and stable
+      - scrolling into view if needed
+      - done scrolling
+      - <div class="reveal-overlay">…</div> intercepts pointer events
+    - retrying click action
+      - waiting 100ms
+    55 × waiting for element to be visible, enabled and stable
+       - element is visible, enabled and stable
+       - scrolling into view if needed
+       - done scrolling
+       - <div class="reveal-overlay">…</div> intercepts pointer events
+     - retrying click action
+       - waiting 500ms
+
+2026-02-17 19:09:25 | INFO     | src.scraper | Error screenshot saved to data/logs/branch_error_20260217_190925.png
+2026-02-17 19:09:27 | INFO     | src.scraper | Selecting branch: USHUAIA 5 (CP: 9410)
+2026-02-17 19:09:27 | INFO     | src.scraper | Navigating to https://laanonima.com.ar/supermercado/
+2026-02-17 19:09:33 | INFO     | src.scraper | Current branch: None, need to change to USHUAIA 5
+2026-02-17 19:09:33 | INFO     | src.scraper | Clicking branch selector: a[data-toggle='codigo-postal']
+2026-02-17 19:09:33 | INFO     | src.scraper | Branch selector clicked
+2026-02-17 19:09:34 | INFO     | src.scraper | Filling postal code: 9410
+2026-02-17 19:09:34 | INFO     | src.scraper | Waiting for branch options...
+2026-02-17 19:09:37 | ERROR    | src.scraper | Could not select branch by ID: Locator.click: Element is not visible
+Call log:
+  - waiting for locator("input[name='sucursalSuper'][value='75']").first
+    - locator resolved to <input value="75" type="radio" id="sucursal_75" name="sucursalSuper" data-sucursal="USHUAIA 5"/>
+  - attempting click action
+    - scrolling into view if needed
+
+2026-02-17 19:09:37 | ERROR    | src.scraper | Branch selection failed: Branch 'USHUAIA 5' not found in options
+2026-02-17 19:09:37 | INFO     | src.scraper | Error screenshot saved to data/logs/branch_error_20260217_190937.png
+2026-02-17 19:09:39 | INFO     | src.scraper | Selecting branch: USHUAIA 5 (CP: 9410)
+2026-02-17 19:09:39 | INFO     | src.scraper | Navigating to https://laanonima.com.ar/supermercado/
+2026-02-17 19:09:44 | INFO     | src.scraper | Current branch: None, need to change to USHUAIA 5
+2026-02-17 19:09:44 | INFO     | src.scraper | Clicking branch selector: a[data-toggle='codigo-postal']
+2026-02-17 19:09:44 | INFO     | src.scraper | Branch selector clicked
+2026-02-17 19:09:45 | INFO     | src.scraper | Filling postal code: 9410
+2026-02-17 19:09:45 | INFO     | src.scraper | Waiting for branch options...
+2026-02-17 19:09:48 | ERROR    | src.scraper | Could not select branch by ID: Locator.click: Element is not visible
+Call log:
+  - waiting for locator("input[name='sucursalSuper'][value='75']").first
+    - locator resolved to <input value="75" type="radio" id="sucursal_75" name="sucursalSuper" data-sucursal="USHUAIA 5"/>
+  - attempting click action
+    - scrolling into view if needed
+
+2026-02-17 19:09:48 | ERROR    | src.scraper | Branch selection failed: Branch 'USHUAIA 5' not found in options
+2026-02-17 19:09:48 | INFO     | src.scraper | Error screenshot saved to data/logs/branch_error_20260217_190948.png
+2026-02-17 19:09:48 | INFO     | src.scraper | Stopping browser...
+2026-02-17 19:09:48 | INFO     | src.scraper | Browser stopped
+2026-02-17 19:09:48 | ERROR    | src.scraper | Scrape failed: Failed to select branch: Branch 'USHUAIA 5' not found in options
+2026-02-17 19:09:48 | ERROR    | __main__ | Scrape failed
+Traceback (most recent call last):
+
+  File "C:\Users\Usuario\Desktop\Proyectos IA\laanonima-tracker\src\scraper.py", line 287, in select_branch
+    raise BranchSelectionError(f"Branch '{branch_name}' not found in options")
+          └ <class 'src.scraper.BranchSelectionError'>
+
+src.scraper.BranchSelectionError: Branch 'USHUAIA 5' not found in options
+
+
+During handling of the above exception, another exception occurred:
+
+
+Traceback (most recent call last):
+
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+
+  File "C:\Users\Usuario\Desktop\Proyectos IA\laanonima-tracker\src\cli.py", line 398, in <module>
+    cli()
+    └ <Group cli>
+
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\click\core.py", line 1462, in __call__
+    return self.main(*args, **kwargs)
+           │    │     │       └ {}
+           │    │     └ ()
+           │    └ <function Command.main at 0x0000024DE152EB60>
+           └ <Group cli>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\click\core.py", line 1383, in main
+    rv = self.invoke(ctx)
+         │    │      └ <click.core.Context object at 0x0000024DFEB5C490>
+         │    └ <function Group.invoke at 0x0000024DE152FA60>
+         └ <Group cli>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\click\core.py", line 1850, in invoke
+    return _process_result(sub_ctx.command.invoke(sub_ctx))
+           │               │       │       │      └ <click.core.Context object at 0x0000024DFEA1D450>
+           │               │       │       └ <function Command.invoke at 0x0000024DE152E840>
+           │               │       └ <Command scrape>
+           │               └ <click.core.Context object at 0x0000024DFEA1D450>
+           └ <function Group.invoke.<locals>._process_result at 0x0000024DFEB46340>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\click\core.py", line 1246, in invoke
+    return ctx.invoke(self.callback, **ctx.params)
+           │   │      │    │           │   └ {'basket': 'cba', 'limit': 5, 'headless': True, 'backend': 'sqlite'}
+           │   │      │    │           └ <click.core.Context object at 0x0000024DFEA1D450>
+           │   │      │    └ <function scrape at 0x0000024DFEB46520>
+           │   │      └ <Command scrape>
+           │   └ <function Context.invoke at 0x0000024DE152DA80>
+           └ <click.core.Context object at 0x0000024DFEA1D450>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\click\core.py", line 814, in invoke
+    return callback(*args, **kwargs)
+           │         │       └ {'basket': 'cba', 'limit': 5, 'headless': True, 'backend': 'sqlite'}
+           │         └ ()
+           └ <function scrape at 0x0000024DFEB46520>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\click\decorators.py", line 34, in new_func
+    return f(get_current_context(), *args, **kwargs)
+           │ │                       │       └ {'basket': 'cba', 'limit': 5, 'headless': True, 'backend': 'sqlite'}
+           │ │                       └ ()
+           │ └ <function get_current_context at 0x0000024DE1500220>
+           └ <function scrape at 0x0000024DFEB46480>
+
+> File "C:\Users\Usuario\Desktop\Proyectos IA\laanonima-tracker\src\cli.py", line 96, in scrape
+    results = run_scrape(
+              └ <function run_scrape at 0x0000024DE1D57420>
+
+  File "C:\Users\Usuario\Desktop\Proyectos IA\laanonima-tracker\src\scraper.py", line 585, in run_scrape
+    branch_success = scraper.select_branch()
+                     │       └ <function LaAnonimaScraper.select_branch at 0x0000024DE35EF2E0>
+                     └ <src.scraper.LaAnonimaScraper object at 0x0000024DFEB95B50>
+
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\tenacity\__init__.py", line 338, in wrapped_f
+    return copy(f, *args, **kw)
+           │    │   │       └ {}
+           │    │   └ (<src.scraper.LaAnonimaScraper object at 0x0000024DFEB95B50>,)
+           │    └ <function LaAnonimaScraper.select_branch at 0x0000024DE35EF1A0>
+           └ <Retrying object at 0x24dff001210 (stop=<tenacity.stop.stop_after_attempt object at 0x0000024DE354B550>, wait=<tenacity.wait....
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\tenacity\__init__.py", line 477, in __call__
+    do = self.iter(retry_state=retry_state)
+         │    │                └ <RetryCallState 2534013936720: attempt #3; slept for 4.0; last result: failed (BranchSelectionError Failed to select branch: ...
+         │    └ <function BaseRetrying.iter at 0x0000024DE2834360>
+         └ <Retrying object at 0x24dff001210 (stop=<tenacity.stop.stop_after_attempt object at 0x0000024DE354B550>, wait=<tenacity.wait....
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\tenacity\__init__.py", line 378, in iter
+    result = action(retry_state)
+             │      └ <RetryCallState 2534013936720: attempt #3; slept for 4.0; last result: failed (BranchSelectionError Failed to select branch: ...
+             └ <function BaseRetrying._post_stop_check_actions.<locals>.exc_check at 0x0000024DFEFF9BC0>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\tenacity\__init__.py", line 420, in exc_check
+    raise retry_exc.reraise()
+          │         └ <function RetryError.reraise at 0x0000024DE281F880>
+          └ RetryError(<Future at 0x24dff10ed50 state=finished raised BranchSelectionError>)
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\tenacity\__init__.py", line 187, in reraise
+    raise self.last_attempt.result()
+          │    │            └ <function Future.result at 0x0000024DE1A12520>
+          │    └ <Future at 0x24dff10ed50 state=finished raised BranchSelectionError>
+          └ RetryError(<Future at 0x24dff10ed50 state=finished raised BranchSelectionError>)
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\concurrent\futures\_base.py", line 449, in result
+    return self.__get_result()
+           └ None
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\concurrent\futures\_base.py", line 401, in __get_result
+    raise self._exception
+          └ None
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\tenacity\__init__.py", line 480, in __call__
+    result = fn(*args, **kwargs)
+             │   │       └ {}
+             │   └ (<src.scraper.LaAnonimaScraper object at 0x0000024DFEB95B50>,)
+             └ <function LaAnonimaScraper.select_branch at 0x0000024DE35EF1A0>
+
+  File "C:\Users\Usuario\Desktop\Proyectos IA\laanonima-tracker\src\scraper.py", line 331, in select_branch
+    raise BranchSelectionError(f"Failed to select branch: {e}")
+          └ <class 'src.scraper.BranchSelectionError'>
+
+src.scraper.BranchSelectionError: Failed to select branch: Branch 'USHUAIA 5' not found in options
+2026-02-17 19:10:29 | INFO     | __main__ | La Anónima Price Tracker initialized
+2026-02-17 19:10:29 | INFO     | __main__ | Starting scrape: basket=cba, headless=True, backend=sqlite, limit=5
+2026-02-17 19:10:29 | INFO     | src.scraper | Scraper initialized (headless=True)
+2026-02-17 19:10:29 | INFO     | src.scraper | Starting browser...
+2026-02-17 19:10:31 | INFO     | src.scraper | Browser started successfully
+2026-02-17 19:10:31 | INFO     | src.scraper | Selecting branch...
+2026-02-17 19:10:31 | INFO     | src.scraper | Selecting branch: USHUAIA 5 (CP: 9410)
+2026-02-17 19:10:31 | INFO     | src.scraper | Navigating to https://laanonima.com.ar/supermercado/
+2026-02-17 19:10:39 | INFO     | src.scraper | Current branch: None, need to change to USHUAIA 5
+2026-02-17 19:10:39 | INFO     | src.scraper | Clicking branch selector: a[data-toggle='codigo-postal']
+2026-02-17 19:10:39 | INFO     | src.scraper | Branch selector clicked
+2026-02-17 19:10:40 | INFO     | src.scraper | Filling postal code: 9410
+2026-02-17 19:10:42 | INFO     | src.scraper | Branch selection confirmed
+2026-02-17 19:10:51 | ERROR    | src.scraper | Branch selection failed: Branch selection did not persist. Current: None
+2026-02-17 19:10:51 | INFO     | src.scraper | Error screenshot saved to data/logs/branch_error_20260217_191051.png
+2026-02-17 19:10:53 | INFO     | src.scraper | Selecting branch: USHUAIA 5 (CP: 9410)
+2026-02-17 19:10:53 | INFO     | src.scraper | Navigating to https://laanonima.com.ar/supermercado/
+2026-02-17 19:10:57 | INFO     | src.scraper | Current branch: None, need to change to USHUAIA 5
+2026-02-17 19:10:57 | INFO     | src.scraper | Clicking branch selector: a[data-toggle='codigo-postal']
+2026-02-17 19:10:57 | INFO     | src.scraper | Branch selector clicked
+2026-02-17 19:10:58 | INFO     | src.scraper | Filling postal code: 9410
+2026-02-17 19:11:00 | INFO     | src.scraper | Branch selection confirmed
+2026-02-17 19:11:09 | ERROR    | src.scraper | Branch selection failed: Branch selection did not persist. Current: None
+2026-02-17 19:11:09 | INFO     | src.scraper | Error screenshot saved to data/logs/branch_error_20260217_191109.png
+2026-02-17 19:11:11 | INFO     | src.scraper | Selecting branch: USHUAIA 5 (CP: 9410)
+2026-02-17 19:11:11 | INFO     | src.scraper | Navigating to https://laanonima.com.ar/supermercado/
+2026-02-17 19:11:15 | INFO     | src.scraper | Current branch: None, need to change to USHUAIA 5
+2026-02-17 19:11:15 | INFO     | src.scraper | Clicking branch selector: a[data-toggle='codigo-postal']
+2026-02-17 19:11:15 | INFO     | src.scraper | Branch selector clicked
+2026-02-17 19:11:16 | INFO     | src.scraper | Filling postal code: 9410
+2026-02-17 19:11:18 | INFO     | src.scraper | Branch selection confirmed
+2026-02-17 19:11:29 | ERROR    | src.scraper | Branch selection failed: Branch selection did not persist. Current: None
+2026-02-17 19:11:29 | INFO     | src.scraper | Error screenshot saved to data/logs/branch_error_20260217_191129.png
+2026-02-17 19:11:29 | INFO     | src.scraper | Stopping browser...
+2026-02-17 19:11:29 | INFO     | src.scraper | Browser stopped
+2026-02-17 19:11:29 | ERROR    | src.scraper | Scrape failed: Failed to select branch: Branch selection did not persist. Current: None
+2026-02-17 19:11:29 | ERROR    | __main__ | Scrape failed
+Traceback (most recent call last):
+
+  File "C:\Users\Usuario\Desktop\Proyectos IA\laanonima-tracker\src\scraper.py", line 286, in select_branch
+    raise BranchSelectionError(f"Branch selection did not persist. Current: {current}")
+          └ <class 'src.scraper.BranchSelectionError'>
+
+src.scraper.BranchSelectionError: Branch selection did not persist. Current: None
+
+
+During handling of the above exception, another exception occurred:
+
+
+Traceback (most recent call last):
+
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+
+  File "C:\Users\Usuario\Desktop\Proyectos IA\laanonima-tracker\src\cli.py", line 398, in <module>
+    cli()
+    └ <Group cli>
+
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\click\core.py", line 1462, in __call__
+    return self.main(*args, **kwargs)
+           │    │     │       └ {}
+           │    │     └ ()
+           │    └ <function Command.main at 0x000002D47E50EB60>
+           └ <Group cli>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\click\core.py", line 1383, in main
+    rv = self.invoke(ctx)
+         │    │      └ <click.core.Context object at 0x000002D41BB6C250>
+         │    └ <function Group.invoke at 0x000002D47E50FA60>
+         └ <Group cli>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\click\core.py", line 1850, in invoke
+    return _process_result(sub_ctx.command.invoke(sub_ctx))
+           │               │       │       │      └ <click.core.Context object at 0x000002D41BB6C3D0>
+           │               │       │       └ <function Command.invoke at 0x000002D47E50E840>
+           │               │       └ <Command scrape>
+           │               └ <click.core.Context object at 0x000002D41BB6C3D0>
+           └ <function Group.invoke.<locals>._process_result at 0x000002D41BB4A3E0>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\click\core.py", line 1246, in invoke
+    return ctx.invoke(self.callback, **ctx.params)
+           │   │      │    │           │   └ {'basket': 'cba', 'limit': 5, 'headless': True, 'backend': 'sqlite'}
+           │   │      │    │           └ <click.core.Context object at 0x000002D41BB6C3D0>
+           │   │      │    └ <function scrape at 0x000002D41BB4A5C0>
+           │   │      └ <Command scrape>
+           │   └ <function Context.invoke at 0x000002D47E50DA80>
+           └ <click.core.Context object at 0x000002D41BB6C3D0>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\click\core.py", line 814, in invoke
+    return callback(*args, **kwargs)
+           │         │       └ {'basket': 'cba', 'limit': 5, 'headless': True, 'backend': 'sqlite'}
+           │         └ ()
+           └ <function scrape at 0x000002D41BB4A5C0>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\click\decorators.py", line 34, in new_func
+    return f(get_current_context(), *args, **kwargs)
+           │ │                       │       └ {'basket': 'cba', 'limit': 5, 'headless': True, 'backend': 'sqlite'}
+           │ │                       └ ()
+           │ └ <function get_current_context at 0x000002D47E4E0220>
+           └ <function scrape at 0x000002D41BB4A520>
+
+> File "C:\Users\Usuario\Desktop\Proyectos IA\laanonima-tracker\src\cli.py", line 96, in scrape
+    results = run_scrape(
+              └ <function run_scrape at 0x000002D47ED674C0>
+
+  File "C:\Users\Usuario\Desktop\Proyectos IA\laanonima-tracker\src\scraper.py", line 551, in run_scrape
+    branch_success = scraper.select_branch()
+                     │       └ <function LaAnonimaScraper.select_branch at 0x000002D40061F380>
+                     └ <src.scraper.LaAnonimaScraper object at 0x000002D41BBA71D0>
+
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\tenacity\__init__.py", line 338, in wrapped_f
+    return copy(f, *args, **kw)
+           │    │   │       └ {}
+           │    │   └ (<src.scraper.LaAnonimaScraper object at 0x000002D41BBA71D0>,)
+           │    └ <function LaAnonimaScraper.select_branch at 0x000002D40061F240>
+           └ <Retrying object at 0x2d41c00dbd0 (stop=<tenacity.stop.stop_after_attempt object at 0x000002D4005875D0>, wait=<tenacity.wait....
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\tenacity\__init__.py", line 477, in __call__
+    do = self.iter(retry_state=retry_state)
+         │    │                └ <RetryCallState 3110021838928: attempt #3; slept for 4.0; last result: failed (BranchSelectionError Failed to select branch: ...
+         │    └ <function BaseRetrying.iter at 0x000002D47F844400>
+         └ <Retrying object at 0x2d41c00dbd0 (stop=<tenacity.stop.stop_after_attempt object at 0x000002D4005875D0>, wait=<tenacity.wait....
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\tenacity\__init__.py", line 378, in iter
+    result = action(retry_state)
+             │      └ <RetryCallState 3110021838928: attempt #3; slept for 4.0; last result: failed (BranchSelectionError Failed to select branch: ...
+             └ <function BaseRetrying._post_stop_check_actions.<locals>.exc_check at 0x000002D41BCA1E40>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\tenacity\__init__.py", line 420, in exc_check
+    raise retry_exc.reraise()
+          │         └ <function RetryError.reraise at 0x000002D47F82F920>
+          └ RetryError(<Future at 0x2d41d17b850 state=finished raised BranchSelectionError>)
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\tenacity\__init__.py", line 187, in reraise
+    raise self.last_attempt.result()
+          │    │            └ <function Future.result at 0x000002D47EA22520>
+          │    └ <Future at 0x2d41d17b850 state=finished raised BranchSelectionError>
+          └ RetryError(<Future at 0x2d41d17b850 state=finished raised BranchSelectionError>)
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\concurrent\futures\_base.py", line 449, in result
+    return self.__get_result()
+           └ None
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\concurrent\futures\_base.py", line 401, in __get_result
+    raise self._exception
+          └ None
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\tenacity\__init__.py", line 480, in __call__
+    result = fn(*args, **kwargs)
+             │   │       └ {}
+             │   └ (<src.scraper.LaAnonimaScraper object at 0x000002D41BBA71D0>,)
+             └ <function LaAnonimaScraper.select_branch at 0x000002D40061F240>
+
+  File "C:\Users\Usuario\Desktop\Proyectos IA\laanonima-tracker\src\scraper.py", line 297, in select_branch
+    raise BranchSelectionError(f"Failed to select branch: {e}")
+          └ <class 'src.scraper.BranchSelectionError'>
+
+src.scraper.BranchSelectionError: Failed to select branch: Branch selection did not persist. Current: None
+2026-02-17 19:11:55 | INFO     | __main__ | La Anónima Price Tracker initialized
+2026-02-17 19:11:55 | INFO     | __main__ | Starting scrape: basket=cba, headless=True, backend=sqlite, limit=5
+2026-02-17 19:11:55 | INFO     | src.scraper | Scraper initialized (headless=True)
+2026-02-17 19:11:55 | INFO     | src.scraper | Starting browser...
+2026-02-17 19:11:57 | INFO     | src.scraper | Browser started successfully
+2026-02-17 19:11:57 | INFO     | src.scraper | Selecting branch...
+2026-02-17 19:11:57 | INFO     | src.scraper | Selecting branch: USHUAIA 5 (CP: 9410)
+2026-02-17 19:11:57 | INFO     | src.scraper | Navigating to https://laanonima.com.ar/supermercado/
+2026-02-17 19:34:09 | INFO     | src.scraper | Current branch: None, need to change to USHUAIA 5
+2026-02-17 19:34:09 | INFO     | src.scraper | Clicking branch selector: a[data-toggle='codigo-postal']
+2026-02-17 19:34:09 | ERROR    | src.scraper | Branch selection failed: Locator.is_visible: Target page, context or browser has been closed
+2026-02-17 19:34:11 | INFO     | src.scraper | Selecting branch: USHUAIA 5 (CP: 9410)
+2026-02-17 19:34:11 | INFO     | src.scraper | Navigating to https://laanonima.com.ar/supermercado/
+2026-02-17 19:34:11 | INFO     | src.scraper | Stopping browser...
+2026-02-17 19:34:11 | INFO     | src.scraper | Browser stopped
+2026-02-17 19:34:11 | ERROR    | src.scraper | Scrape failed: Page.goto: Target page, context or browser has been closed
+2026-02-17 19:34:11 | ERROR    | __main__ | Scrape failed
+Traceback (most recent call last):
+
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+
+  File "C:\Users\Usuario\Desktop\Proyectos IA\laanonima-tracker\src\cli.py", line 398, in <module>
+    cli()
+    └ <Group cli>
+
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\click\core.py", line 1462, in __call__
+    return self.main(*args, **kwargs)
+           │    │     │       └ {}
+           │    │     └ ()
+           │    └ <function Command.main at 0x00000189FBCBEB60>
+           └ <Group cli>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\click\core.py", line 1383, in main
+    rv = self.invoke(ctx)
+         │    │      └ <click.core.Context object at 0x00000189992AC2D0>
+         │    └ <function Group.invoke at 0x00000189FBCBFA60>
+         └ <Group cli>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\click\core.py", line 1850, in invoke
+    return _process_result(sub_ctx.command.invoke(sub_ctx))
+           │               │       │       │      └ <click.core.Context object at 0x0000018998369250>
+           │               │       │       └ <function Command.invoke at 0x00000189FBCBE840>
+           │               │       └ <Command scrape>
+           │               └ <click.core.Context object at 0x0000018998369250>
+           └ <function Group.invoke.<locals>._process_result at 0x0000018999296340>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\click\core.py", line 1246, in invoke
+    return ctx.invoke(self.callback, **ctx.params)
+           │   │      │    │           │   └ {'basket': 'cba', 'limit': 5, 'headless': True, 'backend': 'sqlite'}
+           │   │      │    │           └ <click.core.Context object at 0x0000018998369250>
+           │   │      │    └ <function scrape at 0x0000018999296520>
+           │   │      └ <Command scrape>
+           │   └ <function Context.invoke at 0x00000189FBCBDA80>
+           └ <click.core.Context object at 0x0000018998369250>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\click\core.py", line 814, in invoke
+    return callback(*args, **kwargs)
+           │         │       └ {'basket': 'cba', 'limit': 5, 'headless': True, 'backend': 'sqlite'}
+           │         └ ()
+           └ <function scrape at 0x0000018999296520>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\click\decorators.py", line 34, in new_func
+    return f(get_current_context(), *args, **kwargs)
+           │ │                       │       └ {'basket': 'cba', 'limit': 5, 'headless': True, 'backend': 'sqlite'}
+           │ │                       └ ()
+           │ └ <function get_current_context at 0x00000189FBC90220>
+           └ <function scrape at 0x0000018999296480>
+
+> File "C:\Users\Usuario\Desktop\Proyectos IA\laanonima-tracker\src\cli.py", line 96, in scrape
+    results = run_scrape(
+              └ <function run_scrape at 0x00000189FC4A7420>
+
+  File "C:\Users\Usuario\Desktop\Proyectos IA\laanonima-tracker\src\scraper.py", line 555, in run_scrape
+    try:
+
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\tenacity\__init__.py", line 338, in wrapped_f
+    return copy(f, *args, **kw)
+           │    │   │       └ {}
+           │    │   └ (<src.scraper.LaAnonimaScraper object at 0x0000018999315F90>,)
+           │    └ <function LaAnonimaScraper.select_branch at 0x00000189FDD3F1A0>
+           └ <Retrying object at 0x1899931e010 (stop=<tenacity.stop.stop_after_attempt object at 0x00000189FDC9B390>, wait=<tenacity.wait....
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\tenacity\__init__.py", line 477, in __call__
+    do = self.iter(retry_state=retry_state)
+         │    │                └ <RetryCallState 1690492326800: attempt #2; slept for 2.0; last result: failed (TargetClosedError Page.goto: Target page, cont...
+         │    └ <function BaseRetrying.iter at 0x00000189FCF84360>
+         └ <Retrying object at 0x1899931e010 (stop=<tenacity.stop.stop_after_attempt object at 0x00000189FDC9B390>, wait=<tenacity.wait....
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\tenacity\__init__.py", line 378, in iter
+    result = action(retry_state)
+             │      └ <RetryCallState 1690492326800: attempt #2; slept for 2.0; last result: failed (TargetClosedError Page.goto: Target page, cont...
+             └ <function BaseRetrying._post_retry_check_actions.<locals>.<lambda> at 0x0000018999745BC0>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\tenacity\__init__.py", line 400, in <lambda>
+    self._add_action_func(lambda rs: rs.outcome.result())
+                                 │   │  │       └ <function Future.result at 0x00000189FC1A2520>
+                                 │   │  └ <Future at 0x189997e3b50 state=finished raised TargetClosedError>
+                                 │   └ <RetryCallState 1690492326800: attempt #2; slept for 2.0; last result: failed (TargetClosedError Page.goto: Target page, cont...
+                                 └ <RetryCallState 1690492326800: attempt #2; slept for 2.0; last result: failed (TargetClosedError Page.goto: Target page, cont...
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\concurrent\futures\_base.py", line 449, in result
+    return self.__get_result()
+           └ None
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\concurrent\futures\_base.py", line 401, in __get_result
+    raise self._exception
+          └ None
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\tenacity\__init__.py", line 480, in __call__
+    result = fn(*args, **kwargs)
+             │   │       └ {}
+             │   └ (<src.scraper.LaAnonimaScraper object at 0x0000018999315F90>,)
+             └ <function LaAnonimaScraper.select_branch at 0x00000189FDD3F1A0>
+
+  File "C:\Users\Usuario\Desktop\Proyectos IA\laanonima-tracker\src\scraper.py", line 183, in select_branch
+    self.page.goto(
+    │    │    └ <function Page.goto at 0x00000189FCF07EC0>
+    │    └ <Page url='https://laanonima.com.ar/'>
+    └ <src.scraper.LaAnonimaScraper object at 0x0000018999315F90>
+
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\playwright\sync_api\_generated.py", line 9054, in goto
+    self._sync(
+    │    └ <function SyncBase._sync at 0x00000189FCEDADE0>
+    └ <Page url='https://laanonima.com.ar/'>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\playwright\_impl\_sync_base.py", line 115, in _sync
+    return task.result()
+           │    └ <method 'result' of '_asyncio.Task' objects>
+           └ <Task finished name='Task-18' coro=<Page.goto() done, defined at C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib...
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\playwright\_impl\_page.py", line 552, in goto
+    return await self._main_frame.goto(**locals_to_params(locals()))
+                 │    │           │      └ <function locals_to_params at 0x00000189FC51F6A0>
+                 │    │           └ <function Frame.goto at 0x00000189FCE98A40>
+                 │    └ <Frame name= url='https://laanonima.com.ar/'>
+                 └ <Page url='https://laanonima.com.ar/'>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\playwright\_impl\_frame.py", line 153, in goto
+    await self._channel.send(
+          │    │        └ <function Channel.send at 0x00000189FC51DE40>
+          │    └ <playwright._impl._connection.Channel object at 0x0000018999768390>
+          └ <Frame name= url='https://laanonima.com.ar/'>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\playwright\_impl\_connection.py", line 69, in send
+    return await self._connection.wrap_api_call(
+                 │    │           └ <function Connection.wrap_api_call at 0x00000189FCDDA480>
+                 │    └ <playwright._impl._connection.Connection object at 0x00000189993289D0>
+                 └ <playwright._impl._connection.Channel object at 0x0000018999768390>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\playwright\_impl\_connection.py", line 559, in wrap_api_call
+    raise rewrite_error(error, f"{parsed_st['apiName']}: {error}") from None
+          └ <function rewrite_error at 0x00000189FC4C1800>
+
+playwright._impl._errors.TargetClosedError: Page.goto: Target page, context or browser has been closed
