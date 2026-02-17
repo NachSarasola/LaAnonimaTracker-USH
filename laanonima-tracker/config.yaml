@@ -13,8 +13,8 @@ branch:
 # Website Configuration
 # ---------------------
 website:
-  base_url: "https://laanonima.com.ar/supermercado/"
-  search_url: "https://laanonima.com.ar/supermercado/buscar/"
+  base_url: "https://www.laanonima.com.ar/"
+  search_url: "https://www.laanonima.com.ar/buscar/{query}"
   timeout: 30000  # milliseconds
   retry_attempts: 3
   retry_delay: 2  # seconds
