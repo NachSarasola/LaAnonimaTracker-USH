@@ -522,6 +522,168 @@ class LaAnonimaScraper:
         
         return best_match, best_score
 
+    def open_selected_product(
+        self,
+        search_results: List[Dict[str, Any]],
+        basket_item: Dict[str, Any],
+    ) -> Tuple[Optional[Dict[str, Any]], float, str]:
+        """Open top candidate product detail and verify pricing data.
+
+        If detail verification fails for the best candidate (navigation/click error
+        or missing detail price), this method retries with the second-best result.
+
+        Returns:
+            Tuple of (selected_product, confidence_score, match_method)
+        """
+        if not self.page:
+            raise RuntimeError("Browser not started")
+
+        if not search_results:
+            return None, 0.0, "list_match"
+
+        keywords = [k.lower() for k in basket_item.get("keywords", [])]
+        brand_hints = [b.lower() for b in basket_item.get("brand_hint", [])]
+        matching = basket_item.get("matching", "loose")
+
+        def _score(product: Dict[str, Any]) -> float:
+            product_name = product.get("name", "").lower()
+            score = 0.0
+
+            keyword_matches = sum(1 for kw in keywords if kw in product_name)
+            score += (keyword_matches / len(keywords)) * 0.6 if keywords else 0
+
+            if brand_hints:
+                brand_matches = sum(1 for brand in brand_hints if brand in product_name)
+                score += (brand_matches / len(brand_hints)) * 0.3
+
+            if product.get("in_stock"):
+                score += 0.1
+
+            if matching == "strict" and keywords and keyword_matches < len(keywords):
+                return 0.0
+            return score
+
+        ranked = sorted(
+            ((product, _score(product)) for product in search_results),
+            key=lambda item: item[1],
+            reverse=True,
+        )
+        ranked = [item for item in ranked if item[1] > 0]
+        if not ranked:
+            return None, 0.0, "list_match"
+
+        # Keep list-level fallback in case detail verification fails for top candidates.
+        list_candidate, list_confidence = ranked[0]
+        list_method = "list_match"
+
+        def _first_text(selectors: List[str]) -> Optional[str]:
+            for selector in selectors:
+                try:
+                    locator = self.page.locator(selector).first
+                    if locator.count() > 0 and locator.is_visible(timeout=1500):
+                        text = locator.inner_text().strip()
+                        if text:
+                            return text
+                except Exception:
+                    continue
+            return None
+
+        def _open_and_extract_detail(product: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+            product_url = product.get("url")
+            opened = False
+
+            if product_url:
+                try:
+                    self.page.goto(product_url, wait_until="domcontentloaded", timeout=self.timeout)
+                    opened = True
+                except Exception as nav_error:
+                    logger.warning(f"Failed opening product URL '{product_url}': {nav_error}")
+
+            if not opened:
+                try:
+                    product_name = product.get("name", "")
+                    safe_name = product_name.replace("'", "\\'")
+                    click_selector = f".producto:has-text('{safe_name}') a[href*='producto']"
+                    self.page.locator(click_selector).first.click(timeout=5000)
+                    self.page.wait_for_load_state("domcontentloaded", timeout=self.timeout)
+                    opened = True
+                except Exception as click_error:
+                    logger.warning(f"Failed opening product by click '{product.get('name')}': {click_error}")
+
+            if not opened:
+                return None
+
+            try:
+                self.page.wait_for_selector(
+                    ", ".join([
+                        ".ficha-producto",
+                        ".detalle-producto",
+                        ".producto-detalle",
+                        "h1.nombre-producto",
+                    ]),
+                    timeout=7000,
+                    state="attached",
+                )
+            except Exception:
+                pass
+
+            detail_name = _first_text([
+                "h1.nombre-producto",
+                ".detalle-producto h1",
+                "h1[itemprop='name']",
+                ".ficha-producto .nombre-producto",
+            ])
+            detail_price_text = _first_text([
+                ".detalle-producto .precio-actual",
+                ".ficha-producto .precio-actual",
+                ".contenedor-precios .precio-actual",
+                "[itemprop='price']",
+            ])
+            detail_unit_price_text = _first_text([
+                ".detalle-producto .precio-unitario",
+                ".ficha-producto .precio-unitario",
+                ".contenedor-precios .precio-unitario",
+                ".precio-por-unidad",
+            ])
+
+            detail_price = self._parse_price(detail_price_text) if detail_price_text else None
+            detail_unit_price = self._parse_price(detail_unit_price_text) if detail_unit_price_text else None
+
+            if detail_price is None:
+                return None
+
+            detail_oos_selectors = [
+                ".sin-stock",
+                ".agotado",
+                "button:has-text('Sin stock')",
+                "[data-stock='0']",
+            ]
+            in_stock = True
+            for selector in detail_oos_selectors:
+                try:
+                    if self.page.locator(selector).count() > 0:
+                        in_stock = False
+                        break
+                except Exception:
+                    continue
+
+            verified = dict(product)
+            verified["name"] = (detail_name or product.get("name", "")).strip()
+            verified["price"] = detail_price
+            verified["price_per_unit"] = detail_unit_price
+            verified["in_stock"] = in_stock
+            verified["url"] = self.page.url or product_url
+            return verified
+
+        for product, confidence in ranked[:2]:
+            detailed_product = _open_and_extract_detail(product)
+            if detailed_product:
+                return detailed_product, confidence, "detail_verified"
+
+        if list_candidate.get("price") is not None:
+            return list_candidate, list_confidence, list_method
+        return None, list_confidence, list_method
+
 
 def run_scrape(
     config_path: Optional[str] = None,
@@ -609,8 +771,8 @@ def run_scrape(
                     if not search_results:
                         raise ProductNotFoundError(f"No results for {item_name}")
                     
-                    # Match to best product
-                    match, confidence = scraper.match_product(search_results, item)
+                    # Match and verify product on detail page (with fallback to 2nd best)
+                    match, confidence, match_method = scraper.open_selected_product(search_results, item)
 
                     # Skip if no valid match or no price (so we keep a clean time series per product)
                     if not match or confidence < 0.3:
@@ -655,7 +817,7 @@ def run_scrape(
                         in_stock=match.get("in_stock", True),
                         is_promotion=match.get("is_promotion", False),
                         confidence_score=Decimal(str(confidence)),
-                        match_method="fuzzy" if confidence < 1.0 else "exact",
+                        match_method=match_method,
                         scraped_at=datetime.now(timezone.utc),
                     )
                     session.add(price_record)
