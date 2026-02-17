@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Dict, List, Optional, Tuple, Any
-from urllib.parse import urljoin
+from urllib.parse import quote, urljoin
 
 from loguru import logger
 from playwright.sync_api import Page, sync_playwright, TimeoutError as PlaywrightTimeout
@@ -44,6 +44,9 @@ class LaAnonimaScraper:
         self.scraping_config = get_scraping_config(config)
         
         self.base_url = config.get("website", {}).get("base_url", "https://laanonima.com.ar/supermercado/")
+        self.search_url_template = config.get("website", {}).get(
+            "search_url", "https://laanonima.com.ar/supermercado/buscar/{query}"
+        )
         self.timeout = config.get("website", {}).get("timeout", 30000)
         self.retry_attempts = config.get("website", {}).get("retry_attempts", 3)
         
@@ -321,17 +324,37 @@ class LaAnonimaScraper:
         for keyword in keywords:
             try:
                 logger.info(f"Searching for: {keyword}")
-                
-                # Find and fill search input
-                search_selector = self._get_selector("search_input") or "#idBuscarProducto"
-                search_input = self.page.locator(search_selector).first
-                
-                # Clear and fill
-                search_input.fill("")
-                search_input.fill(keyword)
-                
-                # Submit search
-                search_input.press("Enter")
+                strategy_used = "direct_url"
+
+                # Primary strategy: direct navigation to search URL
+                encoded_keyword = quote(keyword)
+                search_url = self.search_url_template.format(query=encoded_keyword)
+
+                try:
+                    self.page.goto(
+                        search_url,
+                        wait_until="domcontentloaded",
+                        timeout=self.timeout,
+                    )
+                    logger.info(f"Search strategy used: {strategy_used} ({search_url})")
+                except Exception as nav_error:
+                    # Fallback strategy: use search input from home
+                    strategy_used = "home_input_fallback"
+                    logger.warning(
+                        f"Direct search navigation failed for '{keyword}', falling back to input strategy: {nav_error}"
+                    )
+                    self.page.goto(
+                        self.base_url,
+                        wait_until="domcontentloaded",
+                        timeout=self.timeout,
+                    )
+
+                    search_selector = self._get_selector("search_input") or "#idBuscarProducto"
+                    search_input = self.page.locator(search_selector).first
+                    search_input.fill("")
+                    search_input.fill(keyword)
+                    search_input.press("Enter")
+                    logger.info(f"Search strategy used: {strategy_used}")
                 
                 # Wait for results
                 time.sleep(2)
