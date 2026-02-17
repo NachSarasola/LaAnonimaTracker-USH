@@ -121,6 +121,189 @@ class LaAnonimaScraper:
     def _is_valid_product_url(self, url: Optional[str]) -> bool:
         """Validate La Anónima product URL format."""
         return "/art_" in self._canonical_product_url(url)
+
+    @staticmethod
+    def _normalize_unit(unit: Optional[str]) -> Optional[str]:
+        """Normalize unit aliases to canonical units used for matching."""
+        if not unit:
+            return None
+
+        normalized = unit.strip().lower()
+        aliases = {
+            "kg": "kg",
+            "kilo": "kg",
+            "kilos": "kg",
+            "g": "g",
+            "gr": "g",
+            "grs": "g",
+            "gramo": "g",
+            "gramos": "g",
+            "l": "l",
+            "lt": "l",
+            "lts": "l",
+            "litro": "l",
+            "litros": "l",
+            "ml": "ml",
+            "mililitro": "ml",
+            "mililitros": "ml",
+            "un": "un",
+            "u": "un",
+            "unidad": "un",
+            "unidades": "un",
+        }
+        return aliases.get(normalized, normalized)
+
+    def _parse_presentation_from_name(self, name: str) -> Dict[str, Any]:
+        """Extract presentation amount/unit from product name.
+
+        Returns quantity in the parsed unit (kg, g, l, ml, un) when detectable.
+        """
+        normalized_name = (name or "").lower()
+
+        patterns = [
+            r"(?P<qty>\d+[\.,]?\d*)\s*(?P<unit>kg|kilo(?:s)?|g|grs?|gramos?|l|lt?s?|litros?|ml|mililitros?|un|u|unidad(?:es)?)\b",
+            r"\b(?P<unit>kg|g|l|ml|un|u)\s*(?P<qty>\d+[\.,]?\d*)\b",
+        ]
+
+        for pattern in patterns:
+            match = re.search(pattern, normalized_name)
+            if not match:
+                continue
+
+            qty_text = match.group("qty").replace(",", ".")
+            try:
+                quantity = float(qty_text)
+            except ValueError:
+                continue
+
+            unit = self._normalize_unit(match.group("unit"))
+            if unit in {"kg", "g", "l", "ml", "un"}:
+                return {
+                    "presentation_quantity": quantity,
+                    "presentation_unit": unit,
+                }
+
+        return {
+            "presentation_quantity": None,
+            "presentation_unit": None,
+        }
+
+    def _convert_quantity(self, quantity: float, unit: str, target_unit: str) -> Optional[float]:
+        """Convert quantity to target unit when conversion is possible."""
+        if unit == target_unit:
+            return quantity
+
+        if unit == "g" and target_unit == "kg":
+            return quantity / 1000
+        if unit == "kg" and target_unit == "g":
+            return quantity * 1000
+        if unit == "ml" and target_unit == "l":
+            return quantity / 1000
+        if unit == "l" and target_unit == "ml":
+            return quantity * 1000
+        return None
+
+    def _score_product_match(
+        self,
+        product: Dict[str, Any],
+        basket_item: Dict[str, Any],
+    ) -> Tuple[float, Dict[str, Any], Tuple[int, int, int]]:
+        """Compute product match score and tie-break tuple for deterministic ranking."""
+        keywords = [k.lower() for k in basket_item.get("keywords", [])]
+        brand_hints = [b.lower() for b in basket_item.get("brand_hint", [])]
+        matching = basket_item.get("matching", "loose")
+
+        product_name = product.get("name", "").lower()
+        score = 0.0
+        breakdown: Dict[str, Any] = {}
+
+        keyword_matches = sum(1 for kw in keywords if kw in product_name)
+        keyword_score = (keyword_matches / len(keywords)) * 0.6 if keywords else 0.0
+        score += keyword_score
+        breakdown["keyword_score"] = round(keyword_score, 4)
+
+        brand_score = 0.0
+        if brand_hints:
+            brand_matches = sum(1 for brand in brand_hints if brand in product_name)
+            brand_score = (brand_matches / len(brand_hints)) * 0.3
+            score += brand_score
+        breakdown["brand_score"] = round(brand_score, 4)
+
+        stock_bonus = 0.1 if product.get("in_stock") else 0.0
+        score += stock_bonus
+        breakdown["stock_bonus"] = round(stock_bonus, 4)
+
+        presentation_bonus = 0.0
+        size_penalty = 0.0
+        target_unit = self._normalize_unit(basket_item.get("unit"))
+        target_quantity = basket_item.get("quantity")
+
+        product_unit = self._normalize_unit(product.get("presentation_unit"))
+        product_quantity = product.get("presentation_quantity")
+
+        comparable_quantity = None
+        if product_unit and target_unit:
+            if product_unit == target_unit:
+                presentation_bonus = 0.15
+            else:
+                converted = self._convert_quantity(float(product_quantity), product_unit, target_unit) if product_quantity is not None else None
+                if converted is not None:
+                    comparable_quantity = converted
+                    presentation_bonus = 0.1
+                else:
+                    presentation_bonus = -0.2
+
+        score += presentation_bonus
+        breakdown["presentation_bonus"] = round(presentation_bonus, 4)
+
+        if target_quantity is not None and product_quantity is not None and target_unit and product_unit:
+            try:
+                target_quantity_value = float(target_quantity)
+                if comparable_quantity is None:
+                    comparable_quantity = self._convert_quantity(float(product_quantity), product_unit, target_unit)
+                if comparable_quantity is None and product_unit == target_unit:
+                    comparable_quantity = float(product_quantity)
+
+                if comparable_quantity is not None and target_quantity_value > 0:
+                    relative_delta = abs(comparable_quantity - target_quantity_value) / target_quantity_value
+                    qty_score = max(0.0, 0.2 * (1 - relative_delta))
+                    score += qty_score
+                    breakdown["quantity_bonus"] = round(qty_score, 4)
+
+                    if relative_delta >= 0.5:
+                        size_penalty = min(0.3, 0.3 * relative_delta)
+                        score -= size_penalty
+                else:
+                    breakdown["quantity_bonus"] = 0.0
+            except (TypeError, ValueError):
+                breakdown["quantity_bonus"] = 0.0
+        else:
+            breakdown["quantity_bonus"] = 0.0
+
+        if size_penalty:
+            breakdown["large_size_penalty"] = round(size_penalty, 4)
+
+        if not product.get("url_valid", False):
+            score *= 0.3
+            breakdown["url_penalty_multiplier"] = 0.3
+
+        if matching == "strict" and keywords and keyword_matches < len(keywords):
+            breakdown["strict_matching_rejected"] = True
+            logger.debug(
+                "Score breakdown {}: {} (strict mismatch)",
+                product.get("name", "<sin nombre>"),
+                breakdown,
+            )
+            return 0.0, breakdown, (0, 0, 0)
+
+        tie_break = (
+            1 if product.get("in_stock") else 0,
+            1 if self._is_valid_product_url(product.get("url")) else 0,
+            1 if product.get("price") is not None else 0,
+        )
+
+        logger.debug("Score breakdown {}: {}", product.get("name", "<sin nombre>"), breakdown)
+        return score, breakdown, tie_break
     
     def check_branch_set(self) -> Tuple[bool, Optional[str]]:
         """Check if branch is already set to target.
@@ -450,12 +633,20 @@ class LaAnonimaScraper:
             is_promotion = (
                 old_price is not None and price is not None and old_price > price
             )
+            presentation = self._parse_presentation_from_name(name)
             
             return {
                 "name": name.strip(),
                 "price": price,
                 "original_price": old_price,
                 "price_per_unit": unit_price,
+                "size": (
+                    f"{presentation['presentation_quantity']} {presentation['presentation_unit']}"
+                    if presentation["presentation_quantity"] is not None and presentation["presentation_unit"]
+                    else None
+                ),
+                "presentation_quantity": presentation["presentation_quantity"],
+                "presentation_unit": presentation["presentation_unit"],
                 "url": url,
                 "url_valid": url_valid,
                 "in_stock": in_stock,
@@ -505,39 +696,23 @@ class LaAnonimaScraper:
         if not search_results:
             return None, 0.0
         
-        keywords = [k.lower() for k in basket_item.get("keywords", [])]
-        brand_hints = [b.lower() for b in basket_item.get("brand_hint", [])]
-        matching = basket_item.get("matching", "loose")
-        
         best_match = None
         best_score = 0.0
+        best_tie_break = (-1, -1, -1)
         
         for product in search_results:
-            product_name = product.get("name", "").lower()
-            score = 0.0
-            
-            # Keyword matching
-            keyword_matches = sum(1 for kw in keywords if kw in product_name)
-            score += (keyword_matches / len(keywords)) * 0.6 if keywords else 0
-            
-            # Brand matching
-            if brand_hints:
-                brand_matches = sum(1 for brand in brand_hints if brand in product_name)
-                score += (brand_matches / len(brand_hints)) * 0.3
-            
-            # Price validity (prefer in-stock)
-            if product.get("in_stock"):
-                score += 0.1
+            score, breakdown, tie_break = self._score_product_match(product, basket_item)
+            logger.debug(
+                "Match candidate '{}': score={:.4f} tie_break={} breakdown={}",
+                product.get("name", "<sin nombre>"),
+                score,
+                tie_break,
+                breakdown,
+            )
 
-            if not product.get("url_valid", False):
-                score *= 0.3
-            
-            # Strict matching requires all keywords
-            if matching == "strict" and keyword_matches < len(keywords):
-                score = 0
-            
-            if score > best_score:
+            if score > best_score or (score == best_score and tie_break > best_tie_break):
                 best_score = score
+                best_tie_break = tie_break
                 best_match = product
         
         return best_match, best_score
@@ -561,31 +736,12 @@ class LaAnonimaScraper:
         if not search_results:
             return None, 0.0, "list_match"
 
-        keywords = [k.lower() for k in basket_item.get("keywords", [])]
-        brand_hints = [b.lower() for b in basket_item.get("brand_hint", [])]
-        matching = basket_item.get("matching", "loose")
-
-        def _score(product: Dict[str, Any]) -> float:
-            product_name = product.get("name", "").lower()
-            score = 0.0
-
-            keyword_matches = sum(1 for kw in keywords if kw in product_name)
-            score += (keyword_matches / len(keywords)) * 0.6 if keywords else 0
-
-            if brand_hints:
-                brand_matches = sum(1 for brand in brand_hints if brand in product_name)
-                score += (brand_matches / len(brand_hints)) * 0.3
-
-            if product.get("in_stock"):
-                score += 0.1
-
-            if matching == "strict" and keywords and keyword_matches < len(keywords):
-                return 0.0
-            return score
-
         ranked = sorted(
-            ((product, _score(product)) for product in search_results),
-            key=lambda item: item[1],
+            (
+                (product, *self._score_product_match(product, basket_item))
+                for product in search_results
+            ),
+            key=lambda item: (item[1], item[3]),
             reverse=True,
         )
         ranked = [item for item in ranked if item[1] > 0]
@@ -593,7 +749,7 @@ class LaAnonimaScraper:
             return None, 0.0, "list_match"
 
         # Keep list-level fallback in case detail verification fails for top candidates.
-        list_candidate, list_confidence = ranked[0]
+        list_candidate, list_confidence, _, _ = ranked[0]
         list_method = "list_match"
 
         def _first_text(selectors: List[str]) -> Optional[str]:
