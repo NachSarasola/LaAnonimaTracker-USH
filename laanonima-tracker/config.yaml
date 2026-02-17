@@ -521,7 +521,7 @@ scraping:
     product_price: ".precio-actual"
     product_price_old: ".precio-anterior"
     product_unit_price: ".precio-unitario"
-    product_url: "a[href*='producto']"
+    product_url: "a[href*='producto'], a[href*='art_']"
     product_image: "img"
     out_of_stock: ".sin-stock"
     
