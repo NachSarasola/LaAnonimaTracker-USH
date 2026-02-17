@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Dict, List, Optional, Tuple, Any
-from urllib.parse import quote, urljoin
+from urllib.parse import quote, urljoin, urlsplit, urlunsplit
 
 from loguru import logger
 from playwright.sync_api import Page, sync_playwright, TimeoutError as PlaywrightTimeout
@@ -108,6 +108,19 @@ class LaAnonimaScraper:
     def _get_selector(self, key: str) -> str:
         """Get a CSS selector from config."""
         return self.selectors.get(key, "")
+
+    @staticmethod
+    def _canonical_product_url(url: Optional[str]) -> str:
+        """Canonicalize product URL by dropping query params and fragments."""
+        if not url:
+            return ""
+
+        parsed = urlsplit(url)
+        return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, "", ""))
+
+    def _is_valid_product_url(self, url: Optional[str]) -> bool:
+        """Validate La Anónima product URL format."""
+        return "/art_" in self._canonical_product_url(url)
     
     def check_branch_set(self) -> Tuple[bool, Optional[str]]:
         """Check if branch is already set to target.
@@ -414,10 +427,13 @@ class LaAnonimaScraper:
             
             # URL
             url = ""
+            url_valid = False
             try:
-                url_selector = self._get_selector("product_url") or "a[href*='producto']"
-                url = product_element.locator(url_selector).first.get_attribute("href")
-                url = urljoin(self.base_url, url)
+                url_selector = self._get_selector("product_url") or "a[href*='producto'], a[href*='art_']"
+                raw_url = product_element.locator(url_selector).first.get_attribute("href")
+                normalized_url = urljoin("https://www.laanonima.com.ar/", raw_url or "")
+                url = self._canonical_product_url(normalized_url)
+                url_valid = self._is_valid_product_url(url)
             except:
                 pass
             
@@ -441,6 +457,7 @@ class LaAnonimaScraper:
                 "original_price": old_price,
                 "price_per_unit": unit_price,
                 "url": url,
+                "url_valid": url_valid,
                 "in_stock": in_stock,
                 "is_promotion": is_promotion,
             }
@@ -511,6 +528,9 @@ class LaAnonimaScraper:
             # Price validity (prefer in-stock)
             if product.get("in_stock"):
                 score += 0.1
+
+            if not product.get("url_valid", False):
+                score *= 0.3
             
             # Strict matching requires all keywords
             if matching == "strict" and keyword_matches < len(keywords):
@@ -603,7 +623,10 @@ class LaAnonimaScraper:
                 try:
                     product_name = product.get("name", "")
                     safe_name = product_name.replace("'", "\\'")
-                    click_selector = f".producto:has-text('{safe_name}') a[href*='producto']"
+                    click_selector = (
+                        f".producto:has-text('{safe_name}') a[href*='art_'], "
+                        f".producto:has-text('{safe_name}') a[href*='producto']"
+                    )
                     self.page.locator(click_selector).first.click(timeout=5000)
                     self.page.wait_for_load_state("domcontentloaded", timeout=self.timeout)
                     opened = True
@@ -672,7 +695,12 @@ class LaAnonimaScraper:
             verified["price"] = detail_price
             verified["price_per_unit"] = detail_unit_price
             verified["in_stock"] = in_stock
-            verified["url"] = self.page.url or product_url
+            verified_url = self._canonical_product_url(self.page.url or product_url)
+            verified["url"] = verified_url
+            verified["url_valid"] = self._is_valid_product_url(verified_url)
+
+            if not verified["url_valid"]:
+                return None
             return verified
 
         for product, confidence in ranked[:2]:
@@ -773,6 +801,13 @@ def run_scrape(
                     
                     # Match and verify product on detail page (with fallback to 2nd best)
                     match, confidence, match_method = scraper.open_selected_product(search_results, item)
+
+                    # Normalize and validate canonical URL before confidence threshold.
+                    if match:
+                        canonical_url = scraper._canonical_product_url(match.get("url"))
+                        match["url"] = canonical_url
+                        if not scraper._is_valid_product_url(canonical_url):
+                            confidence *= 0.3
 
                     # Skip if no valid match or no price (so we keep a clean time series per product)
                     if not match or confidence < 0.3:
