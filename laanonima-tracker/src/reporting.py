@@ -49,12 +49,12 @@ class ReportGenerator:
         ts = pd.to_datetime(value, format="%Y-%m")
         return ts.to_period("M").to_timestamp()
 
-    def _month_end(self, value: str) -> pd.Timestamp:
-        return self._month_start(value) + pd.offsets.MonthEnd(1)
+    def _next_month_start(self, value: str) -> pd.Timestamp:
+        return self._month_start(value) + pd.offsets.MonthBegin(1)
 
     def _load_prices(self, from_month: str, to_month: str) -> pd.DataFrame:
         start_dt = self._month_start(from_month)
-        end_dt = self._month_end(to_month)
+        end_exclusive_dt = self._next_month_start(to_month)
 
         query = (
             self.session.query(
@@ -67,7 +67,7 @@ class ReportGenerator:
             )
             .outerjoin(Product, Price.canonical_id == Product.canonical_id)
             .filter(Price.scraped_at >= start_dt)
-            .filter(Price.scraped_at <= end_dt)
+            .filter(Price.scraped_at < end_exclusive_dt)
         )
 
         df = pd.read_sql(query.statement, self.session.bind)
