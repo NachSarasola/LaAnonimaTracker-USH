@@ -20,6 +20,30 @@ website:
   retry_delay: 2  # seconds
   headless: true
 
+# Canonical business categories (rubros)
+# -------------------------------------
+canonical_categories:
+  labels:
+    almacen: "Almacén"
+    bebidas: "Bebidas"
+    lacteos: "Lácteos"
+    carniceria: "Carnicería"
+    congelados: "Congelados"
+    frutas_y_verduras: "Frutas y Verduras"
+    perfumeria: "Perfumería"
+    limpieza: "Limpieza"
+    mascotas: "Mascotas"
+  aliases:
+    almacen: ["panaderia", "legumbres", "aceites", "azucar", "condimentos", "conservas", "huevos"]
+    bebidas: ["bebidas", "bebidas_alcoholicas"]
+    lacteos: ["lacteos"]
+    carniceria: ["carnes"]
+    congelados: ["congelados"]
+    frutas_y_verduras: ["frutas", "verduras"]
+    perfumeria: ["higiene", "perfumeria"]
+    limpieza: ["limpieza"]
+    mascotas: ["mascotas"]
+
 # Basket Definitions
 # ------------------
 # Basket A: INDEC Canasta Básica Alimentaria (CBA)

@@ -8,8 +8,9 @@ from pathlib import Path
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.config_loader import load_config, get_basket_items, get_branch_config
-from src.models import get_engine, init_db
+from src.config_loader import load_config, get_basket_items, get_branch_config, resolve_canonical_category
+from src.models import get_engine, init_db, get_session_factory, Product, Price
+from src.category_backfill import backfill_canonical_categories, validate_price_category_traceability
 
 
 class TestConfig(unittest.TestCase):
@@ -110,6 +111,57 @@ class TestAnalysis(unittest.TestCase):
         analyzer = BasketAnalyzer(config)
         self.assertIsNotNone(analyzer)
         analyzer.close()
+
+
+class TestCanonicalCategories(unittest.TestCase):
+    """Test canonical category mapping and backfill."""
+
+    def test_resolve_canonical_category(self):
+        config = load_config()
+        self.assertEqual(resolve_canonical_category(config, "carnes"), "carniceria")
+        self.assertEqual(resolve_canonical_category(config, "HIGIENE"), "perfumeria")
+
+    def test_backfill_traceability(self):
+        config = load_config()
+        engine = get_engine({"storage": {"default_backend": "sqlite", "sqlite": {"database_path": ":memory:"}}}, "sqlite")
+        init_db(engine)
+        Session = get_session_factory(engine)
+        session = Session()
+
+        from src.models import ScrapeRun
+
+        run = ScrapeRun(
+            run_uuid="11111111-1111-1111-1111-111111111111",
+            branch_id="75",
+            branch_name="USHUAIA",
+            postal_code="9410",
+            basket_type="cba",
+        )
+        session.add(run)
+        session.flush()
+
+        product = Product(canonical_id="prod_1", basket_id="cba", name="Leche", category="lacteos")
+        session.add(product)
+        session.flush()
+
+        price = Price(
+            product_id=product.id,
+            run_id=run.id,
+            canonical_id="prod_1",
+            basket_id="cba",
+            product_name="Leche",
+            current_price=100,
+        )
+        session.add(price)
+        session.commit()
+
+        result = backfill_canonical_categories(session, config)
+        traceability = validate_price_category_traceability(session)
+
+        self.assertGreaterEqual(result["products_updated"], 1)
+        self.assertEqual(traceability["prices_without_category"], 0)
+
+        session.close()
 
 
 if __name__ == "__main__":

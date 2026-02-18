@@ -17,6 +17,10 @@ from src.exporter import (
     export_history_series,
 )
 
+from src.category_backfill import (
+    backfill_canonical_categories,
+    validate_price_category_traceability,
+)
 
 # Configure logging
 def setup_logging(config: dict):
@@ -390,6 +394,46 @@ def history(ctx, days: int, basket: str, canonical_id: Optional[str], export_pat
 
     except Exception as e:
         logger.exception("History failed")
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+@cli.command("backfill-categories")
+@click.option("--backend", type=click.Choice(["sqlite", "postgresql"]), default="sqlite", help="Database backend")
+@click.pass_context
+def backfill_categories(ctx, backend: str):
+    """Backfill canonical category assignments for historical products/prices."""
+    config = ctx.obj["config"]
+
+    try:
+        from src.models import get_engine, get_session_factory, init_db
+
+        engine = get_engine(config, backend)
+        init_db(engine)
+        Session = get_session_factory(engine)
+        session = Session()
+
+        result = backfill_canonical_categories(session, config)
+        traceability = validate_price_category_traceability(session)
+
+        click.echo(f"\n{'='*70}")
+        click.echo("CANONICAL CATEGORY BACKFILL")
+        click.echo("="*70)
+        click.echo(f"Products updated: {result['products_updated']}")
+        click.echo(f"Prices updated: {result['prices_updated']}")
+        click.echo(f"Products unresolved: {result['unresolved_products']}")
+        click.echo(f"Prices without category: {result['prices_without_category']}")
+        click.echo("-"*70)
+        click.echo(f"Traceable prices: {traceability['traceable_prices']} / {traceability['total_prices']}")
+        click.echo("="*70)
+
+        session.close()
+
+        if traceability["prices_without_category"] > 0:
+            sys.exit(2)
+
+    except Exception as e:
+        logger.exception("Category backfill failed")
         click.echo(f"Error: {e}", err=True)
         sys.exit(1)
 
