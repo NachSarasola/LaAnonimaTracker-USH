@@ -15,7 +15,7 @@ import pandas as pd
 from loguru import logger
 
 from src.config_loader import get_basket_items, load_config
-from src.models import Price, Product, get_engine, get_session_factory
+from src.models import CategoryIndex, Price, Product, get_engine, get_session_factory
 
 
 @dataclass
@@ -120,6 +120,74 @@ class ReportGenerator:
             "coverage_to_pct": (observed_to / safe_expected) * 100,
         }
 
+    def _load_category_indices(self, from_month: str, to_month: str) -> pd.DataFrame:
+        query = (
+            self.session.query(
+                CategoryIndex.basket_type,
+                CategoryIndex.category,
+                CategoryIndex.year_month,
+                CategoryIndex.index_value,
+                CategoryIndex.mom_change,
+                CategoryIndex.yoy_change,
+                CategoryIndex.products_included,
+                CategoryIndex.products_missing,
+            )
+            .filter(CategoryIndex.year_month.in_([from_month, to_month]))
+        )
+
+        df = pd.read_sql(query.statement, self.session.bind)
+        if df.empty:
+            return df
+
+        numeric_cols = [
+            "index_value",
+            "mom_change",
+            "yoy_change",
+            "products_included",
+            "products_missing",
+        ]
+        for col in numeric_cols:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+        return df
+
+    def _category_variation_from_indices(self, from_month: str, to_month: str) -> pd.DataFrame:
+        indices_df = self._load_category_indices(from_month, to_month)
+        if indices_df.empty:
+            return pd.DataFrame()
+
+        from_df = indices_df[indices_df["year_month"] == from_month].copy()
+        to_df = indices_df[indices_df["year_month"] == to_month].copy()
+
+        if from_df.empty or to_df.empty:
+            return pd.DataFrame()
+
+        merged = from_df.merge(
+            to_df,
+            on=["basket_type", "category"],
+            suffixes=("_from", "_to"),
+            how="inner",
+        )
+        if merged.empty:
+            return pd.DataFrame()
+
+        merged["variation_pct"] = (
+            (merged["index_value_to"] - merged["index_value_from"]) / merged["index_value_from"]
+        ) * 100
+
+        enriched = merged.rename(
+            columns={
+                "index_value_from": "price_from",
+                "index_value_to": "price_to",
+                "mom_change_to": "mom_change",
+                "yoy_change_to": "yoy_change",
+                "products_included_to": "products_included",
+                "products_missing_to": "products_missing",
+            }
+        )
+
+        return enriched.sort_values("variation_pct", ascending=False)
+
     def _render_html(
         self,
         from_month: str,
@@ -130,10 +198,20 @@ class ReportGenerator:
         coverage: Dict[str, Any],
         generated_at: str,
     ) -> str:
+        def _fmt_float(value: Any) -> str:
+            if pd.isna(value):
+                return "N/D"
+            return f"{float(value):.2f}%"
+
+        def _fmt_int(value: Any) -> str:
+            if pd.isna(value):
+                return "N/D"
+            return str(int(value))
+
         categories_rows = "".join(
-            f"<tr><td>{row['category']}</td><td>{row['price_from']:.2f}</td><td>{row['price_to']:.2f}</td><td>{row['variation_pct']:.2f}%</td></tr>"
+            f"<tr><td>{row['category']}</td><td>{row['price_from']:.2f}</td><td>{row['price_to']:.2f}</td><td>{row['variation_pct']:.2f}%</td><td>{_fmt_float(row.get('mom_change'))}</td><td>{_fmt_float(row.get('yoy_change'))}</td><td>{_fmt_int(row.get('products_included'))}</td><td>{_fmt_int(row.get('products_missing'))}</td></tr>"
             for _, row in top_categories.iterrows()
-        ) or "<tr><td colspan='4'>Sin datos suficientes</td></tr>"
+        ) or "<tr><td colspan='8'>Sin datos suficientes</td></tr>"
 
         products_rows = "".join(
             f"<tr><td>{row['canonical_id']}</td><td>{row['product_name']}</td><td>{row['price_from']:.2f}</td><td>{row['price_to']:.2f}</td><td>{row['variation_pct']:.2f}%</td></tr>"
@@ -169,7 +247,7 @@ class ReportGenerator:
   <section class=\"card\">
     <h2>Top categorías con mayor suba</h2>
     <table>
-      <thead><tr><th>Categoría</th><th>Precio promedio inicial</th><th>Precio promedio final</th><th>Variación</th></tr></thead>
+      <thead><tr><th>Categoría</th><th>Índice inicial</th><th>Índice final</th><th>Variación</th><th>MoM</th><th>YoY</th><th>Productos incluidos</th><th>Productos faltantes</th></tr></thead>
       <tbody>{categories_rows}</tbody>
     </table>
   </section>
@@ -221,8 +299,18 @@ class ReportGenerator:
 
         inflation_total_pct = float(((to_avg.iloc[0] - from_avg.iloc[0]) / from_avg.iloc[0]) * 100)
 
-        categories_grouped = self._monthly_avg_by(df, "category")
-        top_categories = self._variation_between_months(categories_grouped, "category", from_month, to_month).head(10)
+        top_categories = self._category_variation_from_indices(from_month, to_month)
+        data_source = "category_indices"
+        if top_categories.empty:
+            categories_grouped = self._monthly_avg_by(df, "category")
+            top_categories = self._variation_between_months(categories_grouped, "category", from_month, to_month).head(10)
+            top_categories["mom_change"] = pd.NA
+            top_categories["yoy_change"] = pd.NA
+            top_categories["products_included"] = pd.NA
+            top_categories["products_missing"] = pd.NA
+            data_source = "raw_prices"
+        else:
+            top_categories = top_categories.head(10)
 
         products_source = (
             df.sort_values(["canonical_id", "month"])
@@ -265,6 +353,7 @@ class ReportGenerator:
         metadata = {
             "generated_at": generated_at,
             "range": {"from": from_month, "to": to_month},
+            "data_source": data_source,
             "inflation_total_pct": inflation_total_pct,
             "coverage": coverage,
             "artifacts": {
