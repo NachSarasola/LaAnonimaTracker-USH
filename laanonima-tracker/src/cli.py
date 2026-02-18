@@ -9,6 +9,7 @@ from loguru import logger
 
 from src.scraper import run_scrape
 from src.analysis import run_analysis
+from src.reporting import run_report
 from src.config_loader import load_config, ensure_directories
 from src.exporter import (
     export_to_csv,
@@ -252,6 +253,46 @@ def init(ctx):
         
     except Exception as e:
         logger.exception("Initialization failed")
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+
+
+@cli.command()
+@click.option("--from", "from_month", required=True, help="Mes inicial (YYYY-MM)")
+@click.option("--to", "to_month", required=True, help="Mes final (YYYY-MM)")
+@click.option("--pdf/--no-pdf", "export_pdf", default=False, help="Exportar también PDF si la dependencia está disponible")
+@click.pass_context
+def report(ctx, from_month: str, to_month: str, export_pdf: bool):
+    """Generate inflation report as HTML and optional PDF."""
+    config_path = ctx.obj["config_path"]
+
+    logger.info(f"Generating report: from={from_month}, to={to_month}, pdf={export_pdf}")
+
+    try:
+        results = run_report(
+            config_path=config_path,
+            from_month=from_month,
+            to_month=to_month,
+            export_pdf=export_pdf,
+        )
+
+        click.echo(f"\n{'='*60}")
+        click.echo("REPORT RESULTS")
+        click.echo(f"{'='*60}")
+        click.echo(f"Inflación total canasta: {results['inflation_total_pct']:.2f}%")
+        click.echo("\nArtefactos:")
+        click.echo(f"  - HTML: {results['artifacts']['html_path']}")
+        click.echo(f"  - Metadata: {results['artifacts']['metadata_path']}")
+        if results['artifacts'].get('pdf_path'):
+            click.echo(f"  - PDF: {results['artifacts']['pdf_path']}")
+        else:
+            click.echo("  - PDF: no generado")
+        click.echo(f"{'='*60}")
+
+    except Exception as e:
+        logger.exception("Report generation failed")
         click.echo(f"Error: {e}", err=True)
         sys.exit(1)
 
