@@ -78,6 +78,22 @@ python -m src.cli export --format parquet
 python -m src.cli export --format both
 ```
 
+
+### Dashboard web (Streamlit)
+
+```bash
+# Instalar dependencias del dashboard
+pip install -r ../dashboard/requirements.txt
+
+# Levantar API
+uvicorn src.api:app --host 0.0.0.0 --port 8000
+
+# En otra terminal, desde la raíz del repo
+streamlit run dashboard/app.py --server.port 8501
+```
+
+El dashboard consume datos únicamente desde la API y permite filtros por fecha/categoría/producto y exportación CSV.
+
 ### View price history (time series)
 
 Each product has a unique **canonical_id** (e.g. `cba_leche`, `cba_arroz`). Every scrape run adds one price observation per product, so you get a historical series over time.
