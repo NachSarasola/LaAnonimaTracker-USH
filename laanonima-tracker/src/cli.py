@@ -1,6 +1,7 @@
 """Command-line interface for La Anónima Price Tracker."""
 
 import sys
+import re
 from pathlib import Path
 from typing import Optional
 
@@ -24,6 +25,31 @@ from src.category_backfill import (
 )
 
 # Configure logging
+MONTH_PATTERN = re.compile(r"^\d{4}-\d{2}$")
+
+
+class MonthParamType(click.ParamType):
+    """Click param type to validate month values in YYYY-MM format."""
+
+    name = "month"
+
+    def convert(self, value, param, ctx):
+        if value is None:
+            return value
+
+        if not MONTH_PATTERN.match(value):
+            self.fail(
+                "Formato inválido. Usá YYYY-MM (ejemplo válido: 2026-02).",
+                param,
+                ctx,
+            )
+
+        return value
+
+
+MONTH_TYPE = MonthParamType()
+
+
 def setup_logging(config: dict):
     """Setup logging configuration."""
     log_config = config.get("logging", {})
@@ -260,8 +286,8 @@ def init(ctx):
 
 
 @cli.command()
-@click.option("--from", "from_month", required=True, help="Mes inicial (YYYY-MM)")
-@click.option("--to", "to_month", required=True, help="Mes final (YYYY-MM)")
+@click.option("--from", "from_month", required=True, type=MONTH_TYPE, help="Mes inicial (YYYY-MM)")
+@click.option("--to", "to_month", required=True, type=MONTH_TYPE, help="Mes final (YYYY-MM)")
 @click.option(
     "--basket", "basket_type",
     type=click.Choice(["cba", "extended", "all"], case_sensitive=False),
