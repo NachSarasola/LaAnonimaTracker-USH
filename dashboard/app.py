@@ -137,6 +137,27 @@ else:
 
     cat_df = ipc_df[ipc_df["category"].isin(selected_categories)].copy() if selected_categories else pd.DataFrame()
 
+    if not cat_df.empty and "coverage_warning" in cat_df.columns:
+        warning_rows = cat_df[cat_df["coverage_warning"].fillna(False)]
+        if not warning_rows.empty:
+            categories_with_warning = sorted(warning_rows["category"].dropna().unique().tolist())
+            st.warning(
+                "Cobertura insuficiente detectada en: "
+                + ", ".join(categories_with_warning)
+                + ". Revisar métricas coverage_rate/missing_count antes de interpretar estos índices."
+            )
+            warning_table = warning_rows[
+                [
+                    "year_month",
+                    "category",
+                    "coverage_rate",
+                    "min_coverage_required",
+                    "missing_count",
+                    "outlier_count",
+                ]
+            ].sort_values(["year_month", "category"])
+            st.dataframe(warning_table, use_container_width=True)
+
     if not cat_df.empty:
         fig_cat = px.line(
             cat_df.sort_values("year_month"),

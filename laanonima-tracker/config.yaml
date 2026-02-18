@@ -576,6 +576,11 @@ analysis:
   # Output settings
   output_dir: "data/analysis"
   plots_dir: "data/analysis/plots"
+
+  # Data quality controls
+  validation:
+    min_coverage_rate: 0.70
+    max_price_jump_pct: 200
   
 # Logging Configuration
 # ---------------------
