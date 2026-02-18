@@ -99,8 +99,14 @@ class ReportGenerator:
         if merged.empty:
             return merged
 
-        merged["variation_pct"] = ((merged["price_to"] - merged["price_from"]) / merged["price_from"]) * 100
-        return merged.sort_values("variation_pct", ascending=False)
+        valid_price_from = merged["price_from"].notna() & (merged["price_from"] > 0)
+        merged["variation_pct"] = pd.NA
+        merged.loc[valid_price_from, "variation_pct"] = (
+            (merged.loc[valid_price_from, "price_to"] - merged.loc[valid_price_from, "price_from"])
+            / merged.loc[valid_price_from, "price_from"]
+        ) * 100
+
+        return merged.sort_values("variation_pct", ascending=False, na_position="last")
 
     def _coverage_metrics(self, df: pd.DataFrame, from_month: str, to_month: str) -> Dict[str, Any]:
         expected_products = len(get_basket_items(self.config, "all"))
@@ -203,18 +209,23 @@ class ReportGenerator:
                 return "N/D"
             return f"{float(value):.2f}%"
 
+        def _fmt_decimal(value: Any) -> str:
+            if pd.isna(value):
+                return "N/D"
+            return f"{float(value):.2f}"
+
         def _fmt_int(value: Any) -> str:
             if pd.isna(value):
                 return "N/D"
             return str(int(value))
 
         categories_rows = "".join(
-            f"<tr><td>{row['category']}</td><td>{row['price_from']:.2f}</td><td>{row['price_to']:.2f}</td><td>{row['variation_pct']:.2f}%</td><td>{_fmt_float(row.get('mom_change'))}</td><td>{_fmt_float(row.get('yoy_change'))}</td><td>{_fmt_int(row.get('products_included'))}</td><td>{_fmt_int(row.get('products_missing'))}</td></tr>"
+            f"<tr><td>{row['category']}</td><td>{_fmt_decimal(row['price_from'])}</td><td>{_fmt_decimal(row['price_to'])}</td><td>{_fmt_float(row['variation_pct'])}</td><td>{_fmt_float(row.get('mom_change'))}</td><td>{_fmt_float(row.get('yoy_change'))}</td><td>{_fmt_int(row.get('products_included'))}</td><td>{_fmt_int(row.get('products_missing'))}</td></tr>"
             for _, row in top_categories.iterrows()
         ) or "<tr><td colspan='8'>Sin datos suficientes</td></tr>"
 
         products_rows = "".join(
-            f"<tr><td>{row['canonical_id']}</td><td>{row['product_name']}</td><td>{row['price_from']:.2f}</td><td>{row['price_to']:.2f}</td><td>{row['variation_pct']:.2f}%</td></tr>"
+            f"<tr><td>{row['canonical_id']}</td><td>{row['product_name']}</td><td>{_fmt_decimal(row['price_from'])}</td><td>{_fmt_decimal(row['price_to'])}</td><td>{_fmt_float(row['variation_pct'])}</td></tr>"
             for _, row in top_products.iterrows()
         ) or "<tr><td colspan='5'>Sin datos suficientes</td></tr>"
 
