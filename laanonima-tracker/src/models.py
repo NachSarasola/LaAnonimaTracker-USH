@@ -278,6 +278,33 @@ class CategoryIndex(Base):
         )
 
 
+class IndexQualityAudit(Base):
+    """Quality metrics for index computation by period and category."""
+
+    __tablename__ = "index_quality_audit"
+
+    id = Column(Integer, primary_key=True)
+
+    basket_type = Column(String(20), nullable=False, index=True)
+    year_month = Column(String(7), nullable=False, index=True)
+    category = Column(String(100), nullable=False, index=True)
+
+    coverage_rate = Column(Numeric(6, 4), nullable=False)
+    outlier_count = Column(Integer, nullable=False, default=0)
+    missing_count = Column(Integer, nullable=False, default=0)
+
+    min_coverage_required = Column(Numeric(6, 4), nullable=False)
+    is_coverage_sufficient = Column(Boolean, nullable=False, default=True)
+
+    computed_at = Column(DateTime, default=func.now())
+
+    def __repr__(self):
+        return (
+            f"<IndexQualityAudit(basket='{self.basket_type}', category='{self.category}', "
+            f"period='{self.year_month}', coverage={self.coverage_rate})>"
+        )
+
+
 class Category(Base):
     """Canonical product category/rubro table."""
 

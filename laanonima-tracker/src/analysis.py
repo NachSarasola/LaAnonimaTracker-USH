@@ -17,7 +17,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from src.models import (
-    Product, Price, ScrapeRun, BasketIndex, CategoryIndex,
+    Product, Price, ScrapeRun, BasketIndex, CategoryIndex, IndexQualityAudit,
     get_engine, get_session_factory
 )
 from src.config_loader import load_config
@@ -37,6 +37,9 @@ class BasketAnalyzer:
         self.analysis_config = config.get("analysis", {})
         self.base_period = self.analysis_config.get("base_period", "2024-01")
         self.index_type = self.analysis_config.get("index_type", "laspeyres")
+        validation_cfg = self.analysis_config.get("validation", {})
+        self.min_coverage_rate = float(validation_cfg.get("min_coverage_rate", 0.7))
+        self.max_price_jump_pct = float(validation_cfg.get("max_price_jump_pct", 200.0))
         
         if db_session:
             self.session = db_session
@@ -87,6 +90,7 @@ class BasketAnalyzer:
             Price.original_price,
             Price.price_per_unit,
             Price.in_stock,
+            Product.is_active.label("product_is_active"),
             Price.is_promotion,
             Price.confidence_score,
             Price.scraped_at,
@@ -112,8 +116,110 @@ class BasketAnalyzer:
         
         # Add year-month column for grouping
         df["year_month"] = df["scraped_at"].dt.to_period("M").astype(str)
-        
+
         return df
+
+    def _prepare_validated_prices(
+        self,
+        prices_df: pd.DataFrame,
+        basket_type: str,
+        grouped_weights: Dict[str, Dict[str, Decimal]],
+    ) -> Tuple[pd.DataFrame, List[Dict[str, Any]]]:
+        """Validate raw prices before index calculation and build audit metrics."""
+        if prices_df.empty:
+            return prices_df, []
+
+        df = prices_df.copy()
+        df["current_price"] = pd.to_numeric(df["current_price"], errors="coerce")
+        df["category"] = df["category"].fillna("sin_categoria")
+
+        df["is_missing_or_inactive"] = (
+            df["current_price"].isna() | ~df["in_stock"].fillna(False) | ~df["product_is_active"].fillna(True)
+        )
+
+        # Outlier detection by extreme jumps between consecutive valid observations.
+        valid_for_jump = df[~df["is_missing_or_inactive"]].sort_values(["canonical_id", "scraped_at"])
+        valid_for_jump["prev_price"] = valid_for_jump.groupby("canonical_id")["current_price"].shift(1)
+        valid_for_jump["pct_change"] = (
+            (valid_for_jump["current_price"] - valid_for_jump["prev_price"])
+            / valid_for_jump["prev_price"]
+        ) * 100
+        valid_for_jump["is_outlier"] = valid_for_jump["pct_change"].abs() > self.max_price_jump_pct
+
+        outlier_keys = set(
+            valid_for_jump.loc[valid_for_jump["is_outlier"], ["canonical_id", "scraped_at"]]
+            .itertuples(index=False, name=None)
+        )
+        df["is_outlier"] = [
+            (canonical_id, scraped_at) in outlier_keys
+            for canonical_id, scraped_at in zip(df["canonical_id"], df["scraped_at"])
+        ]
+
+        df["exclude_from_index"] = df["is_missing_or_inactive"] | df["is_outlier"]
+        clean_df = df[~df["exclude_from_index"]].copy()
+
+        audit_rows: List[Dict[str, Any]] = []
+        periods = sorted(df["year_month"].unique())
+        for category, category_weights in grouped_weights.items():
+            expected_products = len(category_weights)
+            if expected_products == 0:
+                continue
+            category_ids = set(category_weights.keys())
+            category_df = df[df["canonical_id"].isin(category_ids)]
+            for period in periods:
+                period_df = category_df[category_df["year_month"] == period]
+                valid_period_df = period_df[~period_df["exclude_from_index"]]
+                included_products = valid_period_df["canonical_id"].nunique()
+                missing_count = max(expected_products - included_products, 0)
+                coverage_rate = included_products / expected_products
+                outlier_count = int(period_df["is_outlier"].sum())
+
+                audit_rows.append(
+                    {
+                        "basket_type": basket_type,
+                        "year_month": period,
+                        "category": category,
+                        "coverage_rate": coverage_rate,
+                        "outlier_count": outlier_count,
+                        "missing_count": missing_count,
+                        "min_coverage_required": self.min_coverage_rate,
+                        "is_coverage_sufficient": coverage_rate >= self.min_coverage_rate,
+                    }
+                )
+
+        return clean_df, audit_rows
+
+    def _save_quality_audit_to_db(self, audit_rows: List[Dict[str, Any]]):
+        """Persist validation metrics by period and category."""
+        for row in audit_rows:
+            existing = self.session.query(IndexQualityAudit).filter_by(
+                basket_type=row["basket_type"],
+                year_month=row["year_month"],
+                category=row["category"],
+            ).first()
+
+            if existing:
+                existing.coverage_rate = Decimal(str(row["coverage_rate"]))
+                existing.outlier_count = row["outlier_count"]
+                existing.missing_count = row["missing_count"]
+                existing.min_coverage_required = Decimal(str(row["min_coverage_required"]))
+                existing.is_coverage_sufficient = row["is_coverage_sufficient"]
+                existing.computed_at = datetime.now(timezone.utc)
+            else:
+                audit_record = IndexQualityAudit(
+                    basket_type=row["basket_type"],
+                    year_month=row["year_month"],
+                    category=row["category"],
+                    coverage_rate=Decimal(str(row["coverage_rate"])),
+                    outlier_count=row["outlier_count"],
+                    missing_count=row["missing_count"],
+                    min_coverage_required=Decimal(str(row["min_coverage_required"])),
+                    is_coverage_sufficient=row["is_coverage_sufficient"],
+                )
+                self.session.add(audit_record)
+
+        self.session.commit()
+        logger.info(f"Saved {len(audit_rows)} quality audit records")
     
     def get_basket_weights(self, basket_type: str = "cba") -> Dict[str, Decimal]:
         """Get basket item quantities as weights.
@@ -287,6 +393,8 @@ class BasketAnalyzer:
         
         # Get weights
         weights = self.get_basket_weights(basket_type)
+        grouped_weights = self._get_weights_by_category(weights)
+        prices_df, audit_rows = self._prepare_validated_prices(prices_df, basket_type, grouped_weights)
         
         # Get all periods
         periods = sorted(prices_df["year_month"].unique())
@@ -310,6 +418,8 @@ class BasketAnalyzer:
         # Save to database
         if save_to_db:
             self._save_index_to_db(results)
+            if audit_rows:
+                self._save_quality_audit_to_db(audit_rows)
         
         return results_df
     
@@ -365,6 +475,7 @@ class BasketAnalyzer:
         weights = self.get_basket_weights(basket_type)
         grouped_weights = self._get_weights_by_category(weights)
         periods = sorted(prices_df["year_month"].unique())
+        prices_df, audit_rows = self._prepare_validated_prices(prices_df, basket_type, grouped_weights)
 
         all_results: List[Dict[str, Any]] = []
         for category, category_weights in grouped_weights.items():
@@ -379,6 +490,8 @@ class BasketAnalyzer:
 
         if save_to_db and all_results:
             self._save_category_indices_to_db(all_results)
+            if audit_rows:
+                self._save_quality_audit_to_db(audit_rows)
 
         return pd.DataFrame(all_results)
 

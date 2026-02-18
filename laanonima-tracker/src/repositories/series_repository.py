@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from src.models import CategoryIndex, Price, Product, ScrapeRun
+from src.models import CategoryIndex, IndexQualityAudit, Price, Product, ScrapeRun
 
 
 @dataclass
@@ -126,6 +126,17 @@ class SeriesRepository:
             CategoryIndex.products_included,
             CategoryIndex.products_missing,
             CategoryIndex.computed_at,
+            IndexQualityAudit.coverage_rate,
+            IndexQualityAudit.outlier_count,
+            IndexQualityAudit.missing_count,
+            IndexQualityAudit.min_coverage_required,
+            IndexQualityAudit.is_coverage_sufficient,
+            (IndexQualityAudit.is_coverage_sufficient == False).label("coverage_warning"),
+        ).outerjoin(
+            IndexQualityAudit,
+            (IndexQualityAudit.basket_type == CategoryIndex.basket_type)
+            & (IndexQualityAudit.year_month == CategoryIndex.year_month)
+            & (IndexQualityAudit.category == CategoryIndex.category),
         )
 
         if start_period:

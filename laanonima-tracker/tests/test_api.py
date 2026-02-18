@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.api import app, get_session
-from src.models import CategoryIndex, Price, Product, ScrapeRun, get_engine, get_session_factory, init_db
+from src.models import CategoryIndex, IndexQualityAudit, Price, Product, ScrapeRun, get_engine, get_session_factory, init_db
 
 
 class TestAPI(unittest.TestCase):
@@ -98,6 +98,18 @@ class TestAPI(unittest.TestCase):
                 products_missing=0,
             )
         )
+        session.add(
+            IndexQualityAudit(
+                basket_type="cba",
+                category="lacteos",
+                year_month="2024-01",
+                coverage_rate=0.6,
+                outlier_count=2,
+                missing_count=1,
+                min_coverage_required=0.7,
+                is_coverage_sufficient=False,
+            )
+        )
         session.commit()
 
     def test_series_producto_with_pagination(self):
@@ -124,6 +136,8 @@ class TestAPI(unittest.TestCase):
         payload = response.json()
         self.assertEqual(payload["pagination"]["total"], 1)
         self.assertEqual(payload["items"][0]["category"], "lacteos")
+        self.assertTrue(payload["items"][0]["coverage_warning"])
+        self.assertEqual(payload["items"][0]["outlier_count"], 2)
 
 
 if __name__ == "__main__":
