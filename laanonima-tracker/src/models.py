@@ -18,6 +18,8 @@ from sqlalchemy import (
     Boolean,
     create_engine,
     event,
+    inspect,
+    text,
 )
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
@@ -47,6 +49,7 @@ class Product(Base):
     basket_id = Column(String(50), nullable=False, index=True)
     name = Column(String(255), nullable=False)
     category = Column(String(50), nullable=True)
+    category_id = Column(Integer, ForeignKey("categories.id"), nullable=True, index=True)
     unit = Column(String(20), nullable=True)
     quantity = Column(Numeric(10, 3), nullable=True)
     keywords = Column(Text, nullable=True)
@@ -65,6 +68,7 @@ class Product(Base):
     
     # Relationships
     prices = relationship("Price", back_populates="product", cascade="all, delete-orphan")
+    canonical_category = relationship("Category", back_populates="products")
     
     def __repr__(self):
         return f"<Product(canonical_id='{self.canonical_id}', name='{self.name}')>"
@@ -80,6 +84,7 @@ class Price(Base):
     # Foreign keys
     product_id = Column(Integer, ForeignKey("products.id"), nullable=False, index=True)
     run_id = Column(Integer, ForeignKey("scrape_runs.id"), nullable=False, index=True)
+    category_id = Column(Integer, ForeignKey("categories.id"), nullable=True, index=True)
     
     # Product identification
     canonical_id = Column(String(50), nullable=False, index=True)
@@ -114,6 +119,7 @@ class Price(Base):
     
     # Relationships
     product = relationship("Product", back_populates="prices")
+    canonical_category = relationship("Category", back_populates="prices")
     run = relationship("ScrapeRun", back_populates="prices")
     
     def __repr__(self):
@@ -238,6 +244,25 @@ class BasketIndex(Base):
         return f"<BasketIndex(basket='{self.basket_type}', period='{self.year_month}', value={self.index_value})>"
 
 
+class Category(Base):
+    """Canonical product category/rubro table."""
+
+    __tablename__ = "categories"
+
+    id = Column(Integer, primary_key=True)
+    slug = Column(String(50), unique=True, nullable=False, index=True)
+    name = Column(String(100), nullable=False)
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=now_utc)
+    updated_at = Column(DateTime, default=now_utc, onupdate=now_utc)
+
+    products = relationship("Product", back_populates="canonical_category")
+    prices = relationship("Price", back_populates="canonical_category")
+
+    def __repr__(self):
+        return f"<Category(slug='{self.slug}', name='{self.name}')>"
+
+
 # Database initialization functions
 
 def get_engine(config: dict, backend: Optional[str] = None):
@@ -265,8 +290,30 @@ def get_engine(config: dict, backend: Optional[str] = None):
 def init_db(engine):
     """Initialize database tables."""
     Base.metadata.create_all(engine)
+    _ensure_category_columns(engine)
 
 
 def get_session_factory(engine):
     """Get session factory for database operations."""
     return sessionmaker(bind=engine)
+
+
+def _ensure_category_columns(engine):
+    """Best-effort schema migration for category foreign keys in existing DBs."""
+    inspector = inspect(engine)
+    dialect = engine.dialect.name
+
+    with engine.begin() as conn:
+        product_columns = {c["name"] for c in inspector.get_columns("products")}
+        if "category_id" not in product_columns:
+            if dialect == "sqlite":
+                conn.execute(text("ALTER TABLE products ADD COLUMN category_id INTEGER"))
+            elif dialect == "postgresql":
+                conn.execute(text("ALTER TABLE products ADD COLUMN IF NOT EXISTS category_id INTEGER"))
+
+        price_columns = {c["name"] for c in inspector.get_columns("prices")}
+        if "category_id" not in price_columns:
+            if dialect == "sqlite":
+                conn.execute(text("ALTER TABLE prices ADD COLUMN category_id INTEGER"))
+            elif dialect == "postgresql":
+                conn.execute(text("ALTER TABLE prices ADD COLUMN IF NOT EXISTS category_id INTEGER"))

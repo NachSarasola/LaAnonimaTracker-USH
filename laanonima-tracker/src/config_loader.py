@@ -125,6 +125,45 @@ def get_storage_config(config: Dict[str, Any]) -> Dict[str, Any]:
     return config.get("storage", {})
 
 
+def normalize_category_value(value: Optional[str]) -> str:
+    """Normalize category labels for reliable matching."""
+    if not value:
+        return ""
+
+    normalized = value.strip().lower()
+    normalized = normalized.replace("á", "a").replace("é", "e").replace("í", "i")
+    normalized = normalized.replace("ó", "o").replace("ú", "u").replace("ü", "u")
+    return " ".join(normalized.split())
+
+
+def get_canonical_category_map(config: Dict[str, Any]) -> Dict[str, str]:
+    """Build alias -> canonical category map from config."""
+    category_cfg = config.get("canonical_categories", {})
+    aliases_cfg = category_cfg.get("aliases", {})
+
+    category_map = {}
+    for canonical, aliases in aliases_cfg.items():
+        category_map[normalize_category_value(canonical)] = canonical
+        for alias in aliases or []:
+            category_map[normalize_category_value(alias)] = canonical
+
+    return category_map
+
+
+def get_category_display_names(config: Dict[str, Any]) -> Dict[str, str]:
+    """Get canonical slug -> display name mapping."""
+    return config.get("canonical_categories", {}).get("labels", {})
+
+
+def resolve_canonical_category(config: Dict[str, Any], value: Optional[str]) -> Optional[str]:
+    """Resolve current/raw category into canonical slug."""
+    normalized = normalize_category_value(value)
+    if not normalized:
+        return None
+
+    return get_canonical_category_map(config).get(normalized)
+
+
 def ensure_directories(config: Dict[str, Any]):
     """Ensure all required directories exist."""
     storage = config.get("storage", {})

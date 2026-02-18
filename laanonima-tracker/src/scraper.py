@@ -13,10 +13,17 @@ from playwright.sync_api import Page, sync_playwright, TimeoutError as Playwrigh
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 from src.models import (
-    Product, Price, ScrapeRun, ScrapeError,
+    Product, Price, ScrapeRun, ScrapeError, Category,
     get_engine, init_db, get_session_factory
 )
-from src.config_loader import load_config, get_basket_items, get_branch_config, get_scraping_config
+from src.config_loader import (
+    load_config,
+    get_basket_items,
+    get_branch_config,
+    get_scraping_config,
+    resolve_canonical_category,
+    get_category_display_names,
+)
 
 
 class BranchSelectionError(Exception):
@@ -1003,6 +1010,22 @@ def run_scrape(
                     if price_value is None:
                         raise ProductNotFoundError(f"No price found for {item_name}")
 
+                    # Resolve canonical business category/rubro
+                    raw_category = item.get("category")
+                    canonical_slug = resolve_canonical_category(config, raw_category)
+                    display_labels = get_category_display_names(config)
+                    category_obj = None
+                    if canonical_slug:
+                        category_obj = session.query(Category).filter_by(slug=canonical_slug).first()
+                        if not category_obj:
+                            category_obj = Category(
+                                slug=canonical_slug,
+                                name=display_labels.get(canonical_slug, canonical_slug.replace("_", " ").title()),
+                                description=f"Rubro canónico para '{raw_category}'",
+                            )
+                            session.add(category_obj)
+                            session.flush()
+
                     # Get or create product record (one per canonical_id for history)
                     product = session.query(Product).filter_by(canonical_id=item_id).first()
                     if not product:
@@ -1010,7 +1033,8 @@ def run_scrape(
                             canonical_id=item_id,
                             basket_id=item.get("basket_type", "cba"),
                             name=item_name,
-                            category=item.get("category"),
+                            category=raw_category,
+                            category_id=category_obj.id if category_obj else None,
                             unit=item.get("unit"),
                             quantity=item.get("quantity"),
                             keywords=",".join(keywords),
@@ -1020,10 +1044,13 @@ def run_scrape(
                         )
                         session.add(product)
                         session.flush()
+                    elif category_obj and product.category_id != category_obj.id:
+                        product.category_id = category_obj.id
 
                     # Create price record for this run (one row per product per run = time series)
                     price_record = Price(
                         product_id=product.id,
+                        category_id=product.category_id,
                         run_id=scrape_run.id,
                         canonical_id=item_id,
                         basket_id=item.get("basket_type", "cba"),
