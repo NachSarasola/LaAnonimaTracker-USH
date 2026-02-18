@@ -244,6 +244,40 @@ class BasketIndex(Base):
         return f"<BasketIndex(basket='{self.basket_type}', period='{self.year_month}', value={self.index_value})>"
 
 
+class CategoryIndex(Base):
+    """Pre-computed category-level Laspeyres index values."""
+
+    __tablename__ = "category_indices"
+
+    id = Column(Integer, primary_key=True)
+
+    # Index identification
+    basket_type = Column(String(20), nullable=False, index=True)
+    category = Column(String(100), nullable=False, index=True)
+
+    # Period
+    year_month = Column(String(7), nullable=False, index=True)
+
+    # Index value (base = 100)
+    index_value = Column(Numeric(10, 2), nullable=False)
+
+    # Change metrics
+    mom_change = Column(Numeric(6, 2), nullable=True)
+    yoy_change = Column(Numeric(6, 2), nullable=True)
+
+    # Metadata
+    products_included = Column(Integer, nullable=False)
+    products_missing = Column(Integer, nullable=False, default=0)
+
+    computed_at = Column(DateTime, default=func.now())
+
+    def __repr__(self):
+        return (
+            f"<CategoryIndex(basket='{self.basket_type}', category='{self.category}', "
+            f"period='{self.year_month}', value={self.index_value})>"
+        )
+
+
 class Category(Base):
     """Canonical product category/rubro table."""
 

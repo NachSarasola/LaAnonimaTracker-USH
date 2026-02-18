@@ -17,7 +17,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from src.models import (
-    Product, Price, ScrapeRun, BasketIndex,
+    Product, Price, ScrapeRun, BasketIndex, CategoryIndex,
     get_engine, get_session_factory
 )
 from src.config_loader import load_config
@@ -82,6 +82,7 @@ class BasketAnalyzer:
             Price.canonical_id,
             Price.basket_id,
             Price.product_name,
+            Product.category,
             Price.current_price,
             Price.original_price,
             Price.price_per_unit,
@@ -91,6 +92,7 @@ class BasketAnalyzer:
             Price.scraped_at,
             ScrapeRun.run_uuid,
         ).join(ScrapeRun, Price.run_id == ScrapeRun.id)
+        query = query.outerjoin(Product, Price.canonical_id == Product.canonical_id)
         
         if basket_type != "all":
             query = query.filter(Price.basket_id == basket_type)
@@ -175,6 +177,90 @@ class BasketAnalyzer:
                 products_missing += 1
         
         return total_value, products_included, products_missing
+
+    def _get_weights_by_category(
+        self,
+        weights: Dict[str, Decimal],
+    ) -> Dict[str, Dict[str, Decimal]]:
+        """Split basket weights by product category."""
+        canonical_ids = list(weights.keys())
+        if not canonical_ids:
+            return {}
+
+        rows = (
+            self.session.query(Product.canonical_id, Product.category)
+            .filter(Product.canonical_id.in_(canonical_ids))
+            .all()
+        )
+        category_by_id = {canonical_id: (category or "sin_categoria") for canonical_id, category in rows}
+
+        grouped_weights: Dict[str, Dict[str, Decimal]] = {}
+        for canonical_id, quantity in weights.items():
+            category = category_by_id.get(canonical_id, "sin_categoria")
+            grouped_weights.setdefault(category, {})[canonical_id] = quantity
+
+        return grouped_weights
+
+    def _compute_laspeyres_results(
+        self,
+        prices_df: pd.DataFrame,
+        weights: Dict[str, Decimal],
+        periods: List[str],
+        basket_type: str,
+        category: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Compute period-level Laspeyres results for a basket or category."""
+        if not periods:
+            return []
+
+        base_period = self.base_period
+        base_value, _, _ = self.compute_basket_value(prices_df, weights, base_period)
+        if base_value == 0:
+            for period in periods:
+                candidate_value, _, _ = self.compute_basket_value(prices_df, weights, period)
+                if candidate_value > 0:
+                    base_period = period
+                    base_value = candidate_value
+                    break
+
+        results = []
+        prev_value = None
+        for period in periods:
+            value, included, missing = self.compute_basket_value(prices_df, weights, period)
+            index_value = (value / base_value) * 100 if base_value > 0 else Decimal("100")
+
+            mom_change = None
+            if prev_value is not None and prev_value > 0:
+                mom_change = ((value - prev_value) / prev_value) * 100
+
+            row = {
+                "year_month": period,
+                "basket_type": basket_type,
+                "index_value": float(index_value),
+                "total_value": float(value),
+                "base_period": base_period,
+                "products_included": included,
+                "products_missing": missing,
+                "mom_change": float(mom_change) if mom_change is not None else None,
+            }
+            if category is not None:
+                row["category"] = category
+            results.append(row)
+            prev_value = value
+
+        for row in results:
+            period = row["year_month"]
+            year_s, month_s = period.split("-")
+            prev_year_period = f"{int(year_s) - 1:04d}-{month_s}"
+            prev_year_row = next((r for r in results if r["year_month"] == prev_year_period), None)
+            if prev_year_row and prev_year_row.get("total_value", 0) > 0:
+                val_now = row["total_value"]
+                val_prev = prev_year_row["total_value"]
+                row["yoy_change"] = ((val_now - val_prev) / val_prev) * 100
+            else:
+                row["yoy_change"] = None
+
+        return results
     
     def compute_basket_index(
         self,
@@ -209,68 +295,15 @@ class BasketAnalyzer:
             logger.warning("No periods found in data")
             return pd.DataFrame()
         
-        # Compute base period value
-        base_value, base_included, base_missing = self.compute_basket_value(
-            prices_df, weights, self.base_period
+        results = self._compute_laspeyres_results(
+            prices_df=prices_df,
+            weights=weights,
+            periods=periods,
+            basket_type=basket_type,
         )
-        
-        if base_value == 0:
-            # Use first available period as base
-            self.base_period = periods[0]
-            base_value, base_included, base_missing = self.compute_basket_value(
-                prices_df, weights, self.base_period
-            )
-            logger.info(f"Using {self.base_period} as base period")
-        
-        logger.info(f"Base period {self.base_period}: ${base_value:.2f}")
-        
-        # Compute index for each period
-        results = []
-        prev_value = None
-        
-        for period in periods:
-            value, included, missing = self.compute_basket_value(
-                prices_df, weights, period
-            )
-            
-            if base_value > 0:
-                index_value = (value / base_value) * 100
-            else:
-                index_value = Decimal("100")
-            
-            # Calculate month-over-month change
-            mom_change = None
-            if prev_value is not None and prev_value > 0:
-                mom_change = ((value - prev_value) / prev_value) * 100
-            
-            results.append({
-                "year_month": period,
-                "basket_type": basket_type,
-                "index_value": float(index_value),
-                "total_value": float(value),
-                "base_period": self.base_period,
-                "products_included": included,
-                "products_missing": missing,
-                "mom_change": float(mom_change) if mom_change is not None else None,
-            })
-            
-            prev_value = value
-        
-        # Calculate year-over-year % change: (value - value_same_month_last_year) / value_same_month_last_year * 100
-        for row in results:
-            period = row["year_month"]
-            year_s, month_s = period.split("-")
-            prev_year_period = f"{int(year_s) - 1:04d}-{month_s}"
-            prev_year_row = next(
-                (r for r in results if r["year_month"] == prev_year_period),
-                None,
-            )
-            if prev_year_row and prev_year_row.get("total_value", 0) > 0:
-                val_now = row["total_value"]
-                val_prev = prev_year_row["total_value"]
-                row["yoy_change"] = ((val_now - val_prev) / val_prev) * 100
-            else:
-                row["yoy_change"] = None
+
+        if results:
+            logger.info(f"Base period {results[0]['base_period']}: ${results[0]['total_value']:.2f}")
         
         results_df = pd.DataFrame(results)
         
@@ -315,6 +348,71 @@ class BasketAnalyzer:
         
         self.session.commit()
         logger.info(f"Saved {len(results)} index records to database")
+
+    def compute_category_indices(
+        self,
+        basket_type: str = "cba",
+        save_to_db: bool = True,
+    ) -> pd.DataFrame:
+        """Compute Laspeyres index by product category and period."""
+        logger.info(f"Computing category indices for '{basket_type}'")
+
+        prices_df = self.get_price_data(basket_type)
+        if prices_df.empty:
+            logger.warning("No price data found")
+            return pd.DataFrame()
+
+        weights = self.get_basket_weights(basket_type)
+        grouped_weights = self._get_weights_by_category(weights)
+        periods = sorted(prices_df["year_month"].unique())
+
+        all_results: List[Dict[str, Any]] = []
+        for category, category_weights in grouped_weights.items():
+            category_results = self._compute_laspeyres_results(
+                prices_df=prices_df,
+                weights=category_weights,
+                periods=periods,
+                basket_type=basket_type,
+                category=category,
+            )
+            all_results.extend(category_results)
+
+        if save_to_db and all_results:
+            self._save_category_indices_to_db(all_results)
+
+        return pd.DataFrame(all_results)
+
+    def _save_category_indices_to_db(self, results: List[Dict[str, Any]]):
+        """Save category-level index records to database."""
+        for row in results:
+            existing = self.session.query(CategoryIndex).filter_by(
+                basket_type=row["basket_type"],
+                year_month=row["year_month"],
+                category=row["category"],
+            ).first()
+
+            if existing:
+                existing.index_value = Decimal(str(row["index_value"]))
+                existing.mom_change = Decimal(str(row["mom_change"])) if row["mom_change"] is not None else None
+                existing.yoy_change = Decimal(str(row["yoy_change"])) if row.get("yoy_change") is not None else None
+                existing.products_included = row["products_included"]
+                existing.products_missing = row["products_missing"]
+                existing.computed_at = datetime.now(timezone.utc)
+            else:
+                category_index = CategoryIndex(
+                    basket_type=row["basket_type"],
+                    year_month=row["year_month"],
+                    category=row["category"],
+                    index_value=Decimal(str(row["index_value"])),
+                    mom_change=Decimal(str(row["mom_change"])) if row["mom_change"] is not None else None,
+                    yoy_change=Decimal(str(row["yoy_change"])) if row.get("yoy_change") is not None else None,
+                    products_included=row["products_included"],
+                    products_missing=row["products_missing"],
+                )
+                self.session.add(category_index)
+
+        self.session.commit()
+        logger.info(f"Saved {len(results)} category index records to database")
     
     def load_cpi_data(self, cpi_file: Optional[str] = None) -> pd.DataFrame:
         """Load CPI data from file.
@@ -571,6 +669,17 @@ class BasketAnalyzer:
         
         logger.info(f"Summary exported to {output_dir}")
         return paths
+
+
+def compute_category_indices(
+    config_path: Optional[str] = None,
+    basket_type: str = "cba",
+    save_to_db: bool = True,
+) -> pd.DataFrame:
+    """Public helper to compute category-level indices for CLI/API/reporting."""
+    config = load_config(config_path)
+    with BasketAnalyzer(config) as analyzer:
+        return analyzer.compute_category_indices(basket_type=basket_type, save_to_db=save_to_db)
 
 
 def run_analysis(
