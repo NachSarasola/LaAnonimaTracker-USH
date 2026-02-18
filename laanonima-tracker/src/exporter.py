@@ -9,6 +9,7 @@ from loguru import logger
 
 from src.models import get_engine, get_session_factory, Product, Price, ScrapeRun
 from src.config_loader import get_storage_config
+from src.repositories import SeriesRepository
 
 
 def export_to_csv(
@@ -323,28 +324,15 @@ def get_history_series(
     session = Session()
 
     try:
-        query = session.query(
-            Price.canonical_id,
-            Price.product_name,
-            Price.basket_id,
-            Price.current_price,
-            Price.original_price,
-            Price.price_per_unit,
-            Price.in_stock,
-            Price.is_promotion,
-            Price.scraped_at,
-            ScrapeRun.run_uuid,
-            ScrapeRun.started_at.label("run_started_at"),
-        ).join(ScrapeRun, Price.run_id == ScrapeRun.id).order_by(
-            Price.canonical_id, Price.scraped_at
+        repository = SeriesRepository(session)
+        rows = repository.get_all_product_series(
+            canonical_id=canonical_id,
+            basket_type=basket_type,
         )
+        df = pd.DataFrame(rows)
 
-        if basket_type != "all":
-            query = query.filter(Price.basket_id == basket_type)
-        if canonical_id:
-            query = query.filter(Price.canonical_id == canonical_id)
-
-        df = pd.read_sql(query.statement, session.bind)
+        if not df.empty:
+            df = df.sort_values(["canonical_id", "scraped_at"])
         if not df.empty:
             df["scraped_at"] = pd.to_datetime(df["scraped_at"])
             df["run_started_at"] = pd.to_datetime(df["run_started_at"])
