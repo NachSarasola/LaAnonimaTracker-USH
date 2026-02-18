@@ -262,13 +262,20 @@ def init(ctx):
 @cli.command()
 @click.option("--from", "from_month", required=True, help="Mes inicial (YYYY-MM)")
 @click.option("--to", "to_month", required=True, help="Mes final (YYYY-MM)")
+@click.option(
+    "--basket", "basket_type",
+    type=click.Choice(["cba", "extended", "all"], case_sensitive=False),
+    default="cba",
+    show_default=True,
+    help="Canasta a usar para el reporte y sus métricas de cobertura",
+)
 @click.option("--pdf/--no-pdf", "export_pdf", default=False, help="Exportar también PDF si la dependencia está disponible")
 @click.pass_context
-def report(ctx, from_month: str, to_month: str, export_pdf: bool):
+def report(ctx, from_month: str, to_month: str, basket_type: str, export_pdf: bool):
     """Generate inflation report as HTML and optional PDF."""
     config_path = ctx.obj["config_path"]
 
-    logger.info(f"Generating report: from={from_month}, to={to_month}, pdf={export_pdf}")
+    logger.info(f"Generating report: from={from_month}, to={to_month}, basket={basket_type}, pdf={export_pdf}")
 
     try:
         results = run_report(
@@ -276,6 +283,7 @@ def report(ctx, from_month: str, to_month: str, export_pdf: bool):
             from_month=from_month,
             to_month=to_month,
             export_pdf=export_pdf,
+            basket_type=basket_type,
         )
 
         click.echo(f"\n{'='*60}")

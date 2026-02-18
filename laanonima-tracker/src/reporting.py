@@ -14,7 +14,7 @@ from typing import Any, Dict, Optional
 import pandas as pd
 from loguru import logger
 
-from src.config_loader import get_basket_items, load_config
+from src.config_loader import get_basket_items, load_config, resolve_canonical_category
 from src.models import CategoryIndex, Price, Product, get_engine, get_session_factory
 
 
@@ -52,7 +52,7 @@ class ReportGenerator:
     def _next_month_start(self, value: str) -> pd.Timestamp:
         return self._month_start(value) + pd.offsets.MonthBegin(1)
 
-    def _load_prices(self, from_month: str, to_month: str) -> pd.DataFrame:
+    def _load_prices(self, from_month: str, to_month: str, basket_type: str) -> pd.DataFrame:
         start_dt = self._month_start(from_month)
         end_exclusive_dt = self._next_month_start(to_month)
 
@@ -69,6 +69,9 @@ class ReportGenerator:
             .filter(Price.scraped_at >= start_dt)
             .filter(Price.scraped_at < end_exclusive_dt)
         )
+
+        if basket_type != "all":
+            query = query.filter(Price.basket_id == basket_type)
 
         df = pd.read_sql(query.statement, self.session.bind)
         if df.empty:
@@ -108,25 +111,55 @@ class ReportGenerator:
 
         return merged.sort_values("variation_pct", ascending=False, na_position="last")
 
-    def _coverage_metrics(self, df: pd.DataFrame, from_month: str, to_month: str) -> Dict[str, Any]:
-        expected_products = len(get_basket_items(self.config, "all"))
+    def _expected_products_by_category(self, basket_type: str) -> Dict[str, int]:
+        expected_by_category: Dict[str, int] = {}
+
+        for item in get_basket_items(self.config, basket_type):
+            raw_category = item.get("category") or "sin_categoria"
+            category = resolve_canonical_category(self.config, raw_category) or raw_category
+            expected_by_category[category] = expected_by_category.get(category, 0) + 1
+
+        return expected_by_category
+
+    def _coverage_metrics(self, df: pd.DataFrame, from_month: str, to_month: str, basket_type: str) -> Dict[str, Any]:
+        expected_by_category = self._expected_products_by_category(basket_type)
+        expected_products = sum(expected_by_category.values())
         observed_total = int(df["canonical_id"].nunique()) if not df.empty else 0
 
         observed_from = int(df[df["month"] == from_month]["canonical_id"].nunique()) if not df.empty else 0
         observed_to = int(df[df["month"] == to_month]["canonical_id"].nunique()) if not df.empty else 0
 
         safe_expected = expected_products if expected_products > 0 else 1
+        coverage_by_category = []
+        if not df.empty:
+            for category, observed in (
+                df.groupby("category")["canonical_id"].nunique().sort_values(ascending=False).items()
+            ):
+                expected = expected_by_category.get(category, 0)
+                safe_expected_category = expected if expected > 0 else 1
+                coverage_by_category.append(
+                    {
+                        "category": category,
+                        "expected_products": int(expected),
+                        "observed_products": int(observed),
+                        "coverage_pct": (int(observed) / safe_expected_category) * 100,
+                    }
+                )
+
         return {
+            "basket_type": basket_type,
             "expected_products": expected_products,
+            "expected_products_by_category": expected_by_category,
             "observed_products_total": observed_total,
             "coverage_total_pct": (observed_total / safe_expected) * 100,
             "observed_from": observed_from,
             "observed_to": observed_to,
             "coverage_from_pct": (observed_from / safe_expected) * 100,
             "coverage_to_pct": (observed_to / safe_expected) * 100,
+            "coverage_by_category": coverage_by_category,
         }
 
-    def _load_category_indices(self, from_month: str, to_month: str) -> pd.DataFrame:
+    def _load_category_indices(self, from_month: str, to_month: str, basket_type: str) -> pd.DataFrame:
         query = (
             self.session.query(
                 CategoryIndex.basket_type,
@@ -140,6 +173,9 @@ class ReportGenerator:
             )
             .filter(CategoryIndex.year_month.in_([from_month, to_month]))
         )
+
+        if basket_type != "all":
+            query = query.filter(CategoryIndex.basket_type == basket_type)
 
         df = pd.read_sql(query.statement, self.session.bind)
         if df.empty:
@@ -157,8 +193,8 @@ class ReportGenerator:
 
         return df
 
-    def _category_variation_from_indices(self, from_month: str, to_month: str) -> pd.DataFrame:
-        indices_df = self._load_category_indices(from_month, to_month)
+    def _category_variation_from_indices(self, from_month: str, to_month: str, basket_type: str) -> pd.DataFrame:
+        indices_df = self._load_category_indices(from_month, to_month, basket_type)
         if indices_df.empty:
             return pd.DataFrame()
 
@@ -229,6 +265,14 @@ class ReportGenerator:
             for _, row in top_products.iterrows()
         ) or "<tr><td colspan='5'>Sin datos suficientes</td></tr>"
 
+        category_coverage_rows = "".join(
+            (
+                f"<tr><td>{item['category']}</td><td>{item['observed_products']}</td><td>{item['expected_products']}</td>"
+                f"<td>{item['coverage_pct']:.2f}%</td></tr>"
+            )
+            for item in coverage.get("coverage_by_category", [])
+        ) or "<tr><td colspan='4'>Sin datos suficientes</td></tr>"
+
         return f"""
 <!DOCTYPE html>
 <html lang=\"es\">
@@ -273,12 +317,18 @@ class ReportGenerator:
 
   <section class=\"card\">
     <h2>Cobertura de datos</h2>
+    <p class=\"muted\">Cobertura sobre {coverage['expected_products']} productos esperados (canasta: {coverage['basket_type']}).</p>
     <ul>
       <li>Productos esperados (config): {coverage['expected_products']}</li>
       <li>Productos observados (rango): {coverage['observed_products_total']} ({coverage['coverage_total_pct']:.2f}%)</li>
       <li>Productos observados en {from_month}: {coverage['observed_from']} ({coverage['coverage_from_pct']:.2f}%)</li>
       <li>Productos observados en {to_month}: {coverage['observed_to']} ({coverage['coverage_to_pct']:.2f}%)</li>
     </ul>
+    <h3>Cobertura por categoría</h3>
+    <table>
+      <thead><tr><th>Categoría</th><th>Observados</th><th>Esperados</th><th>Cobertura</th></tr></thead>
+      <tbody>{category_coverage_rows}</tbody>
+    </table>
   </section>
 </body>
 </html>
@@ -294,11 +344,14 @@ class ReportGenerator:
         HTML(string=html_content).write_pdf(str(pdf_path))
         return str(pdf_path)
 
-    def generate(self, from_month: str, to_month: str, export_pdf: bool = False) -> Dict[str, Any]:
+    def generate(self, from_month: str, to_month: str, export_pdf: bool = False, basket_type: str = "cba") -> Dict[str, Any]:
         if self._month_start(to_month) < self._month_start(from_month):
             raise ValueError("El rango es inválido: --to debe ser mayor o igual que --from")
 
-        df = self._load_prices(from_month, to_month)
+        if basket_type not in {"cba", "extended", "all"}:
+            raise ValueError("basket_type inválido: use cba, extended o all")
+
+        df = self._load_prices(from_month, to_month, basket_type)
         if df.empty:
             raise ValueError("No hay datos de precios para el rango indicado")
 
@@ -310,7 +363,7 @@ class ReportGenerator:
 
         inflation_total_pct = float(((to_avg.iloc[0] - from_avg.iloc[0]) / from_avg.iloc[0]) * 100)
 
-        top_categories = self._category_variation_from_indices(from_month, to_month)
+        top_categories = self._category_variation_from_indices(from_month, to_month, basket_type)
         data_source = "category_indices"
         if top_categories.empty:
             categories_grouped = self._monthly_avg_by(df, "category")
@@ -335,7 +388,7 @@ class ReportGenerator:
             how="left",
         ).head(10)
 
-        coverage = self._coverage_metrics(df, from_month, to_month)
+        coverage = self._coverage_metrics(df, from_month, to_month, basket_type)
 
         report_dir = Path("data/analysis/reports")
         report_dir.mkdir(parents=True, exist_ok=True)
@@ -364,6 +417,7 @@ class ReportGenerator:
         metadata = {
             "generated_at": generated_at,
             "range": {"from": from_month, "to": to_month},
+            "basket_type": basket_type,
             "data_source": data_source,
             "inflation_total_pct": inflation_total_pct,
             "coverage": coverage,
@@ -389,8 +443,19 @@ class ReportGenerator:
         }
 
 
-def run_report(config_path: Optional[str], from_month: str, to_month: str, export_pdf: bool = False) -> Dict[str, Any]:
+def run_report(
+    config_path: Optional[str],
+    from_month: str,
+    to_month: str,
+    export_pdf: bool = False,
+    basket_type: str = "cba",
+) -> Dict[str, Any]:
     """Run report generation workflow."""
     config = load_config(config_path)
     with ReportGenerator(config) as generator:
-        return generator.generate(from_month=from_month, to_month=to_month, export_pdf=export_pdf)
+        return generator.generate(
+            from_month=from_month,
+            to_month=to_month,
+            export_pdf=export_pdf,
+            basket_type=basket_type,
+        )

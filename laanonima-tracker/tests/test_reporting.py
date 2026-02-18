@@ -18,7 +18,7 @@ class TestReportMonthlyRange(unittest.TestCase):
         self.config = {
             "storage": {"default_backend": "sqlite", "sqlite": {"database_path": ":memory:"}},
             "baskets": {
-                "cba": {"items": [{"id": "prod_leche", "quantity": 1}]},
+                "cba": {"items": [{"id": "prod_leche", "quantity": 1, "category": "lacteos"}]},
                 "extended": {"items": []},
             },
         }
@@ -93,13 +93,13 @@ class TestReportMonthlyRange(unittest.TestCase):
         self.session.commit()
 
     def test_load_prices_includes_entire_last_day_of_month(self):
-        result = self.generator._load_prices("2024-02", "2024-02")
+        result = self.generator._load_prices("2024-02", "2024-02", "all")
 
         self.assertEqual(len(result), 2)
         self.assertTrue((result["month"] == "2024-02").all())
 
     def test_load_prices_excludes_next_month_start(self):
-        result = self.generator._load_prices("2024-02", "2024-02")
+        result = self.generator._load_prices("2024-02", "2024-02", "all")
 
         self.assertFalse((result["scraped_at"] >= datetime(2024, 3, 1, 0, 0, 0)).any())
 
@@ -156,6 +156,7 @@ class TestReportMonthlyRange(unittest.TestCase):
             top_categories=top_categories,
             top_products=top_products,
             coverage={
+                "basket_type": "cba",
                 "expected_products": 1,
                 "observed_products_total": 1,
                 "coverage_total_pct": 100.0,
@@ -168,6 +169,43 @@ class TestReportMonthlyRange(unittest.TestCase):
         )
 
         self.assertIn("<td>N/D</td>", html)
+
+    def test_coverage_metrics_uses_expected_products_by_selected_basket(self):
+        df = pd.DataFrame(
+            [
+                {"canonical_id": "prod_leche", "month": "2024-02", "category": "lacteos"},
+                {"canonical_id": "prod_carne", "month": "2024-02", "category": "carnes"},
+            ]
+        )
+
+        coverage = self.generator._coverage_metrics(df, "2024-02", "2024-02", "cba")
+
+        self.assertEqual(coverage["expected_products"], 1)
+        self.assertEqual(coverage["expected_products_by_category"]["lacteos"], 1)
+        self.assertAlmostEqual(coverage["coverage_total_pct"], 200.0)
+
+    def test_coverage_metrics_tracks_category_denominator_independently(self):
+        self.generator.config["baskets"]["cba"]["items"] = [
+            {"id": "a", "category": "lacteos"},
+            {"id": "b", "category": "lacteos"},
+            {"id": "c", "category": "carnes"},
+        ]
+        df = pd.DataFrame(
+            [
+                {"canonical_id": "prod1", "month": "2024-02", "category": "lacteos"},
+                {"canonical_id": "prod2", "month": "2024-02", "category": "lacteos"},
+                {"canonical_id": "prod3", "month": "2024-02", "category": "carnes"},
+            ]
+        )
+
+        coverage = self.generator._coverage_metrics(df, "2024-02", "2024-02", "cba")
+        by_category = {item["category"]: item for item in coverage["coverage_by_category"]}
+
+        self.assertEqual(by_category["lacteos"]["expected_products"], 2)
+        self.assertAlmostEqual(by_category["lacteos"]["coverage_pct"], 100.0)
+        self.assertEqual(by_category["carnes"]["expected_products"], 1)
+        self.assertAlmostEqual(by_category["carnes"]["coverage_pct"], 100.0)
+
 
 
 if __name__ == "__main__":
