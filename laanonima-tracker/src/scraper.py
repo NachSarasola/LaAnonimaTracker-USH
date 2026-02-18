@@ -581,13 +581,34 @@ class LaAnonimaScraper:
     def _parse_product(self, product_element) -> Optional[Dict[str, Any]]:
         """Parse a product element into data dictionary."""
         try:
+            def _first_text(selectors: List[str]) -> str:
+                last_error = None
+                for selector in selectors:
+                    if not selector:
+                        continue
+                    try:
+                        text = product_element.locator(selector).inner_text()
+                        if text:
+                            return text
+                    except Exception as exc:
+                        last_error = exc
+                        continue
+
+                raise last_error or ValueError("No selector returned text")
+
             # Product name
-            name_selector = self._get_selector("product_name") or ".nombre-producto"
-            name = product_element.locator(name_selector).inner_text()
+            name = _first_text([
+                self._get_selector("product_name"),
+                ".nombre-producto",
+                ".product-name",
+            ])
             
             # Price
-            price_selector = self._get_selector("product_price") or ".precio-actual"
-            price_text = product_element.locator(price_selector).inner_text()
+            price_text = _first_text([
+                self._get_selector("product_price"),
+                ".precio-actual",
+                ".price",
+            ])
             price = self._parse_price(price_text)
             
             # Original price (for discounts)
@@ -611,14 +632,22 @@ class LaAnonimaScraper:
             # URL
             url = ""
             url_valid = False
-            try:
-                url_selector = self._get_selector("product_url") or "a[href*='producto'], a[href*='art_']"
-                raw_url = product_element.locator(url_selector).first.get_attribute("href")
-                normalized_url = urljoin("https://www.laanonima.com.ar/", raw_url or "")
-                url = self._canonical_product_url(normalized_url)
-                url_valid = self._is_valid_product_url(url)
-            except:
-                pass
+            for url_selector in [
+                self._get_selector("product_url"),
+                "a[href*='producto']",
+                "a[href*='art_']",
+            ]:
+                if not url_selector:
+                    continue
+                try:
+                    raw_url = product_element.locator(url_selector).first.get_attribute("href")
+                    normalized_url = urljoin("https://www.laanonima.com.ar/", raw_url or "")
+                    url = self._canonical_product_url(normalized_url)
+                    url_valid = self._is_valid_product_url(url)
+                    if url:
+                        break
+                except Exception:
+                    continue
             
             # Stock status
             in_stock = True
