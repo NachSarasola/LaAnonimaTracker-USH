@@ -3,13 +3,14 @@
 import os
 import sys
 import unittest
+from datetime import datetime
 from pathlib import Path
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.config_loader import load_config, get_basket_items, get_branch_config, resolve_canonical_category
-from src.models import get_engine, init_db, get_session_factory, Product, Price
+from src.models import get_engine, init_db, get_session_factory, Product, Price, CategoryIndex
 from src.category_backfill import backfill_canonical_categories, validate_price_category_traceability
 
 
@@ -162,6 +163,99 @@ class TestCanonicalCategories(unittest.TestCase):
         self.assertEqual(traceability["prices_without_category"], 0)
 
         session.close()
+
+
+class TestCategoryIndices(unittest.TestCase):
+    """Test category-level index computation and persistence."""
+
+    def test_compute_category_indices(self):
+        from src.analysis import BasketAnalyzer
+        from src.models import ScrapeRun
+
+        config = {
+            "analysis": {"base_period": "2024-01", "index_type": "laspeyres"},
+            "storage": {"default_backend": "sqlite", "sqlite": {"database_path": ":memory:"}},
+            "baskets": {
+                "cba": {"items": [
+                    {"id": "prod_leche", "quantity": 1},
+                    {"id": "prod_pan", "quantity": 2},
+                ]},
+                "extended": {"items": []},
+            },
+        }
+
+        engine = get_engine(config, "sqlite")
+        init_db(engine)
+        Session = get_session_factory(engine)
+        session = Session()
+
+        run = ScrapeRun(
+            run_uuid="22222222-2222-2222-2222-222222222222",
+            branch_id="75",
+            branch_name="USHUAIA",
+            postal_code="9410",
+            basket_type="cba",
+        )
+        session.add(run)
+        session.flush()
+
+        leche = Product(canonical_id="prod_leche", basket_id="cba", name="Leche", category="lacteos")
+        pan = Product(canonical_id="prod_pan", basket_id="cba", name="Pan", category="almacen")
+        session.add_all([leche, pan])
+        session.flush()
+
+        session.add_all([
+            Price(
+                product_id=leche.id,
+                run_id=run.id,
+                canonical_id="prod_leche",
+                basket_id="cba",
+                product_name="Leche",
+                current_price=100,
+                scraped_at=datetime(2024, 1, 15),
+            ),
+            Price(
+                product_id=pan.id,
+                run_id=run.id,
+                canonical_id="prod_pan",
+                basket_id="cba",
+                product_name="Pan",
+                current_price=50,
+                scraped_at=datetime(2024, 1, 15),
+            ),
+            Price(
+                product_id=leche.id,
+                run_id=run.id,
+                canonical_id="prod_leche",
+                basket_id="cba",
+                product_name="Leche",
+                current_price=120,
+                scraped_at=datetime(2024, 2, 15),
+            ),
+            Price(
+                product_id=pan.id,
+                run_id=run.id,
+                canonical_id="prod_pan",
+                basket_id="cba",
+                product_name="Pan",
+                current_price=55,
+                scraped_at=datetime(2024, 2, 15),
+            ),
+        ])
+        session.commit()
+
+        analyzer = BasketAnalyzer(config, db_session=session)
+        result = analyzer.compute_category_indices(basket_type="cba", save_to_db=True)
+
+        self.assertFalse(result.empty)
+        self.assertIn("category", result.columns)
+        self.assertEqual(session.query(CategoryIndex).count(), 4)
+
+        lacteos_feb = result[(result["category"] == "lacteos") & (result["year_month"] == "2024-02")].iloc[0]
+        self.assertAlmostEqual(lacteos_feb["index_value"], 120.0, places=2)
+
+        analyzer.close()
+
 
 
 if __name__ == "__main__":
