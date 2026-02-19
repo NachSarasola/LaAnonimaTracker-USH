@@ -19,6 +19,10 @@ jobs:
     env:
       PYTHONUNBUFFERED: "1"
       DB_URL: ${{ secrets.DB_URL }}
+      TRACKER_CONFIG_B64: ${{ secrets.TRACKER_CONFIG_B64 }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_PROJECT_NAME: ${{ secrets.CLOUDFLARE_PROJECT_NAME }}
       STORAGE_BACKEND: "postgresql"
       PUBLIC_BASE_URL: "https://preciosushuaia.com"
       PUBLIC_CONTACT_EMAIL: "hola@preciosushuaia.com"
@@ -28,7 +32,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Validate DB_URL for scheduled runs
-        if: ${{ github.event_name == 'schedule' && secrets.DB_URL == '' }}
+        if: ${{ github.event_name == 'schedule' && env.DB_URL == '' }}
         run: |
           echo "::error::DB_URL secret is required for scheduled runs to preserve historical series."
           exit 1
@@ -41,11 +45,11 @@ jobs:
           cache-dependency-path: laanonima-tracker/requirements.txt
 
       - name: Optional config override from secret
-        if: ${{ secrets.TRACKER_CONFIG_B64 != '' }}
+        if: ${{ env.TRACKER_CONFIG_B64 != '' }}
         shell: bash
         run: |
           cd laanonima-tracker
-          echo "${{ secrets.TRACKER_CONFIG_B64 }}" | base64 -d > config.yaml
+          echo "${TRACKER_CONFIG_B64}" | base64 -d > config.yaml
 
       - name: Install dependencies
         run: |
@@ -139,16 +143,16 @@ jobs:
           retention-days: 14
 
       - name: Deploy to Cloudflare Pages
-        if: ${{ secrets.CLOUDFLARE_API_TOKEN != '' && secrets.CLOUDFLARE_ACCOUNT_ID != '' && secrets.CLOUDFLARE_PROJECT_NAME != '' }}
+        if: ${{ env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != '' && env.CLOUDFLARE_PROJECT_NAME != '' }}
         uses: cloudflare/pages-action@v1
         with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          projectName: ${{ secrets.CLOUDFLARE_PROJECT_NAME }}
+          apiToken: ${{ env.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
+          projectName: ${{ env.CLOUDFLARE_PROJECT_NAME }}
           directory: laanonima-tracker/public
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Warn if Cloudflare secrets are missing
-        if: ${{ !(secrets.CLOUDFLARE_API_TOKEN != '' && secrets.CLOUDFLARE_ACCOUNT_ID != '' && secrets.CLOUDFLARE_PROJECT_NAME != '') }}
+        if: ${{ !(env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != '' && env.CLOUDFLARE_PROJECT_NAME != '') }}
         run: |
           echo "Cloudflare deploy skipped: missing CLOUDFLARE_* secrets."
