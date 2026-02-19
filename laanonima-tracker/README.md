@@ -118,6 +118,35 @@ Flags nuevos en `report` y `app`:
 --offline-assets [embed|external]         # default: embed
 ```
 
+### Publicar web estatica (modo costo ultra-bajo)
+
+Para publicar una web navegable (home + tracker + historico) en `public/`:
+
+```bash
+# Generar reporte y empaquetar sitio estatico
+python -m src.cli publish-web --basket all --view analyst --offline-assets external
+
+# Usar el ultimo reporte ya generado
+python -m src.cli publish-web --basket all --skip-report
+
+# Rango explicito para publicacion mensual
+python -m src.cli publish-web --basket all --from 2026-01 --to 2026-02 --view analyst
+```
+
+Salida esperada:
+- `public/index.html`
+- `public/tracker/index.html`
+- `public/historico/index.html`
+- `public/data/manifest.json`
+- `public/data/latest.metadata.json`
+- `public/_headers`, `public/_redirects`, `public/404.html`
+
+Automatizacion diaria:
+- Workflow incluido: `.github/workflows/publish-web.yml`
+- Deploy target: Cloudflare Pages
+- En corridas programadas, `DB_URL` es obligatorio para mantener historico
+- Ver runbook operativo: `docs/runbook_publish_web.md`
+
 Metodologia resumida:
 - `nominal`: variacion directa de precios observados.
 - `real`: precio deflactado por IPC INDEC del mes.
@@ -130,6 +159,47 @@ Mejoras UX/performance del reporte:
 - exportación CSV de la tabla filtrada.
 - cache de filtros/render para reducir recálculos innecesarios en navegador.
 - guía de lectura rápida + chips de filtros activos para entender el estado actual de análisis.
+
+### IPC mensual propio + comparacion oficial Patagonia
+
+El tracker ahora calcula su propio IPC mensual (canasta fija robusta, encadenado base 100) y lo compara con IPC oficial Patagonia.
+
+Comandos nuevos:
+
+```bash
+# 1) Sincroniza IPC oficial (auto + fallback)
+python -m src.cli ipc-sync --region patagonia
+
+# 2) Construye IPC tracker mensual (general + rubros)
+python -m src.cli ipc-build --basket all
+
+# 3) Pipeline completo de publicacion mensual
+python -m src.cli ipc-publish --basket all
+```
+
+Tambien puedes acotar rango:
+
+```bash
+python -m src.cli ipc-sync --from 2026-01 --to 2026-02 --region patagonia
+python -m src.cli ipc-build --basket all --from 2026-01 --to 2026-02
+python -m src.cli ipc-publish --basket all --from 2026-01 --to 2026-02
+```
+
+Estados mensuales de IPC tracker:
+- `provisional`: mes abierto (antes de freeze).
+- `final`: mes congelado tras politica D+7.
+- `provisional_low_coverage`: cobertura insuficiente para cierre robusto.
+
+Endpoints API nuevos:
+- `GET /ipc/tracker`
+- `GET /ipc/tracker/categorias`
+- `GET /ipc/oficial/patagonia`
+- `GET /ipc/comparacion`
+- `GET /ipc/comparacion/categorias`
+- `GET /ipc/publicacion/latest`
+
+Compatibilidad:
+- Se mantiene `GET /ipc/categorias` para clientes actuales.
 
 ### Run Analysis
 

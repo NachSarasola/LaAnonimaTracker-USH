@@ -1,0 +1,88 @@
+﻿name: publish-web
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 06:10 ART ~= 09:10 UTC
+    - cron: "10 9 * * *"
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 80
+    env:
+      PYTHONUNBUFFERED: "1"
+      DB_URL: ${{ secrets.DB_URL }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate DB_URL for scheduled runs
+        if: ${{ github.event_name == 'schedule' && secrets.DB_URL == '' }}
+        run: |
+          echo "::error::DB_URL secret is required for scheduled runs to preserve historical series."
+          exit 1
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: laanonima-tracker/requirements.txt
+
+      - name: Optional config override from secret
+        if: ${{ secrets.TRACKER_CONFIG_B64 != '' }}
+        shell: bash
+        run: |
+          cd laanonima-tracker
+          echo "${{ secrets.TRACKER_CONFIG_B64 }}" | base64 -d > config.yaml
+
+      - name: Install dependencies
+        run: |
+          cd laanonima-tracker
+          pip install -r requirements.txt
+
+      - name: Install Playwright Chromium
+        run: |
+          cd laanonima-tracker
+          playwright install chromium
+
+      - name: Run data pipeline
+        run: |
+          cd laanonima-tracker
+          python -m src.cli init
+          python -m src.cli scrape --basket all --candidate-storage db --observation-policy single+audit
+          python -m src.cli ipc-sync --region all
+          python -m src.cli ipc-publish --basket all --region patagonia
+
+      - name: Build report and static web
+        run: |
+          cd laanonima-tracker
+          python -m src.cli app --basket all --view analyst --benchmark ipc --offline-assets external
+          python -m src.cli publish-web --basket all --view analyst --offline-assets external --skip-report
+
+      - name: Upload generated artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-site-and-reports
+          path: |
+            laanonima-tracker/public
+            laanonima-tracker/data/analysis/reports
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Deploy to Cloudflare Pages
+        if: ${{ secrets.CLOUDFLARE_API_TOKEN != '' && secrets.CLOUDFLARE_ACCOUNT_ID != '' && secrets.CLOUDFLARE_PROJECT_NAME != '' }}
+        uses: cloudflare/pages-action@v1
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          projectName: ${{ secrets.CLOUDFLARE_PROJECT_NAME }}
+          directory: laanonima-tracker/public
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Warn if Cloudflare secrets are missing
+        if: ${{ !(secrets.CLOUDFLARE_API_TOKEN != '' && secrets.CLOUDFLARE_ACCOUNT_ID != '' && secrets.CLOUDFLARE_PROJECT_NAME != '') }}
+        run: |
+          echo "Cloudflare deploy skipped: missing CLOUDFLARE_* secrets."

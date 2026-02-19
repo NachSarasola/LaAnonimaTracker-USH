@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from time import perf_counter
 from typing import Any, Dict, List, Optional, Tuple
@@ -109,7 +110,10 @@ class ReportGenerator:
         df = df.dropna(subset=["scraped_at"]).copy()
         df["month"] = df["scraped_at"].dt.to_period("M").astype(str)
         df["current_price"] = pd.to_numeric(df["current_price"], errors="coerce")
-        df["category"] = df["category"].fillna("sin_categoria")
+        df["category"] = df["category"].map(
+            lambda value: resolve_canonical_category(self.config, value)
+            or (str(value).strip().lower() if value is not None and str(value).strip() else "sin_categoria")
+        )
         df["product_size"] = df["product_size"].fillna("N/D")
         return df.dropna(subset=["current_price"]).copy()
 
@@ -153,12 +157,50 @@ class ReportGenerator:
         from_month: str,
         to_month: str,
         benchmark_mode: str = "ipc",
+        region: str = "patagonia",
     ) -> pd.DataFrame:
-        columns = ["year_month", "cpi_index", "cpi_mom", "cpi_yoy"]
+        columns = ["year_month", "cpi_index", "cpi_mom", "cpi_yoy", "status", "source"]
         if benchmark_mode == "none":
             return pd.DataFrame(columns=columns)
 
-        cpi_path = Path("data/cpi/ipc_indec.csv")
+        repository = SeriesRepository(self.session)
+        try:
+            rows, _ = repository.get_official_ipc_patagonia(
+                start_period=from_month,
+                end_period=to_month,
+                metric_code="general",
+                region=region,
+                page=1,
+                page_size=2400,
+            )
+        except Exception:
+            rows = []
+        if rows:
+            ipc_df = pd.DataFrame(rows)
+            ipc_df = ipc_df.rename(
+                columns={
+                    "index_value": "cpi_index",
+                    "mom_change": "cpi_mom",
+                    "yoy_change": "cpi_yoy",
+                }
+            )
+            ipc_df["year_month"] = ipc_df["year_month"].astype(str)
+            ipc_df["cpi_index"] = pd.to_numeric(ipc_df["cpi_index"], errors="coerce")
+            ipc_df["cpi_mom"] = pd.to_numeric(ipc_df["cpi_mom"], errors="coerce")
+            ipc_df["cpi_yoy"] = pd.to_numeric(ipc_df["cpi_yoy"], errors="coerce")
+            ipc_df = ipc_df.dropna(subset=["cpi_index"])
+            if "status" not in ipc_df.columns:
+                ipc_df["status"] = "final"
+            if "source" not in ipc_df.columns:
+                ipc_df["source"] = "indec_patagonia"
+            return ipc_df.sort_values("year_month")[columns].reset_index(drop=True)
+
+        # Backward-compatible fallback to legacy flat file.
+        if region != "patagonia":
+            return pd.DataFrame(columns=columns)
+        cpi_path = Path("data/cpi/ipc_indec_patagonia.csv")
+        if not cpi_path.exists():
+            cpi_path = Path("data/cpi/ipc_indec.csv")
         if not cpi_path.exists():
             return pd.DataFrame(columns=columns)
 
@@ -167,20 +209,27 @@ class ReportGenerator:
         except Exception:
             return pd.DataFrame(columns=columns)
 
-        if "year_month" not in ipc_df.columns or "cpi_index" not in ipc_df.columns:
+        if "year_month" not in ipc_df.columns:
             return pd.DataFrame(columns=columns)
 
         ipc_df = ipc_df.copy()
         ipc_df["year_month"] = ipc_df["year_month"].astype(str)
-        ipc_df["cpi_index"] = pd.to_numeric(ipc_df["cpi_index"], errors="coerce")
-        if "cpi_mom" in ipc_df.columns:
-            ipc_df["cpi_mom"] = pd.to_numeric(ipc_df["cpi_mom"], errors="coerce")
+        if "cpi_index" in ipc_df.columns:
+            ipc_df["cpi_index"] = pd.to_numeric(ipc_df["cpi_index"], errors="coerce")
+        elif "index_value" in ipc_df.columns:
+            ipc_df["cpi_index"] = pd.to_numeric(ipc_df["index_value"], errors="coerce")
         else:
-            ipc_df["cpi_mom"] = pd.NA
-        if "cpi_yoy" in ipc_df.columns:
-            ipc_df["cpi_yoy"] = pd.to_numeric(ipc_df["cpi_yoy"], errors="coerce")
-        else:
-            ipc_df["cpi_yoy"] = pd.NA
+            return pd.DataFrame(columns=columns)
+        ipc_df["cpi_mom"] = pd.to_numeric(
+            ipc_df["cpi_mom"] if "cpi_mom" in ipc_df.columns else ipc_df.get("mom_change"),
+            errors="coerce",
+        )
+        ipc_df["cpi_yoy"] = pd.to_numeric(
+            ipc_df["cpi_yoy"] if "cpi_yoy" in ipc_df.columns else ipc_df.get("yoy_change"),
+            errors="coerce",
+        )
+        ipc_df["status"] = ipc_df.get("status", "final")
+        ipc_df["source"] = ipc_df.get("source", "legacy_csv")
         ipc_df = ipc_df.dropna(subset=["cpi_index"])
 
         from_period = pd.Period(from_month, freq="M")
@@ -188,46 +237,575 @@ class ReportGenerator:
         ipc_df = ipc_df[ipc_df["year_month"].map(lambda x: from_period <= pd.Period(x, freq="M") <= to_period)]
         return ipc_df.sort_values("year_month")[columns].reset_index(drop=True)
 
+    def _load_tracker_ipc_general(self, from_month: str, to_month: str, basket_type: str) -> pd.DataFrame:
+        repository = SeriesRepository(self.session)
+        try:
+            rows, _ = repository.get_tracker_ipc_general(
+                basket_type=basket_type,
+                start_period=from_month,
+                end_period=to_month,
+                page=1,
+                page_size=2400,
+            )
+        except Exception:
+            rows = []
+        if not rows:
+            return pd.DataFrame(
+                columns=[
+                    "year_month",
+                    "index_value",
+                    "mom_change",
+                    "yoy_change",
+                    "status",
+                    "coverage_weight_pct",
+                    "coverage_product_pct",
+                    "method_version",
+                    "base_month",
+                ]
+            )
+        df = pd.DataFrame(rows)
+        for col in ("index_value", "mom_change", "yoy_change", "coverage_weight_pct", "coverage_product_pct"):
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+        df["year_month"] = df["year_month"].astype(str)
+        return df.sort_values("year_month").reset_index(drop=True)
+
+    def _load_tracker_ipc_categories(self, from_month: str, to_month: str, basket_type: str) -> pd.DataFrame:
+        repository = SeriesRepository(self.session)
+        try:
+            rows, _ = repository.get_tracker_ipc_categories(
+                basket_type=basket_type,
+                start_period=from_month,
+                end_period=to_month,
+                page=1,
+                page_size=10000,
+            )
+        except Exception:
+            rows = []
+        if not rows:
+            return pd.DataFrame(
+                columns=[
+                    "year_month",
+                    "category_slug",
+                    "index_value",
+                    "mom_change",
+                    "yoy_change",
+                    "status",
+                    "method_version",
+                ]
+            )
+        df = pd.DataFrame(rows)
+        for col in ("index_value", "mom_change", "yoy_change", "coverage_weight_pct", "coverage_product_pct"):
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+        df["year_month"] = df["year_month"].astype(str)
+        df["category_slug"] = df["category_slug"].fillna("sin_categoria").astype(str)
+        return df.sort_values(["category_slug", "year_month"]).reset_index(drop=True)
+
+    def _build_ipc_comparison_series(
+        self,
+        tracker_df: pd.DataFrame,
+        official_df: pd.DataFrame,
+    ) -> List[Dict[str, Any]]:
+        if tracker_df.empty and official_df.empty:
+            return []
+
+        tracker = tracker_df.copy()
+        official = official_df.copy()
+        tracker["year_month"] = tracker["year_month"].astype(str)
+        official["year_month"] = official["year_month"].astype(str)
+        official = official.rename(
+            columns={
+                "cpi_index": "official_index",
+                "cpi_mom": "official_mom",
+                "cpi_yoy": "official_yoy",
+                "status": "official_status",
+                "source": "official_source",
+            }
+        )
+        if "official_status" not in official.columns:
+            official["official_status"] = "final"
+        if "official_source" not in official.columns:
+            official["official_source"] = "legacy_csv"
+        tracker = tracker.rename(
+            columns={
+                "index_value": "tracker_index",
+                "mom_change": "tracker_mom",
+                "yoy_change": "tracker_yoy",
+                "status": "tracker_status",
+            }
+        )
+        if "tracker_status" not in tracker.columns:
+            tracker["tracker_status"] = pd.NA
+
+        merged = tracker.merge(
+            official[["year_month", "official_index", "official_mom", "official_yoy", "official_status", "official_source"]],
+            on="year_month",
+            how="outer",
+        ).sort_values("year_month")
+
+        overlap = merged.dropna(subset=["tracker_index", "official_index"])
+        tracker_base = self._safe_float(overlap.iloc[0]["tracker_index"]) if not overlap.empty else None
+        official_base = self._safe_float(overlap.iloc[0]["official_index"]) if not overlap.empty else None
+
+        out: List[Dict[str, Any]] = []
+        for _, row in merged.iterrows():
+            tracker_idx = self._safe_float(row.get("tracker_index"))
+            official_idx = self._safe_float(row.get("official_index"))
+            tracker_base100 = None
+            official_base100 = None
+            if tracker_idx is not None and tracker_base and tracker_base > 0:
+                tracker_base100 = (tracker_idx / tracker_base) * 100.0
+            if official_idx is not None and official_base and official_base > 0:
+                official_base100 = (official_idx / official_base) * 100.0
+            out.append(
+                {
+                    "year_month": str(row["year_month"]),
+                    "tracker_index": tracker_idx,
+                    "official_index": official_idx,
+                    "tracker_mom": self._safe_float(row.get("tracker_mom")),
+                    "official_mom": self._safe_float(row.get("official_mom")),
+                    "tracker_status": row.get("tracker_status"),
+                    "official_status": row.get("official_status"),
+                    "official_source": row.get("official_source"),
+                    "tracker_index_base100": tracker_base100,
+                    "official_index_base100": official_base100,
+                    "gap_index_points": (
+                        tracker_base100 - official_base100
+                        if tracker_base100 is not None and official_base100 is not None
+                        else None
+                    ),
+                    "gap_mom_pp": (
+                        self._safe_float(row.get("tracker_mom")) - self._safe_float(row.get("official_mom"))
+                        if self._safe_float(row.get("tracker_mom")) is not None
+                        and self._safe_float(row.get("official_mom")) is not None
+                        else None
+                    ),
+                }
+            )
+        return out
+
+    def _build_category_comparison_series(
+        self,
+        tracker_cat_df: pd.DataFrame,
+        official_cat_df: pd.DataFrame,
+    ) -> List[Dict[str, Any]]:
+        if tracker_cat_df.empty and official_cat_df.empty:
+            return []
+
+        tracker = tracker_cat_df.copy()
+        tracker = tracker.rename(
+            columns={
+                "index_value": "tracker_index",
+                "mom_change": "tracker_mom",
+                "yoy_change": "tracker_yoy",
+                "status": "tracker_status",
+            }
+        )
+        tracker["category_slug"] = tracker["category_slug"].fillna("sin_categoria").astype(str)
+        tracker["year_month"] = tracker["year_month"].astype(str)
+        tracker = tracker[tracker["indec_division_code"].notna()].copy()
+        tracker["indec_division_code"] = tracker["indec_division_code"].astype(str).str.strip().str.lower()
+        tracker = tracker[tracker["indec_division_code"] != ""]
+
+        official = official_cat_df.copy()
+        if not official.empty:
+            official = official.rename(
+                columns={
+                    "metric_code": "indec_division_code",
+                    "cpi_index": "official_index",
+                    "cpi_mom": "official_mom",
+                    "cpi_yoy": "official_yoy",
+                    "status": "official_status",
+                    "source": "official_source",
+                }
+            )
+            official["year_month"] = official["year_month"].astype(str)
+            official["indec_division_code"] = official["indec_division_code"].astype(str).str.strip().str.lower()
+            if "official_status" not in official.columns:
+                official["official_status"] = "final"
+            if "official_source" not in official.columns:
+                official["official_source"] = "legacy_csv"
+            for col in ("official_index", "official_mom", "official_yoy"):
+                if col in official.columns:
+                    official[col] = pd.to_numeric(official[col], errors="coerce")
+        if "tracker_status" not in tracker.columns:
+            tracker["tracker_status"] = pd.NA
+
+        out: List[Dict[str, Any]] = []
+        categories = sorted(tracker["category_slug"].unique().tolist() if not tracker.empty else [])
+        for category in categories:
+            t = tracker[tracker["category_slug"] == category].copy()
+            if t.empty:
+                continue
+            division = str(t["indec_division_code"].dropna().iloc[0]).strip().lower()
+            o = (
+                official[official["indec_division_code"] == division].copy()
+                if not official.empty
+                else pd.DataFrame()
+            )
+            months = sorted(
+                set(t["year_month"].astype(str).tolist())
+                | set(o["year_month"].astype(str).tolist() if not o.empty else [])
+            )
+            tracker_by_month = {str(r["year_month"]): r for _, r in t.iterrows()}
+            official_by_month = {str(r["year_month"]): r for _, r in o.iterrows()} if not o.empty else {}
+
+            overlap = [
+                m for m in months
+                if self._safe_float(tracker_by_month.get(m, {}).get("tracker_index")) is not None
+                and self._safe_float(official_by_month.get(m, {}).get("official_index")) is not None
+            ]
+            tracker_base = (
+                self._safe_float(tracker_by_month.get(overlap[0], {}).get("tracker_index"))
+                if overlap
+                else None
+            )
+            official_base = (
+                self._safe_float(official_by_month.get(overlap[0], {}).get("official_index"))
+                if overlap
+                else None
+            )
+
+            for month in months:
+                tracker_row = tracker_by_month.get(month, {})
+                official_row = official_by_month.get(month, {})
+                tracker_idx = self._safe_float(tracker_row.get("tracker_index"))
+                official_idx = self._safe_float(official_row.get("official_index"))
+                tracker_base100 = None
+                official_base100 = None
+                if tracker_idx is not None and tracker_base and tracker_base > 0:
+                    tracker_base100 = (tracker_idx / tracker_base) * 100.0
+                if official_idx is not None and official_base and official_base > 0:
+                    official_base100 = (official_idx / official_base) * 100.0
+                out.append(
+                    {
+                        "category_slug": category,
+                        "indec_division_code": division,
+                        "year_month": str(month),
+                        "tracker_index": tracker_idx,
+                        "official_index": official_idx,
+                        "tracker_mom": self._safe_float(tracker_row.get("tracker_mom")),
+                        "official_mom": self._safe_float(official_row.get("official_mom")),
+                        "tracker_status": tracker_row.get("tracker_status"),
+                        "official_status": official_row.get("official_status"),
+                        "official_source": official_row.get("official_source"),
+                        "tracker_index_base100": tracker_base100,
+                        "official_index_base100": official_base100,
+                        "gap_index_points": (
+                            tracker_base100 - official_base100
+                            if tracker_base100 is not None and official_base100 is not None
+                            else None
+                        ),
+                        "gap_mom_pp": (
+                            self._safe_float(tracker_row.get("tracker_mom")) - self._safe_float(official_row.get("official_mom"))
+                            if self._safe_float(tracker_row.get("tracker_mom")) is not None
+                            and self._safe_float(official_row.get("official_mom")) is not None
+                            else None
+                        ),
+                    }
+                )
+        return out
+
+    def _load_official_category_series(self, from_month: str, to_month: str, region: str) -> pd.DataFrame:
+        repository = SeriesRepository(self.session)
+        try:
+            rows, _ = repository.get_official_ipc_patagonia(
+                start_period=from_month,
+                end_period=to_month,
+                metric_code=None,
+                region=region,
+                page=1,
+                page_size=10000,
+            )
+        except Exception:
+            rows = []
+        if not rows:
+            return pd.DataFrame(columns=["year_month", "metric_code", "category_slug", "cpi_index", "cpi_mom", "cpi_yoy", "status", "source"])
+        df = pd.DataFrame(rows)
+        df = df[df["metric_code"].notna()].copy()
+        df = df[df["metric_code"].astype(str).str.lower() != "general"]
+        if df.empty:
+            return pd.DataFrame(columns=["year_month", "metric_code", "category_slug", "cpi_index", "cpi_mom", "cpi_yoy", "status", "source"])
+        df["year_month"] = df["year_month"].astype(str)
+        df["metric_code"] = df["metric_code"].astype(str).str.strip().str.lower()
+        df["category_slug"] = df["category_slug"].fillna(df["metric_code"]).astype(str).str.strip().str.lower()
+        df["cpi_index"] = pd.to_numeric(df["index_value"], errors="coerce")
+        df["cpi_mom"] = pd.to_numeric(df["mom_change"], errors="coerce")
+        df["cpi_yoy"] = pd.to_numeric(df["yoy_change"], errors="coerce")
+        df = df.rename(columns={"status": "status", "source": "source"})
+        return df[["year_month", "metric_code", "category_slug", "cpi_index", "cpi_mom", "cpi_yoy", "status", "source"]].sort_values(
+            ["metric_code", "year_month"]
+        )
+
+    def _official_regions(self) -> List[str]:
+        cfg = self.config.get("analysis", {}).get("ipc_official", {})
+        scope = cfg.get("region_scope")
+        if isinstance(scope, list) and scope:
+            regions = [str(r).strip().lower() for r in scope if str(r).strip()]
+        else:
+            regions = [str(cfg.get("region_default", "patagonia")).strip().lower()]
+        regions = [r for r in regions if r not in {"", "all"}]
+        if not regions:
+            regions = ["patagonia", "nacional"]
+        return sorted(set(regions))
+
+    def _default_official_region(self) -> str:
+        cfg = self.config.get("analysis", {}).get("ipc_official", {})
+        preferred = str(cfg.get("region_default", "patagonia")).strip().lower()
+        regions = self._official_regions()
+        if preferred in regions:
+            return preferred
+        return regions[0] if regions else "patagonia"
+
+    def _app_to_indec_mapping(self) -> Dict[str, Optional[str]]:
+        mapping_cfg = self.config.get("analysis", {}).get("ipc_category_mapping", {})
+        if not isinstance(mapping_cfg, dict):
+            return {}
+        explicit = mapping_cfg.get("app_to_indec_division")
+        if isinstance(explicit, dict):
+            return {str(k).strip().lower(): (str(v).strip().lower() if v else None) for k, v in explicit.items()}
+        legacy = mapping_cfg.get("map")
+        if isinstance(legacy, dict):
+            return {str(k).strip().lower(): (str(v).strip().lower() if v else None) for k, v in legacy.items()}
+        return {}
+
+    def _mapping_metadata(self, basket_type: str) -> Dict[str, Any]:
+        expected = self._expected_products_by_category(basket_type)
+        mapping = self._app_to_indec_mapping()
+        mapped_categories = sorted([cat for cat, target in mapping.items() if target])
+        unmapped_categories = sorted([cat for cat in expected.keys() if not mapping.get(cat)])
+        total_expected = int(sum(expected.values()))
+        mapped_expected = int(sum(v for cat, v in expected.items() if mapping.get(cat)))
+        mapped_coverage_pct = (mapped_expected / total_expected * 100.0) if total_expected > 0 else None
+        return {
+            "mapped_categories": mapped_categories,
+            "unmapped_categories": unmapped_categories,
+            "mapped_coverage_pct": mapped_coverage_pct,
+            "mapped_expected_products": mapped_expected,
+            "total_expected_products": total_expected,
+        }
+
+    def _ads_payload(self) -> Dict[str, Any]:
+        cfg = self.config.get("ads", {})
+        if not isinstance(cfg, dict):
+            cfg = {}
+        slots_raw = cfg.get("slots") or ["header", "inline", "sidebar", "footer"]
+        slots = [str(slot).strip().lower() for slot in slots_raw if str(slot).strip()]
+        if not slots:
+            slots = ["header", "inline", "sidebar", "footer"]
+        return {
+            "enabled": bool(cfg.get("enabled", False)),
+            "provider": str(cfg.get("provider", "adsense_placeholder")),
+            "client_id_placeholder": str(cfg.get("client_id_placeholder", "ca-pub-xxxxxxxxxxxxxxxx")),
+            "slots": slots,
+        }
+
+    def _premium_placeholders_payload(self) -> Dict[str, Any]:
+        cfg = self.config.get("premium_placeholders", {})
+        if not isinstance(cfg, dict):
+            cfg = {}
+        features_raw = cfg.get("features") or [
+            "Alertas de precio personalizadas",
+            "Descarga avanzada CSV/API",
+            "Comparador multi-zona",
+            "Panel Pro sin anuncios",
+        ]
+        features = [str(item).strip() for item in features_raw if str(item).strip()]
+        return {
+            "enabled": bool(cfg.get("enabled", True)),
+            "features": features,
+        }
+
+    def _next_update_eta(self) -> str:
+        deployment_cfg = self.config.get("deployment", {})
+        if not isinstance(deployment_cfg, dict):
+            deployment_cfg = {}
+        schedule_utc = str(deployment_cfg.get("schedule_utc", "09:10"))
+        hour = 9
+        minute = 10
+        if re.match(r"^\d{2}:\d{2}$", schedule_utc):
+            hour = int(schedule_utc.split(":", 1)[0])
+            minute = int(schedule_utc.split(":", 1)[1])
+        now = datetime.now(timezone.utc)
+        candidate = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        if candidate <= now:
+            candidate = candidate + timedelta(days=1)
+        return candidate.strftime("%Y-%m-%d %H:%M:%S UTC")
+
+    def _web_status_payload(self, source_df: pd.DataFrame, quality_flags: Dict[str, Any]) -> Dict[str, Any]:
+        deployment_cfg = self.config.get("deployment", {})
+        if not isinstance(deployment_cfg, dict):
+            deployment_cfg = {}
+        fresh_max_hours = float(deployment_cfg.get("fresh_max_hours", 36))
+        now = datetime.now(timezone.utc)
+        last_data_timestamp = None
+        age_hours = None
+
+        if not source_df.empty and "scraped_at" in source_df.columns and source_df["scraped_at"].notna().any():
+            last_ts = source_df["scraped_at"].max()
+            if isinstance(last_ts, pd.Timestamp):
+                if last_ts.tzinfo is None:
+                    last_ts = last_ts.tz_localize("UTC")
+                else:
+                    last_ts = last_ts.tz_convert("UTC")
+                last_data_timestamp = last_ts.isoformat()
+                age_hours = (now - last_ts.to_pydatetime()).total_seconds() / 3600.0
+
+        is_stale = bool(age_hours is None or age_hours >= fresh_max_hours)
+        is_partial = bool(quality_flags.get("is_partial", False))
+        if is_partial:
+            status = "partial"
+        elif is_stale:
+            status = "stale"
+        else:
+            status = "fresh"
+        return {
+            "web_status": status,
+            "is_stale": is_stale,
+            "data_age_hours": age_hours,
+            "last_data_timestamp": last_data_timestamp,
+            "next_update_eta": self._next_update_eta(),
+        }
+
+    def _load_publication_status(self, basket_type: str, region: str) -> Dict[str, Any]:
+        repository = SeriesRepository(self.session)
+        try:
+            latest = repository.get_latest_ipc_publication_status(basket_type=basket_type, region=region)
+        except Exception:
+            latest = None
+        if not latest:
+            return {
+                "has_publication": False,
+                "status": "unknown",
+                "region": region,
+                "latest_tracker_month": None,
+                "latest_tracker_status": None,
+                "warnings": [],
+                "metrics": {},
+                "official_source_effective": None,
+                "validation_status": "unknown",
+                "source_document_url": None,
+            }
+        warnings_raw = latest.get("warnings_json")
+        metrics_raw = latest.get("metrics_json")
+        warnings = []
+        metrics = {}
+        try:
+            warnings = json.loads(warnings_raw) if warnings_raw else []
+        except Exception:
+            warnings = []
+        try:
+            metrics = json.loads(metrics_raw) if metrics_raw else {}
+        except Exception:
+            metrics = {}
+        return {
+            "has_publication": True,
+            "run_uuid": latest.get("run_uuid"),
+            "status": latest.get("status"),
+            "basket_type": latest.get("basket_type"),
+            "region": latest.get("region"),
+            "method_version": latest.get("method_version"),
+            "from_month": latest.get("from_month"),
+            "to_month": latest.get("to_month"),
+            "official_rows": latest.get("official_rows"),
+            "tracker_rows": latest.get("tracker_rows"),
+            "tracker_category_rows": latest.get("tracker_category_rows"),
+            "overlap_months": latest.get("overlap_months"),
+            "warnings": warnings,
+            "metrics": metrics,
+            "started_at": str(latest.get("started_at")) if latest.get("started_at") is not None else None,
+            "completed_at": str(latest.get("completed_at")) if latest.get("completed_at") is not None else None,
+            "official_source_effective": metrics.get("official_source_effective") or latest.get("official_source"),
+            "validation_status": metrics.get("official_validation_status", "unknown"),
+            "source_document_url": metrics.get("official_source_document_url"),
+        }
+
+    def _expected_catalog(self, basket_type: str) -> Tuple[Dict[str, int], Dict[str, str], set[str]]:
+        expected_by_category: Dict[str, int] = {}
+        expected_category_by_id: Dict[str, str] = {}
+        expected_ids: set[str] = set()
+        for item in get_basket_items(self.config, basket_type):
+            canonical_id = str(item.get("id") or "").strip()
+            if not canonical_id:
+                continue
+            raw = item.get("category") or "sin_categoria"
+            category = resolve_canonical_category(self.config, raw) or str(raw).strip().lower()
+            expected_by_category[category] = expected_by_category.get(category, 0) + 1
+            expected_category_by_id[canonical_id] = category
+            expected_ids.add(canonical_id)
+        return expected_by_category, expected_category_by_id, expected_ids
+
     def _expected_products_by_category(self, basket_type: str) -> Dict[str, int]:
         expected: Dict[str, int] = {}
-        for item in get_basket_items(self.config, basket_type):
-            raw = item.get("category") or "sin_categoria"
-            category = resolve_canonical_category(self.config, raw) or raw
-            expected[category] = expected.get(category, 0) + 1
+        expected, _, _ = self._expected_catalog(basket_type)
         return expected
 
     def _coverage_metrics(self, df: pd.DataFrame, from_month: str, to_month: str, basket_type: str) -> Dict[str, Any]:
-        expected_by_category = self._expected_products_by_category(basket_type)
+        expected_by_category, expected_category_by_id, expected_ids = self._expected_catalog(basket_type)
         expected_products = sum(expected_by_category.values())
-        observed_total = int(df["canonical_id"].nunique()) if not df.empty else 0
-        observed_from = int(df[df["month"] == from_month]["canonical_id"].nunique()) if not df.empty else 0
-        observed_to = int(df[df["month"] == to_month]["canonical_id"].nunique()) if not df.empty else 0
         safe_expected = expected_products if expected_products > 0 else 1
+
+        observed_ids_total = (
+            {str(v) for v in df["canonical_id"].dropna().astype(str).unique().tolist()}
+            if not df.empty
+            else set()
+        )
+        observed_ids_from = (
+            {str(v) for v in df[df["month"] == from_month]["canonical_id"].dropna().astype(str).unique().tolist()}
+            if not df.empty
+            else set()
+        )
+        observed_ids_to = (
+            {str(v) for v in df[df["month"] == to_month]["canonical_id"].dropna().astype(str).unique().tolist()}
+            if not df.empty
+            else set()
+        )
+
+        observed_expected_total = observed_ids_total & expected_ids
+        observed_expected_from = observed_ids_from & expected_ids
+        observed_expected_to = observed_ids_to & expected_ids
+        observed_unexpected_ids = observed_ids_total - expected_ids
+
         by_category = []
-        if not df.empty:
-            grouped = df.groupby("category")["canonical_id"].nunique().sort_values(ascending=False)
-            for category, observed in grouped.items():
-                exp = expected_by_category.get(category, 0)
-                den = exp if exp > 0 else 1
-                by_category.append(
+        for category, exp in expected_by_category.items():
+            ids_cat = {cid for cid, cat in expected_category_by_id.items() if cat == category}
+            observed_cat = len(ids_cat & observed_expected_total)
+            by_category.append(
+                {
+                    "category": category,
+                    "expected_products": int(exp),
+                    "observed_products": int(observed_cat),
+                    "coverage_pct": (int(observed_cat) / int(exp) * 100.0) if int(exp) > 0 else None,
+                }
+            )
+        by_category = sorted(by_category, key=lambda item: item["observed_products"], reverse=True)
+
+        unexpected_by_category: List[Dict[str, Any]] = []
+        if not df.empty and observed_unexpected_ids:
+            unexpected_df = df[df["canonical_id"].astype(str).isin(observed_unexpected_ids)].copy()
+            grouped_unexpected = unexpected_df.groupby("category")["canonical_id"].nunique().sort_values(ascending=False)
+            for category, observed in grouped_unexpected.items():
+                unexpected_by_category.append(
                     {
-                        "category": category,
-                        "expected_products": int(exp),
+                        "category": str(category),
                         "observed_products": int(observed),
-                        "coverage_pct": (int(observed) / den) * 100,
                     }
                 )
         return {
             "basket_type": basket_type,
             "expected_products": expected_products,
             "expected_products_by_category": expected_by_category,
-            "observed_products_total": observed_total,
-            "coverage_total_pct": (observed_total / safe_expected) * 100,
-            "observed_from": observed_from,
-            "observed_to": observed_to,
-            "coverage_from_pct": (observed_from / safe_expected) * 100,
-            "coverage_to_pct": (observed_to / safe_expected) * 100,
+            "observed_products_total": int(len(observed_expected_total)),
+            "observed_products_total_raw": int(len(observed_ids_total)),
+            "unexpected_observed_products": int(len(observed_unexpected_ids)),
+            "coverage_total_pct": (len(observed_expected_total) / safe_expected) * 100,
+            "observed_from": int(len(observed_expected_from)),
+            "observed_to": int(len(observed_expected_to)),
+            "coverage_from_pct": (len(observed_expected_from) / safe_expected) * 100,
+            "coverage_to_pct": (len(observed_expected_to) / safe_expected) * 100,
             "coverage_by_category": by_category,
+            "unexpected_by_category": unexpected_by_category,
         }
 
     def _scrape_quality_summary(
@@ -668,7 +1246,53 @@ class ReportGenerator:
         analysis_depth: str = "executive",
     ) -> Dict[str, Any]:
         months = self._month_sequence(from_month, to_month)
-        ipc_df = self._load_ipc_data(from_month, to_month, benchmark_mode=benchmark_mode)
+        regions = self._official_regions()
+        default_region = self._default_official_region()
+        mapping_meta = self._mapping_metadata(basket_type)
+        ipc_by_region: Dict[str, pd.DataFrame] = {}
+        official_cat_by_region: Dict[str, pd.DataFrame] = {}
+        comparison_by_region: Dict[str, List[Dict[str, Any]]] = {}
+        category_comparison_by_region: Dict[str, List[Dict[str, Any]]] = {}
+
+        tracker_ipc_df = self._load_tracker_ipc_general(from_month, to_month, basket_type)
+        tracker_ipc_cat_df = self._load_tracker_ipc_categories(from_month, to_month, basket_type)
+        mapped_categories = set(mapping_meta.get("mapped_categories", []))
+        tracker_ipc_cat_df = tracker_ipc_cat_df[
+            tracker_ipc_cat_df["category_slug"].astype(str).isin(mapped_categories)
+        ].copy() if not tracker_ipc_cat_df.empty else tracker_ipc_cat_df
+
+        for region in regions:
+            ipc_region_df = self._load_ipc_data(
+                from_month,
+                to_month,
+                benchmark_mode=benchmark_mode,
+                region=region,
+            )
+            ipc_by_region[region] = ipc_region_df
+            official_cat_df = self._load_official_category_series(from_month, to_month, region=region)
+            official_cat_by_region[region] = official_cat_df
+            comparison_by_region[region] = self._build_ipc_comparison_series(tracker_ipc_df, ipc_region_df)
+            category_comparison_by_region[region] = self._build_category_comparison_series(
+                tracker_ipc_cat_df,
+                official_cat_df,
+            )
+
+        ipc_df = ipc_by_region.get(default_region, pd.DataFrame(columns=["year_month", "cpi_index", "cpi_mom", "cpi_yoy", "status", "source"]))
+        ipc_comparison_series = comparison_by_region.get(default_region, [])
+        category_comparison_series = category_comparison_by_region.get(default_region, [])
+        macro_categories = sorted(
+            {
+                str(r.get("category_slug"))
+                for rows in category_comparison_by_region.values()
+                for r in rows
+                if r.get("category_slug")
+            }
+        )
+        publication_status_by_region = {
+            region: self._load_publication_status(basket_type, region)
+            for region in regions
+        }
+        publication_status = publication_status_by_region.get(default_region, {})
         coverage = self._coverage_metrics(df, from_month, to_month, basket_type)
         candidate_df = self._load_candidate_rows(from_month, to_month, basket_type)
         candidate_bands, candidate_band_summary = self._build_candidate_bands(candidate_df, pd.DataFrame())
@@ -677,6 +1301,8 @@ class ReportGenerator:
             basket_type,
             candidate_band_summary=candidate_band_summary,
         )
+        ads_payload = self._ads_payload()
+        premium_payload = self._premium_placeholders_payload()
 
         if df.empty:
             quality_flags = self._build_quality_flags(
@@ -684,6 +1310,7 @@ class ReportGenerator:
                 kpi_summary={"balanced_panel_n": 0},
                 missing_cpi_months=months if benchmark_mode == "ipc" else [],
             )
+            web_payload = self._web_status_payload(df, quality_flags)
             return {
                 "ui_version": 2,
                 "from_month": from_month,
@@ -702,9 +1329,74 @@ class ReportGenerator:
                         "cpi_index": self._safe_float(row["cpi_index"]),
                         "cpi_mom": self._safe_float(row["cpi_mom"]),
                         "cpi_yoy": self._safe_float(row["cpi_yoy"]),
+                        "status": row.get("status"),
+                        "source": row.get("source"),
                     }
                     for _, row in ipc_df.iterrows()
                 ],
+                "tracker_ipc_series": [
+                    {
+                        "year_month": row["year_month"],
+                        "index_value": self._safe_float(row.get("index_value")),
+                        "mom_change": self._safe_float(row.get("mom_change")),
+                        "yoy_change": self._safe_float(row.get("yoy_change")),
+                        "status": row.get("status"),
+                        "coverage_weight_pct": self._safe_float(row.get("coverage_weight_pct")),
+                        "coverage_product_pct": self._safe_float(row.get("coverage_product_pct")),
+                        "method_version": row.get("method_version"),
+                        "base_month": row.get("base_month"),
+                    }
+                    for _, row in tracker_ipc_df.iterrows()
+                ],
+                "official_patagonia_series": [
+                    {
+                        "year_month": row["year_month"],
+                        "cpi_index": self._safe_float(row["cpi_index"]),
+                        "cpi_mom": self._safe_float(row["cpi_mom"]),
+                        "cpi_yoy": self._safe_float(row["cpi_yoy"]),
+                        "status": row.get("status"),
+                        "source": row.get("source"),
+                    }
+                    for _, row in ipc_df.iterrows()
+                ],
+                "official_series_by_region": {
+                    region: [
+                        {
+                            "year_month": row["year_month"],
+                            "cpi_index": self._safe_float(row["cpi_index"]),
+                            "cpi_mom": self._safe_float(row["cpi_mom"]),
+                            "cpi_yoy": self._safe_float(row["cpi_yoy"]),
+                            "status": row.get("status"),
+                            "source": row.get("source"),
+                        }
+                        for _, row in ipc_by_region.get(region, pd.DataFrame()).iterrows()
+                    ]
+                    for region in regions
+                },
+                "official_category_series_by_region": {
+                    region: [
+                        {
+                            "year_month": row["year_month"],
+                            "metric_code": row.get("metric_code"),
+                            "cpi_index": self._safe_float(row["cpi_index"]),
+                            "cpi_mom": self._safe_float(row["cpi_mom"]),
+                            "cpi_yoy": self._safe_float(row["cpi_yoy"]),
+                            "status": row.get("status"),
+                            "source": row.get("source"),
+                        }
+                        for _, row in official_cat_by_region.get(region, pd.DataFrame()).iterrows()
+                    ]
+                    for region in regions
+                },
+                "ipc_comparison_series": ipc_comparison_series,
+                "category_comparison_series": category_comparison_series,
+                "ipc_comparison_by_region": comparison_by_region,
+                "category_comparison_by_region": category_comparison_by_region,
+                "publication_status": publication_status,
+                "publication_status_by_region": publication_status_by_region,
+                "official_regions": regions,
+                "macro_default_region": default_region,
+                "category_mapping_meta": mapping_meta,
                 "product_monthly_metrics": [],
                 "basket_vs_ipc_series": [],
                 "kpi_summary": {
@@ -728,6 +1420,13 @@ class ReportGenerator:
                 "scrape_quality": scrape_quality,
                 "candidate_bands": candidate_bands,
                 "candidate_band_summary": candidate_band_summary,
+                "ads": ads_payload,
+                "premium_placeholders": premium_payload,
+                "web_status": web_payload["web_status"],
+                "is_stale": web_payload["is_stale"],
+                "data_age_hours": web_payload["data_age_hours"],
+                "last_data_timestamp": web_payload["last_data_timestamp"],
+                "next_update_eta": web_payload["next_update_eta"],
                 "ui_defaults": {
                     "query": "",
                     "cba_filter": "all",
@@ -737,6 +1436,9 @@ class ReportGenerator:
                     "selected_products": [],
                     "price_mode": "nominal",
                     "show_real_column": False,
+                    "macro_scope": "general",
+                    "macro_region": default_region,
+                    "macro_category": macro_categories[0] if macro_categories else "",
                     "view": analysis_depth,
                     "band_product": "",
                     "page_size": 50,
@@ -748,6 +1450,9 @@ class ReportGenerator:
                     "months": months,
                     "sort_by": ["alphabetical", "price", "var_nominal", "var_real"],
                     "page_sizes": [25, 50, 100, 250],
+                    "macro_scopes": ["general", "rubros"],
+                    "macro_regions": regions,
+                    "macro_categories": macro_categories,
                 },
             }
 
@@ -790,8 +1495,15 @@ class ReportGenerator:
         quality_flags = self._build_quality_flags(
             coverage=coverage,
             kpi_summary=kpi_summary,
-            missing_cpi_months=real_meta["missing_cpi_months"],
+            missing_cpi_months=sorted(
+                set(real_meta["missing_cpi_months"])
+                | (
+                    set(tracker_ipc_df["year_month"].astype(str).unique().tolist())
+                    - set(ipc_df["year_month"].astype(str).unique().tolist())
+                )
+            ),
         )
+        web_payload = self._web_status_payload(df, quality_flags)
 
         basket_monthly = monthly_ref.groupby("month", as_index=False)["avg_price"].mean().rename(
             columns={"avg_price": "basket_avg_price"}
@@ -874,9 +1586,74 @@ class ReportGenerator:
                     "cpi_index": self._safe_float(row["cpi_index"]),
                     "cpi_mom": self._safe_float(row["cpi_mom"]),
                     "cpi_yoy": self._safe_float(row["cpi_yoy"]),
+                    "status": row.get("status"),
+                    "source": row.get("source"),
                 }
                 for _, row in ipc_df.iterrows()
             ],
+            "tracker_ipc_series": [
+                {
+                    "year_month": row["year_month"],
+                    "index_value": self._safe_float(row.get("index_value")),
+                    "mom_change": self._safe_float(row.get("mom_change")),
+                    "yoy_change": self._safe_float(row.get("yoy_change")),
+                    "status": row.get("status"),
+                    "coverage_weight_pct": self._safe_float(row.get("coverage_weight_pct")),
+                    "coverage_product_pct": self._safe_float(row.get("coverage_product_pct")),
+                    "method_version": row.get("method_version"),
+                    "base_month": row.get("base_month"),
+                }
+                for _, row in tracker_ipc_df.iterrows()
+            ],
+            "official_patagonia_series": [
+                {
+                    "year_month": row["year_month"],
+                    "cpi_index": self._safe_float(row["cpi_index"]),
+                    "cpi_mom": self._safe_float(row["cpi_mom"]),
+                    "cpi_yoy": self._safe_float(row["cpi_yoy"]),
+                    "status": row.get("status"),
+                    "source": row.get("source"),
+                }
+                for _, row in ipc_df.iterrows()
+            ],
+            "official_series_by_region": {
+                region: [
+                    {
+                        "year_month": row["year_month"],
+                        "cpi_index": self._safe_float(row["cpi_index"]),
+                        "cpi_mom": self._safe_float(row["cpi_mom"]),
+                        "cpi_yoy": self._safe_float(row["cpi_yoy"]),
+                        "status": row.get("status"),
+                        "source": row.get("source"),
+                    }
+                    for _, row in ipc_by_region.get(region, pd.DataFrame()).iterrows()
+                ]
+                for region in regions
+            },
+            "official_category_series_by_region": {
+                region: [
+                    {
+                        "year_month": row["year_month"],
+                        "metric_code": row.get("metric_code"),
+                        "cpi_index": self._safe_float(row["cpi_index"]),
+                        "cpi_mom": self._safe_float(row["cpi_mom"]),
+                        "cpi_yoy": self._safe_float(row["cpi_yoy"]),
+                        "status": row.get("status"),
+                        "source": row.get("source"),
+                    }
+                    for _, row in official_cat_by_region.get(region, pd.DataFrame()).iterrows()
+                ]
+                for region in regions
+            },
+            "ipc_comparison_series": ipc_comparison_series,
+            "category_comparison_series": category_comparison_series,
+            "ipc_comparison_by_region": comparison_by_region,
+            "category_comparison_by_region": category_comparison_by_region,
+            "publication_status": publication_status,
+            "publication_status_by_region": publication_status_by_region,
+            "official_regions": regions,
+            "macro_default_region": default_region,
+            "category_mapping_meta": mapping_meta,
             "product_monthly_metrics": [
                 {
                     "canonical_id": row["canonical_id"],
@@ -897,6 +1674,13 @@ class ReportGenerator:
             "scrape_quality": scrape_quality,
             "candidate_bands": candidate_bands,
             "candidate_band_summary": candidate_band_summary,
+            "ads": ads_payload,
+            "premium_placeholders": premium_payload,
+            "web_status": web_payload["web_status"],
+            "is_stale": web_payload["is_stale"],
+            "data_age_hours": web_payload["data_age_hours"],
+            "last_data_timestamp": web_payload["last_data_timestamp"],
+            "next_update_eta": web_payload["next_update_eta"],
             "ui_defaults": {
                 "query": "",
                 "cba_filter": "all",
@@ -906,6 +1690,9 @@ class ReportGenerator:
                 "selected_products": selected,
                 "price_mode": "nominal",
                 "show_real_column": False,
+                "macro_scope": "general",
+                "macro_region": default_region,
+                "macro_category": macro_categories[0] if macro_categories else "",
                 "view": analysis_depth,
                 "band_product": "",
                 "page_size": 50,
@@ -917,6 +1704,9 @@ class ReportGenerator:
                 "months": months,
                 "sort_by": ["alphabetical", "price", "var_nominal", "var_real"],
                 "page_sizes": [25, 50, 100, 250],
+                "macro_scopes": ["general", "rubros"],
+                "macro_regions": regions,
+                "macro_categories": macro_categories,
             },
             "real_reference": real_meta,
         }
@@ -933,67 +1723,234 @@ class ReportGenerator:
         if offline_assets == "external":
             external_script = '<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>'
 
-        template = """<!doctype html>
+        template = r"""<!doctype html>
 <html lang="es">
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>La Anonima Tracker - Reporte Economico</title>
+<title>La Anonima: rastreador de precios - Ushuaia</title>
+<meta name="description" content="Panel profesional para seguimiento de precios historicos, variacion nominal/real y comparativa de IPC."/>
+<meta name="theme-color" content="#0b607a"/>
+<meta property="og:type" content="website"/>
+<meta property="og:title" content="La Anonima Tracker"/>
+<meta property="og:description" content="Seguimiento historico de precios y comparativa macro IPC."/>
+<meta property="og:image" content="/assets/og-card.svg"/>
+<meta property="og:url" content="/tracker/"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
+<link rel="manifest" href="/site.webmanifest"/>
 __EXTERNAL_SCRIPT__
 <style>
 :root{
-  --bg:#f4f7f8;
+  --bg:#f3f6fa;
+  --bg-soft:#eaf1f7;
   --panel:#ffffff;
-  --panel-soft:#f6f8fb;
-  --text:#1f2735;
-  --muted:#556176;
-  --line:#d7dee8;
-  --accent:#005f73;
-  --accent-2:#0a9396;
+  --panel-soft:#f6fafd;
+  --text:#162236;
+  --muted:#5d697a;
+  --line:#d7e1ec;
+  --line-strong:#bfcedd;
+  --primary:#0b607a;
+  --primary-strong:#084c62;
+  --accent:#0b8b85;
   --danger:#b42318;
   --ok:#027a48;
-  --warn:#b54708;
-  --pos:#0a7a5c;
-  --neg:#9b2226;
-  --focus:#8ecde1;
-  --shadow-sm:0 1px 2px rgba(26,39,61,.07), 0 10px 26px rgba(26,39,61,.04);
-  --shadow-lg:0 2px 8px rgba(26,39,61,.08), 0 16px 36px rgba(26,39,61,.07);
-  --radius:14px;
-  --radius-sm:10px;
+  --warn:#b45309;
+  --pos:#0b7a63;
+  --neg:#9f1d27;
+  --focus:#7bc5dd;
+  --shadow-sm:0 2px 6px rgba(21,34,54,.07), 0 14px 28px rgba(21,34,54,.05);
+  --shadow-lg:0 8px 16px rgba(21,34,54,.08), 0 24px 46px rgba(21,34,54,.09);
+  --radius:16px;
+  --radius-sm:11px;
 }
 *{box-sizing:border-box}
-html,body{margin:0;padding:0;color:var(--text);font-family:"Aptos","Segoe UI Variable","Trebuchet MS",sans-serif;line-height:1.35}
+html,body{
+  margin:0;
+  padding:0;
+  color:var(--text);
+  font-family:"Aptos","Segoe UI Variable","Trebuchet MS",sans-serif;
+  line-height:1.38;
+}
+html{scroll-behavior:smooth}
 body{
   background:
-    radial-gradient(1400px 440px at 0% 0%, #e4efed 0%, rgba(228,239,237,0) 62%),
-    radial-gradient(980px 380px at 100% 0%, #edf4f6 0%, rgba(237,244,246,0) 58%),
-    var(--bg);
+    radial-gradient(1280px 460px at -4% -5%, rgba(11,96,122,.11) 0%, rgba(11,96,122,0) 58%),
+    radial-gradient(1050px 420px at 100% -6%, rgba(11,139,133,.1) 0%, rgba(11,139,133,0) 56%),
+    linear-gradient(180deg, var(--bg-soft) 0%, var(--bg) 36%, var(--bg) 100%);
 }
-.wrap{max-width:1320px;margin:0 auto;padding:18px}
-.stack{display:grid;gap:12px}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;box-shadow:var(--shadow-sm);overflow:hidden}
+.card,.kpi,.guide-step,.ad-slot,.pill,button,input,select,.head-links a{
+  transition:box-shadow .2s ease, border-color .2s ease, background-color .2s ease, transform .2s ease, color .2s ease;
+}
+@media (hover:hover){
+  .card:hover{box-shadow:var(--shadow-lg)}
+  .kpi:hover{transform:translateY(-1px)}
+}
+@media (prefers-reduced-motion:reduce){
+  *{
+    animation:none !important;
+    transition:none !important;
+    scroll-behavior:auto !important;
+  }
+}
+.wrap{max-width:1460px;margin:0 auto;padding:20px}
+.stack{display:grid;gap:14px}
+.card{
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  padding:16px 18px;
+  box-shadow:var(--shadow-sm);
+  overflow:hidden;
+}
 .card h2{margin:0 0 10px 0;font-size:1.03rem;letter-spacing:.01em}
-.header{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px;align-items:center}
-.title{margin:0 0 2px 0;font-size:1.42rem;line-height:1.2;letter-spacing:.01em}
-.meta{color:var(--muted);font-size:.92rem;margin:0 0 2px 0}
-.badge{display:inline-flex;align-items:center;padding:6px 10px;border-radius:999px;font-size:.74rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;background:#e8f6ef;color:var(--ok);border:1px solid #cce8d7}
-.badge.warn{background:#fff4eb;color:#b54708;border-color:#f5d5b5}
-.ui-version{margin-top:6px;text-align:right}
+.header{
+  background:
+    radial-gradient(900px 280px at 0% 0%, rgba(11,96,122,.08) 0%, rgba(11,96,122,0) 62%),
+    linear-gradient(180deg, #ffffff 0%, #fdfefe 100%);
+  border-color:var(--line-strong);
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:14px;
+  align-items:center;
+}
+.head-links{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  margin:0 0 8px 0;
+}
+.head-links a{
+  display:inline-flex;
+  align-items:center;
+  min-height:30px;
+  padding:6px 10px;
+  border-radius:999px;
+  border:1px solid #c8d6e6;
+  background:#f7fbff;
+  color:#2f4f6f;
+  font-size:.78rem;
+  font-weight:700;
+  text-decoration:none;
+}
+.head-links a:hover{
+  background:#ecf5ff;
+  border-color:#b6c9de;
+  text-decoration:none;
+}
+.title{
+  margin:0 0 3px 0;
+  font-size:1.56rem;
+  line-height:1.16;
+  letter-spacing:.01em;
+}
+.meta{color:var(--muted);font-size:.92rem;margin:0 0 3px 0}
+.badge{
+  display:inline-flex;
+  align-items:center;
+  padding:6px 11px;
+  border-radius:999px;
+  font-size:.73rem;
+  font-weight:700;
+  letter-spacing:.045em;
+  text-transform:uppercase;
+  background:#e8f6ef;
+  color:var(--ok);
+  border:1px solid #cce8d7;
+}
+.badge.warn{background:#fff4eb;color:var(--warn);border-color:#f4d3b3}
+.ui-version{margin-top:7px;text-align:right;font-weight:700}
 .method{font-size:.8rem;color:var(--muted);margin:0}
-.kpis{display:grid;gap:10px;grid-template-columns:repeat(6,minmax(132px,1fr))}
-.kpi{background:linear-gradient(165deg,#fbfdfc 0%,var(--panel-soft) 100%);border:1px solid var(--line);border-radius:12px;padding:10px 10px 12px;text-align:center;box-shadow:inset 0 1px 0 rgba(255,255,255,.8)}
+.helper{
+  display:grid;
+  gap:10px;
+  border-color:var(--line-strong);
+  background:linear-gradient(180deg,#ffffff 0%,#f9fcfe 100%);
+}
+.guide-title{font-weight:800;font-size:1rem}
+.guide-list{
+  display:grid;
+  gap:8px;
+  grid-template-columns:repeat(auto-fit,minmax(210px,1fr));
+}
+.guide-step{
+  border:1px solid var(--line);
+  background:var(--panel-soft);
+  border-radius:12px;
+  padding:9px 10px;
+  font-size:.84rem;
+  color:#334155;
+}
+.guide-step .num{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:19px;
+  height:19px;
+  border-radius:999px;
+  margin-right:7px;
+  font-size:.72rem;
+  font-weight:800;
+  color:#fff;
+  background:linear-gradient(180deg,var(--primary),var(--primary-strong));
+}
+.pills{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.pill{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  border:1px solid var(--line);
+  background:#fdfefe;
+  border-radius:999px;
+  padding:6px 11px;
+  color:#445064;
+  font-size:.78rem;
+}
+.pill-info{font-weight:700}
+.pill-action{
+  cursor:pointer;
+  transition:all .16s ease;
+}
+.pill-action:hover{
+  border-color:#abc0d8;
+  background:#f5faff;
+}
+.pill-action span{
+  font-weight:700;
+  color:#607086;
+}
+.kpis{display:grid;gap:10px;grid-template-columns:repeat(6,minmax(136px,1fr))}
+.kpi{
+  background:linear-gradient(175deg,#ffffff 0%,var(--panel-soft) 100%);
+  border:1px solid var(--line);
+  border-radius:13px;
+  padding:11px 10px 12px;
+  text-align:center;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.85);
+}
 .kpi .label{font-size:.74rem;color:var(--muted);margin-bottom:5px}
-.kpi .value{font-size:1.2rem;font-weight:700;font-variant-numeric:tabular-nums}
-.kpi .sub{font-size:.74rem;color:var(--muted)}
+.kpi .value{font-size:1.2rem;font-weight:750;font-variant-numeric:tabular-nums}
+.kpi .sub{font-size:.75rem;color:var(--muted)}
 .kpi.good .value{color:var(--pos)}
 .kpi.bad .value{color:var(--neg)}
 .kpi.warn .value{color:var(--warn)}
-.helper{display:grid;gap:8px}
-.guide-title{font-weight:700;font-size:.95rem}
-.pills{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-.pill{font-size:.77rem;border:1px solid var(--line);background:#fdfefe;border-radius:999px;padding:5px 10px;color:#445064}
-details.filters{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow-sm)}
-details.filters>summary{cursor:pointer;list-style:none;padding:11px 14px;font-weight:700;display:flex;align-items:center;gap:8px}
+details.filters{
+  position:relative;
+  z-index:1;
+  background:var(--panel);
+  border:1px solid var(--line-strong);
+  border-radius:var(--radius);
+  box-shadow:var(--shadow-sm);
+}
+details.filters>summary{
+  cursor:pointer;
+  list-style:none;
+  padding:12px 14px;
+  font-weight:780;
+  display:flex;
+  align-items:center;
+  gap:9px;
+}
 details.filters>summary::-webkit-details-marker{display:none}
 details.filters>summary::before{
   content:"";
@@ -1006,77 +1963,257 @@ details.filters>summary::before{
   transition:transform .18s ease;
 }
 details.filters[open]>summary::before{transform:rotate(45deg)}
-.filters-grid{display:grid;gap:10px;padding:0 14px 14px 14px;grid-template-columns:repeat(6,minmax(120px,1fr))}
-.filters-grid>div{
+.filters-grid{
+  display:grid;
+  gap:10px;
+  padding:0 14px 14px 14px;
+  grid-template-columns:repeat(12,minmax(0,1fr));
+}
+.filter-field{
   background:var(--panel-soft);
-  border:1px solid #e2e8f0;
+  border:1px solid #dde7f1;
   border-radius:12px;
-  padding:8px 10px;
-  min-height:76px;
+  padding:9px 10px 10px;
+  min-height:84px;
   display:flex;
   flex-direction:column;
   justify-content:flex-start;
+  gap:4px;
+  grid-column:span 2;
 }
-label{display:block;font-size:.76rem;color:var(--muted);margin-bottom:4px}
-input,select,button{width:100%;min-height:36px;padding:8px 10px;border:1px solid #c5cedb;border-radius:var(--radius-sm);background:#fff;color:var(--text);font:inherit}
+.filter-field.span-3{grid-column:span 3}
+.filter-field.span-4{grid-column:span 4}
+.filter-field.span-6{grid-column:span 6}
+label{display:block;font-size:.76rem;color:var(--muted);margin-bottom:2px}
+input,select,button{
+  width:100%;
+  min-height:36px;
+  padding:8px 10px;
+  border:1px solid #c2cfde;
+  border-radius:var(--radius-sm);
+  background:#fff;
+  color:var(--text);
+  font:inherit;
+}
 input,select{box-shadow:inset 0 1px 2px rgba(17,24,39,.04)}
-input:hover,select:hover{border-color:#b4c0cf}
+input:hover,select:hover{border-color:#afbed0}
 input:focus,select:focus{outline:2px solid var(--focus);outline-offset:1px;border-color:#84b6c7}
-button{cursor:pointer;font-weight:600;transition:all .18s ease}
+button:focus-visible,
+a:focus-visible{
+  outline:2px solid var(--focus);
+  outline-offset:2px;
+}
+button{
+  cursor:pointer;
+  font-weight:650;
+  transition:all .16s ease;
+}
 button:active{transform:translateY(1px)}
-button.primary{background:linear-gradient(180deg,#067086,#005f73);color:#fff;border-color:#005a6d;box-shadow:0 1px 0 rgba(255,255,255,.12) inset}
-button.primary:hover{filter:brightness(1.05)}
+button:disabled{
+  cursor:not-allowed;
+  opacity:.58;
+}
+button.primary{
+  background:linear-gradient(180deg,var(--primary),var(--primary-strong));
+  color:#fff;
+  border-color:var(--primary-strong);
+  box-shadow:0 1px 0 rgba(255,255,255,.14) inset;
+}
+button.primary:hover{filter:brightness(1.04)}
 button.ghost{background:#fff}
 button.ghost:hover{background:#f3f8fb}
-.switchers{display:flex;gap:8px;flex-wrap:wrap}
+button.soft{
+  background:#f8fbff;
+  border-color:#c7d6e7;
+  color:#3d556f;
+}
+button.soft:hover{background:#edf5fd}
+.search-wrap{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.search-wrap input{flex:1}
+.search-wrap button{width:auto;min-width:92px}
+.switchers{display:flex;gap:7px;flex-wrap:wrap}
 .switchers button{width:auto;padding:7px 10px;min-height:34px}
-.switchers button.active{background:var(--accent-2);border-color:var(--accent-2);color:#fff}
+.switchers button.active{
+  background:linear-gradient(180deg,var(--accent),#0a6f6a);
+  border-color:#086963;
+  color:#fff;
+}
 .inline-toggle{display:flex;align-items:center;gap:8px;min-height:34px}
-.inline-toggle input{width:auto;accent-color:var(--accent)}
-.reset-wrap{display:flex;align-items:flex-end}
+.inline-toggle input{width:auto;accent-color:var(--primary)}
 #sel{min-height:116px}
 #sel option{padding:2px 4px}
-.chart-wrap{display:grid;gap:12px;grid-template-columns:2fr 1fr}
+.field-meta{
+  margin-top:2px;
+  font-size:.75rem;
+  color:var(--muted);
+}
+.filter-actions{
+  justify-content:flex-end;
+  gap:8px;
+}
+.filter-actions .switchers{width:100%}
+.btn-inline{width:auto}
+.copy-status{
+  min-height:16px;
+  text-align:left;
+}
+.copy-status.error{color:var(--danger)}
+.workspace-grid{
+  display:grid;
+  gap:14px;
+  grid-template-columns:minmax(0,1.7fr) minmax(320px,1fr);
+  align-items:start;
+}
+.workspace-main,.workspace-side{display:grid;gap:14px}
 .chart-card h2{text-align:center}
-.chart{border:1px solid var(--line);border-radius:12px;background:linear-gradient(180deg,#ffffff,#fbfcfd);position:relative;min-height:340px;display:flex;align-items:center;justify-content:center;box-shadow:inset 0 0 0 1px rgba(255,255,255,.7)}
-.chart canvas{width:100%;height:340px;display:block;margin:0 auto}
-.chart.small canvas{height:220px}
-.chart-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:.9rem}
-.legend{display:flex;gap:10px;flex-wrap:wrap;padding-top:8px;font-size:.8rem;color:var(--muted);justify-content:center}
-.legend .item{display:flex;align-items:center;gap:6px}
+.chart{
+  border:1px solid var(--line);
+  border-radius:13px;
+  background:
+    radial-gradient(580px 130px at 50% 0%, rgba(11,96,122,.08) 0%, rgba(11,96,122,0) 72%),
+    linear-gradient(180deg,#ffffff,#f9fcff);
+  position:relative;
+  min-height:360px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.7);
+}
+.chart.small{min-height:250px}
+.chart canvas{width:100%;height:360px;display:block;margin:0 auto}
+.chart.small canvas{height:250px}
+.chart-empty{
+  position:absolute;
+  inset:0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color:var(--muted);
+  font-size:.9rem;
+}
+.chart-tooltip{
+  position:absolute;
+  pointer-events:none;
+  display:none;
+  min-width:160px;
+  max-width:260px;
+  padding:8px 10px;
+  border-radius:10px;
+  border:1px solid #c7d4e3;
+  background:rgba(255,255,255,.98);
+  box-shadow:0 8px 18px rgba(18,34,56,.14);
+  font-size:.77rem;
+  color:#314357;
+  z-index:2;
+}
+.chart-tooltip.visible{display:block}
+.chart-tooltip strong{
+  display:block;
+  margin-bottom:5px;
+  color:#1f334a;
+}
+.legend{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  padding-top:9px;
+  font-size:.78rem;
+  color:var(--muted);
+  justify-content:flex-start;
+}
+.legend .item{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  padding:4px 8px;
+  border:1px solid #dde7f1;
+  border-radius:999px;
+  background:#fbfdff;
+}
 .dot{width:10px;height:10px;border-radius:999px;display:inline-block}
 .band-toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
-.band-select-wrap{min-width:280px}
-.quality{display:grid;gap:8px}
+.band-select-wrap{min-width:260px;flex:1}
+.quality{
+  display:grid;
+  gap:8px;
+  background:linear-gradient(180deg,#ffffff 0%,#fbfdff 100%);
+}
 .quality strong{display:block;margin-bottom:2px}
-.quality-item{font-size:.85rem;color:var(--muted)}
-.warn-list{margin:6px 0 0 18px;padding:0;color:#7a3104;font-size:.82rem}
+.quality-item{
+  font-size:.84rem;
+  color:var(--muted);
+  padding:5px 8px;
+  border:1px solid #e2e9f2;
+  border-radius:10px;
+  background:#f9fbfe;
+}
+.warn-list{
+  margin:6px 0 0 18px;
+  padding:0;
+  color:#7a3104;
+  font-size:.82rem;
+}
 .table-section h2{margin-bottom:8px}
-.table-toolbar{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:8px}
+.table-toolbar{
+  display:flex;
+  gap:10px;
+  align-items:center;
+  justify-content:space-between;
+  flex-wrap:wrap;
+  margin-bottom:8px;
+}
 .table-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .table-actions label{margin:0}
 .table-actions .btn-inline{width:auto}
 .table-actions .page-size{width:auto;min-width:88px}
-.page-info{min-width:92px;text-align:center}
-.table-wrap{overflow-x:auto}
-table{width:100%;border-collapse:separate;border-spacing:0;min-width:690px}
-th,td{padding:8px 6px;border-bottom:1px solid #e8edf3;text-align:center;font-size:.9rem;vertical-align:middle}
+.page-info{
+  min-width:92px;
+  text-align:center;
+  border:1px solid #d7e2ee;
+  border-radius:999px;
+  padding:6px 8px;
+  background:#f8fbff;
+}
+.table-wrap{
+  overflow-x:auto;
+  border:1px solid var(--line);
+  border-radius:12px;
+}
+table{width:100%;border-collapse:separate;border-spacing:0;min-width:720px}
+th,td{
+  padding:9px 7px;
+  border-bottom:1px solid #e8edf3;
+  text-align:center;
+  font-size:.9rem;
+  vertical-align:middle;
+}
 th{
-  font-size:.75rem;
-  color:var(--muted);
+  font-size:.74rem;
+  color:#516074;
   text-transform:uppercase;
-  letter-spacing:.04em;
-  background:#f7fafc;
+  letter-spacing:.05em;
+  background:linear-gradient(180deg,#f8fbff,#f3f7fd);
   border-bottom:1px solid #d7dee8;
 }
 thead th{position:sticky;top:0;z-index:1;backdrop-filter:blur(3px)}
 td:nth-child(2),th:nth-child(2){text-align:center}
-tbody tr:nth-child(even){background:#fbfdfe}
-tbody tr:hover{background:#f1f8fc}
+tbody tr:nth-child(even){background:#fbfdff}
+tbody tr:hover{background:#eff7ff}
 td.num{text-align:center;font-variant-numeric:tabular-nums;white-space:nowrap}
-a{color:var(--accent);text-decoration:none}
+a{color:var(--primary);text-decoration:none}
 a:hover{text-decoration:underline;text-decoration-thickness:1.5px}
-td:first-child a{display:inline-block;max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom}
+td:first-child a{
+  display:inline-block;
+  max-width:380px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  vertical-align:bottom;
+}
 .muted{color:var(--muted)}
 .sr{position:absolute;left:-9999px}
 .var-up{color:var(--neg);font-weight:700}
@@ -1084,21 +2221,134 @@ td:first-child a{display:inline-block;max-width:340px;overflow:hidden;text-overf
 .var-flat{color:var(--muted);font-weight:700}
 .empty-title{margin:0 0 8px 0}
 .empty-text{margin:0 0 8px 0}
-@media (max-width:1100px){
-  .kpis{grid-template-columns:repeat(3,minmax(120px,1fr))}
-  .filters-grid{grid-template-columns:repeat(3,minmax(120px,1fr))}
-  .chart-wrap{grid-template-columns:1fr}
+.ad-panel,.premium-panel{display:none}
+.ad-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:10px;
 }
-@media (max-width:700px){
+.ad-slot{
+  border:1px dashed #9ab0c8;
+  border-radius:10px;
+  min-height:90px;
+  background:#f5f9ff;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color:#3c5a78;
+  font-weight:600;
+}
+.premium-list{
+  margin:0;
+  padding-left:18px;
+  color:var(--muted);
+}
+.premium-list li{margin:6px 0}
+.onboarding-mobile{
+  position:fixed;
+  left:12px;
+  right:12px;
+  bottom:106px;
+  z-index:54;
+  background:#0f2237;
+  color:#eaf2fe;
+  border:1px solid #31506f;
+  border-radius:12px;
+  padding:11px 12px;
+  box-shadow:0 10px 28px rgba(0,0,0,.24);
+  display:grid;
+  gap:8px;
+}
+.onboarding-mobile[hidden]{display:none}
+.onboarding-title{
+  font-size:.88rem;
+  font-weight:780;
+}
+.onboarding-actions{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+}
+.onboarding-actions button{
+  width:auto;
+  min-height:32px;
+  border:1px solid #48678d;
+  background:#1d3652;
+  color:#eaf2fe;
+  border-radius:8px;
+  padding:7px 10px;
+}
+.onboarding-actions button.primary{
+  background:#10837b;
+  border-color:#1aa497;
+  color:#fff;
+}
+.cookie-banner{
+  position:fixed;
+  left:12px;
+  right:12px;
+  bottom:12px;
+  z-index:55;
+  background:#102338;
+  color:#eaf1fb;
+  border-radius:12px;
+  border:1px solid #334f6f;
+  padding:12px;
+  box-shadow:0 10px 28px rgba(0,0,0,.24);
+}
+.cookie-grid{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  flex-wrap:wrap;
+}
+.cookie-actions{display:flex;gap:8px}
+.cookie-actions button{
+  border:1px solid #456489;
+  background:#1b3552;
+  color:#eaf1fb;
+  border-radius:8px;
+  padding:7px 10px;
+  cursor:pointer;
+}
+.cookie-actions button.primary{
+  background:#10837b;
+  border-color:#1aa497;
+  color:#fff;
+}
+@media (max-width:1320px){
+  .workspace-grid{grid-template-columns:1fr}
+}
+@media (min-width:761px){
+  .onboarding-mobile{display:none !important}
+}
+@media (max-width:1060px){
+  .kpis{grid-template-columns:repeat(3,minmax(120px,1fr))}
+  .filters-grid{grid-template-columns:repeat(6,minmax(0,1fr))}
+  .filter-field,.filter-field.span-3,.filter-field.span-4,.filter-field.span-6{grid-column:span 2}
+  .filter-field.span-6{grid-column:span 6}
+}
+@media (max-width:760px){
   .wrap{padding:10px}
   .card{padding:12px}
   .header{grid-template-columns:1fr}
+  .head-links a{
+    flex:1 1 calc(50% - 6px);
+    justify-content:center;
+  }
   .ui-version{text-align:left}
+  .title{font-size:1.17rem}
   .kpis{grid-template-columns:repeat(2,minmax(120px,1fr))}
   .filters-grid{grid-template-columns:1fr}
-  .filters-grid>div{min-height:auto}
-  .title{font-size:1.12rem}
-  table{min-width:620px}
+  .filter-field,.filter-field.span-3,.filter-field.span-4,.filter-field.span-6{grid-column:span 1;min-height:auto}
+  .search-wrap{flex-direction:column}
+  .search-wrap button{width:100%}
+  .switchers button{width:100%}
+  table{min-width:640px}
+  .ad-grid{grid-template-columns:1fr}
+  .onboarding-mobile{left:8px;right:8px;bottom:104px}
+  .cookie-banner{left:8px;right:8px;bottom:8px}
 }
 </style>
 </head>
@@ -1106,8 +2356,15 @@ td:first-child a{display:inline-block;max-width:340px;overflow:hidden;text-overf
 <div class="wrap stack">
   <section class="card header">
     <div>
+      <nav class="head-links" aria-label="Navegacion del sitio">
+        <a href="/tracker/">Tracker</a>
+        <a href="/historico/">Historico</a>
+        <a href="/metodologia/">Metodologia</a>
+        <a href="/contacto/">Contacto</a>
+      </nav>
       <h1 class="title">La Anonima Tracker: Monitor Economico de Precios</h1>
       <p class="meta">Generado: __GEN__ | Rango: __FROM__ a __TO__ | Canasta: __BASKET__</p>
+      <p class="meta" id="freshness-meta">Estado web: pendiente | Proxima corrida estimada: N/D</p>
       <p class="method">Metodologia: representativo (single) + terna low/mid/high auditada; variacion nominal y real deflactada por IPC INDEC (si disponible).</p>
     </div>
     <div>
@@ -1117,13 +2374,25 @@ td:first-child a{display:inline-block;max-width:340px;overflow:hidden;text-overf
   </section>
 
   <section class="card helper" id="quick-guide">
-    <div class="guide-title">Lectura rapida</div>
-    <div class="pills">
-      <span class="pill">1) Revisa KPIs arriba para señal macro.</span>
-      <span class="pill">2) Compara nominal vs real en el grafico.</span>
-      <span class="pill">3) Usa la tabla paginada para detalle y exportacion.</span>
+    <div class="guide-title">Lectura rapida del reporte</div>
+    <div class="guide-list">
+      <div class="guide-step"><span class="num">1</span>Valida señal macro en KPIs.</div>
+      <div class="guide-step"><span class="num">2</span>Ajusta filtros y selecciona productos clave.</div>
+      <div class="guide-step"><span class="num">3</span>Compara nominal vs real en los graficos.</div>
+      <div class="guide-step"><span class="num">4</span>Profundiza con tabla paginada y exportacion.</div>
     </div>
     <div id="active-filters" class="pills"></div>
+  </section>
+
+  <section class="card ad-panel" id="ad-panel">
+    <h2>Publicidad</h2>
+    <div id="ad-slots" class="ad-grid"></div>
+  </section>
+
+  <section class="card premium-panel" id="premium-panel">
+    <h2>Funciones premium (proximamente)</h2>
+    <p class="muted">Bloques preparados para activacion futura sin rehacer el frontend.</p>
+    <ul id="premium-features" class="premium-list"></ul>
   </section>
 
   <section id="empty" class="card" style="display:none">
@@ -1138,11 +2407,15 @@ td:first-child a{display:inline-block;max-width:340px;overflow:hidden;text-overf
     <details class="filters" id="filters-panel" open>
       <summary>Filtros y seleccion de productos</summary>
       <div class="filters-grid">
-        <div>
+        <div class="filter-field span-4">
           <label for="q">Buscar producto</label>
-          <input id="q" placeholder="nombre o canonical_id" />
+          <div class="search-wrap">
+            <input id="q" placeholder="nombre o canonical_id" />
+            <button id="clear-search" type="button" class="soft">Limpiar</button>
+          </div>
+          <div class="field-meta">Tip rapido: presiona <strong>/</strong> para enfocar la busqueda.</div>
         </div>
-        <div>
+        <div class="filter-field">
           <label for="cba">CBA</label>
           <select id="cba">
             <option value="all">Todos</option>
@@ -1150,11 +2423,11 @@ td:first-child a{display:inline-block;max-width:340px;overflow:hidden;text-overf
             <option value="no">No</option>
           </select>
         </div>
-        <div>
+        <div class="filter-field">
           <label for="cat">Categoria</label>
           <select id="cat"></select>
         </div>
-        <div>
+        <div class="filter-field">
           <label for="ord">Ordenar por</label>
           <select id="ord">
             <option value="alphabetical">Alfabetico</option>
@@ -1163,25 +2436,25 @@ td:first-child a{display:inline-block;max-width:340px;overflow:hidden;text-overf
             <option value="var_real">Var. real</option>
           </select>
         </div>
-        <div>
+        <div class="filter-field">
           <label for="mbase">Mes base variacion</label>
           <select id="mbase"></select>
         </div>
-        <div>
+        <div class="filter-field">
           <label for="show-real">Tabla</label>
           <div class="inline-toggle">
             <input id="show-real" type="checkbox"/>
             <span class="muted">Mostrar var. real %</span>
           </div>
         </div>
-        <div>
+        <div class="filter-field span-3">
           <label>Modo precio</label>
           <div class="switchers">
             <button id="mode-nominal" type="button" class="active">Nominal</button>
             <button id="mode-real" type="button">Real</button>
           </div>
         </div>
-        <div>
+        <div class="filter-field span-3">
           <label>Seleccion rapida</label>
           <div class="switchers">
             <button id="quick-up" type="button">Ganadores</button>
@@ -1189,81 +2462,129 @@ td:first-child a{display:inline-block;max-width:340px;overflow:hidden;text-overf
             <button id="quick-flat" type="button">Estables</button>
           </div>
         </div>
-        <div>
+        <div class="filter-field span-4">
           <label for="sel">Productos en grafico</label>
           <select id="sel" multiple size="5"></select>
+          <div id="selection-meta" class="field-meta">0 productos seleccionados</div>
         </div>
-        <div class="reset-wrap">
-          <label>&nbsp;</label>
-          <button id="reset" class="primary" type="button">Reset</button>
+        <div class="filter-field span-4 filter-actions">
+          <label>Acciones</label>
+          <div class="switchers">
+            <button id="reset" class="primary" type="button">Reset general</button>
+            <button id="copy-link" type="button" class="soft btn-inline">Copiar vista</button>
+            <button id="export-csv" type="button" class="ghost btn-inline">Exportar CSV</button>
+          </div>
+          <div id="copy-link-status" class="field-meta copy-status" aria-live="polite"></div>
         </div>
       </div>
     </details>
 
-    <section class="chart-wrap">
-      <article class="card chart-card">
-        <h2>Comparativa de precios por producto</h2>
-        <div id="chart-main" class="chart"><div class="chart-empty">Sin datos para graficar</div></div>
-        <div id="legend-main" class="legend"></div>
-      </article>
-      <article class="card chart-card" id="panel-secondary">
-        <h2>Canasta vs IPC (indice base 100)</h2>
-        <div id="chart-secondary" class="chart small"><div class="chart-empty">Sin comparativa IPC</div></div>
-        <div id="legend-secondary" class="legend"></div>
-      </article>
-    </section>
+    <section class="workspace-grid">
+      <div class="workspace-main">
+        <article class="card chart-card">
+          <h2>Comparativa de precios por producto</h2>
+          <div id="chart-main" class="chart"><div class="chart-empty">Sin datos para graficar</div></div>
+          <div id="legend-main" class="legend"></div>
+        </article>
 
-    <section class="card chart-card" id="panel-bands">
-      <h2>Dispersión intra-producto (low/mid/high)</h2>
-      <div class="band-toolbar">
-        <div class="band-select-wrap">
-          <label for="band-product">Producto para banda</label>
-          <select id="band-product"></select>
-        </div>
-        <div id="band-meta" class="muted"></div>
+        <section class="card table-section">
+          <h2>Listado de productos</h2>
+          <div class="table-toolbar">
+            <div id="table-meta" class="muted">0 productos</div>
+            <div class="table-actions">
+              <label for="page-size">Filas</label>
+              <select id="page-size" class="page-size"></select>
+              <button id="page-prev" type="button" class="ghost btn-inline">Anterior</button>
+              <div id="page-info" class="muted page-info">1 / 1</div>
+              <button id="page-next" type="button" class="ghost btn-inline">Siguiente</button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Producto (hipervinculo)</th>
+                  <th>Presentacion</th>
+                  <th>Precio</th>
+                  <th>Var. % vs mes elegido</th>
+                  <th id="th-var-real" style="display:none">Var. real %</th>
+                </tr>
+              </thead>
+              <tbody id="tb"></tbody>
+            </table>
+          </div>
+        </section>
       </div>
-      <div id="chart-bands" class="chart small"><div class="chart-empty">Sin datos de terna auditada</div></div>
-      <div id="legend-bands" class="legend"></div>
-    </section>
 
-    <section class="card quality" id="quality-panel">
-      <strong>Calidad de datos</strong>
-      <div class="quality-item" id="quality-coverage"></div>
-      <div class="quality-item" id="quality-panel-size"></div>
-      <div class="quality-item" id="quality-ipc"></div>
-      <div class="quality-item" id="quality-segments"></div>
-      <div class="quality-item" id="quality-policy"></div>
-      <ul id="warnings" class="warn-list"></ul>
-    </section>
+      <aside class="workspace-side">
+        <article class="card chart-card" id="panel-secondary">
+          <h2>IPC Propio vs IPC Oficial (indice base 100)</h2>
+          <div class="band-toolbar">
+            <div class="band-select-wrap">
+              <label for="macro-scope">Vista macro</label>
+              <select id="macro-scope">
+                <option value="general">General</option>
+                <option value="rubros">Rubros</option>
+              </select>
+            </div>
+            <div class="band-select-wrap">
+              <label for="macro-region">Region oficial</label>
+              <select id="macro-region"></select>
+            </div>
+            <div class="band-select-wrap">
+              <label for="macro-category">Rubro</label>
+              <select id="macro-category"></select>
+            </div>
+            <div id="macro-status" class="muted"></div>
+          </div>
+          <div id="chart-secondary" class="chart small"><div class="chart-empty">Sin comparativa IPC</div></div>
+          <div id="legend-secondary" class="legend"></div>
+        </article>
 
-    <section class="card table-section">
-      <h2>Listado de productos</h2>
-      <div class="table-toolbar">
-        <div id="table-meta" class="muted">0 productos</div>
-        <div class="table-actions">
-          <label for="page-size">Filas</label>
-          <select id="page-size" class="page-size"></select>
-          <button id="page-prev" type="button" class="ghost btn-inline">Anterior</button>
-          <div id="page-info" class="muted page-info">1 / 1</div>
-          <button id="page-next" type="button" class="ghost btn-inline">Siguiente</button>
-          <button id="export-csv" type="button" class="ghost btn-inline">Exportar CSV</button>
-        </div>
-      </div>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Producto (hipervinculo)</th>
-              <th>Presentacion</th>
-              <th>Precio</th>
-              <th>Var. % vs mes elegido</th>
-              <th id="th-var-real" style="display:none">Var. real %</th>
-            </tr>
-          </thead>
-          <tbody id="tb"></tbody>
-        </table>
-      </div>
+        <section class="card chart-card" id="panel-bands">
+          <h2>Dispersión intra-producto (low/mid/high)</h2>
+          <div class="band-toolbar">
+            <div class="band-select-wrap">
+              <label for="band-product">Producto para banda</label>
+              <select id="band-product"></select>
+            </div>
+            <div id="band-meta" class="muted"></div>
+          </div>
+          <div id="chart-bands" class="chart small"><div class="chart-empty">Sin datos de terna auditada</div></div>
+          <div id="legend-bands" class="legend"></div>
+        </section>
+
+        <section class="card quality" id="quality-panel">
+          <strong>Calidad de datos</strong>
+          <div class="quality-item" id="quality-coverage"></div>
+          <div class="quality-item" id="quality-panel-size"></div>
+          <div class="quality-item" id="quality-macro"></div>
+          <div class="quality-item" id="quality-ipc"></div>
+          <div class="quality-item" id="quality-segments"></div>
+          <div class="quality-item" id="quality-policy"></div>
+          <ul id="warnings" class="warn-list"></ul>
+        </section>
+      </aside>
     </section>
+  </div>
+</div>
+
+<div id="mobile-onboarding" class="onboarding-mobile" hidden role="dialog" aria-live="polite">
+  <div class="onboarding-title">Guia movil rapida</div>
+  <div>Abre filtros, busca con <strong>/</strong> y usa "Copiar vista" para compartir tu analisis.</div>
+  <div class="onboarding-actions">
+    <button id="onboarding-goto" type="button" class="primary">Ir a filtros</button>
+    <button id="onboarding-close" type="button">Entendido</button>
+  </div>
+</div>
+
+<div id="cookie-banner" class="cookie-banner" style="display:none" role="dialog" aria-live="polite">
+  <div class="cookie-grid">
+    <div>Usamos almacenamiento local para preferencias y, cuando aplique, consentimiento de anuncios.</div>
+    <div class="cookie-actions">
+      <button id="cookie-reject" type="button">Rechazar</button>
+      <button id="cookie-accept" type="button" class="primary">Aceptar</button>
+    </div>
   </div>
 </div>
 
@@ -1271,6 +2592,8 @@ td:first-child a{display:inline-block;max-width:340px;overflow:hidden;text-overf
 const p=__PAYLOAD__;
 const defaults=p.ui_defaults||{};
 const STORAGE_KEY="laanonima_tracker_report_state_v2";
+const COOKIE_KEY="laanonima_tracker_cookie_consent_v1";
+const ONBOARDING_KEY="laanonima_tracker_mobile_onboarding_v1";
 const COLORS=["#005f73","#9b2226","#ee9b00","#0a9396","#3d405b","#588157","#7f5539","#6a4c93","#1d3557"];
 const st={
   query:defaults.query||"",
@@ -1281,6 +2604,9 @@ const st={
   selected_products:[...(defaults.selected_products||[])],
   price_mode:defaults.price_mode||"nominal",
   show_real_column:!!defaults.show_real_column,
+  macro_scope:defaults.macro_scope||"general",
+  macro_region:defaults.macro_region||p.macro_default_region||"patagonia",
+  macro_category:defaults.macro_category||"",
   view:defaults.view||"executive",
   band_product:defaults.band_product||"",
   page_size:Number(defaults.page_size||50),
@@ -1288,14 +2614,30 @@ const st={
 };
 
 const el={
+  adPanel:document.getElementById("ad-panel"),
+  adSlots:document.getElementById("ad-slots"),
+  premiumPanel:document.getElementById("premium-panel"),
+  premiumFeatures:document.getElementById("premium-features"),
+  quickGuide:document.getElementById("quick-guide"),
+  mobileOnboarding:document.getElementById("mobile-onboarding"),
+  onboardingGoto:document.getElementById("onboarding-goto"),
+  onboardingClose:document.getElementById("onboarding-close"),
+  cookieBanner:document.getElementById("cookie-banner"),
+  cookieAccept:document.getElementById("cookie-accept"),
+  cookieReject:document.getElementById("cookie-reject"),
   q:document.getElementById("q"),
+  clearSearch:document.getElementById("clear-search"),
   cba:document.getElementById("cba"),
   cat:document.getElementById("cat"),
   ord:document.getElementById("ord"),
   mb:document.getElementById("mbase"),
   sel:document.getElementById("sel"),
+  selectionMeta:document.getElementById("selection-meta"),
   tb:document.getElementById("tb"),
+  filtersPanel:document.getElementById("filters-panel"),
   reset:document.getElementById("reset"),
+  copyLink:document.getElementById("copy-link"),
+  copyLinkStatus:document.getElementById("copy-link-status"),
   showReal:document.getElementById("show-real"),
   modeNominal:document.getElementById("mode-nominal"),
   modeReal:document.getElementById("mode-real"),
@@ -1306,6 +2648,7 @@ const el={
   qualityBadge:document.getElementById("quality-badge"),
   qualityCoverage:document.getElementById("quality-coverage"),
   qualityPanelSize:document.getElementById("quality-panel-size"),
+  qualityMacro:document.getElementById("quality-macro"),
   qualityIpc:document.getElementById("quality-ipc"),
   qualitySegments:document.getElementById("quality-segments"),
   qualityPolicy:document.getElementById("quality-policy"),
@@ -1314,6 +2657,10 @@ const el={
   panelSecondary:document.getElementById("panel-secondary"),
   chartMain:document.getElementById("chart-main"),
   legendMain:document.getElementById("legend-main"),
+  macroScope:document.getElementById("macro-scope"),
+  macroRegion:document.getElementById("macro-region"),
+  macroCategory:document.getElementById("macro-category"),
+  macroStatus:document.getElementById("macro-status"),
   chartSecondary:document.getElementById("chart-secondary"),
   legendSecondary:document.getElementById("legend-secondary"),
   panelBands:document.getElementById("panel-bands"),
@@ -1328,13 +2675,22 @@ const el={
   pageNext:document.getElementById("page-next"),
   pageInfo:document.getElementById("page-info"),
   exportCsv:document.getElementById("export-csv"),
-  activeFilters:document.getElementById("active-filters")
+  activeFilters:document.getElementById("active-filters"),
+  freshnessMeta:document.getElementById("freshness-meta")
 };
 
 // Keep unicode range escaped to avoid encoding issues in generated standalone HTML.
 const norm=v=>String(v||"").toLowerCase().normalize("NFD").replace(/[\\u0300-\\u036f]/g,"");
 const esc=v=>String(v||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\"/g,"&quot;").replace(/'/g,"&#39;");
-const money=v=>v==null||Number.isNaN(Number(v))?"N/D":new Intl.NumberFormat("es-AR",{style:"currency",currency:"ARS",maximumFractionDigits:2}).format(Number(v));
+const money=v=>{
+  if(v==null||Number.isNaN(Number(v))) return "N/D";
+  return new Intl.NumberFormat("es-AR",{
+    style:"currency",
+    currency:"ARS",
+    minimumFractionDigits:0,
+    maximumFractionDigits:2
+  }).format(Number(v));
+};
 const pct=v=>v==null||Number.isNaN(Number(v))?"N/D":`${Number(v).toFixed(2)}%`;
 const pctSigned=v=>{
   if(v==null||Number.isNaN(Number(v))) return "N/D";
@@ -1349,6 +2705,16 @@ const fmtAxisNum=v=>{
   const n=Number(v);
   const decimals=Math.abs(n)>=1000 ? 0 : 2;
   return new Intl.NumberFormat("es-AR",{maximumFractionDigits:decimals}).format(n);
+};
+const fmtDate=v=>{
+  const d=v instanceof Date ? v : new Date(v);
+  if(Number.isNaN(d.getTime())) return "N/D";
+  return new Intl.DateTimeFormat("es-AR",{year:"numeric",month:"2-digit",day:"2-digit"}).format(d);
+};
+const fmtMonthTick=v=>{
+  const d=v instanceof Date ? v : new Date(v);
+  if(Number.isNaN(d.getTime())) return "N/D";
+  return new Intl.DateTimeFormat("es-AR",{month:"short",year:"2-digit"}).format(d);
 };
 const trendClass=v=>{
   if(v==null||Number.isNaN(Number(v))) return "var-flat";
@@ -1366,15 +2732,27 @@ const trendIcon=v=>{
 function normalizePresentation(value){
   const raw=String(value||"").trim();
   if(!raw || raw.toUpperCase()==="N/D") return "N/D";
-  const normalized=raw.replace(",",".");
-  const parts=normalized.split(" ").filter(Boolean);
-  if(parts.length<2) return raw;
-  const qty=Number(parts[0]);
+  const normalized=raw.replace(",",".").replace(/\s+/g," ").trim();
+  const match=normalized.match(/^([0-9]+(?:\.[0-9]+)?)\s*([a-zA-Z]+)\b(.*)$/);
+  if(!match){
+    return raw.replace(/(\d+)[.,]0+(?=\s*[a-zA-Z]|$)/g,"$1");
+  }
+  const qty=Number(match[1]);
   if(!Number.isFinite(qty)) return raw;
 
-  const unit=norm(parts[1].replace(/[^a-z]/gi,""));
-  const tail=parts.slice(2).join(" ");
+  const unit=norm(match[2].replace(/[^a-z]/gi,""));
+  const tail=String(match[3]||"").trim();
   const suffix=tail ? ` ${tail}` : "";
+  const qtyLabel=new Intl.NumberFormat("es-AR",{maximumFractionDigits:3,useGrouping:false}).format(qty);
+  const canonicalUnit=(()=>{
+    if(unit==="kg" || unit==="kilo" || unit==="kilos") return "kg";
+    if(unit==="g" || unit==="gr" || unit==="gramo" || unit==="gramos") return "g";
+    if(unit==="l" || unit==="lt" || unit==="litro" || unit==="litros") return "l";
+    if(unit==="ml") return "ml";
+    if(unit==="unidad" || unit==="unidades" || unit==="un") return "un";
+    if(unit==="docena" || unit==="docenas" || unit==="doc") return "doc";
+    return match[2].toLowerCase();
+  })();
 
   if(qty>0 && qty<1 && (unit==="kg" || unit==="kilo" || unit==="kilos")){
     return `${Math.round(qty*1000)} g${suffix}`;
@@ -1382,7 +2760,26 @@ function normalizePresentation(value){
   if(qty>0 && qty<1 && (unit==="l" || unit==="lt" || unit==="litro" || unit==="litros")){
     return `${Math.round(qty*1000)} ml${suffix}`;
   }
-  return raw;
+  return `${qtyLabel} ${canonicalUnit}${suffix}`;
+}
+
+function inferPresentationFromName(name){
+  const raw=String(name||"").trim();
+  if(!raw) return "N/D";
+  const fromQty=raw.match(/\bx\s*([0-9]+(?:[.,][0-9]+)?)\s*(kg|kilo|kilos|g|gr|gramos?|l|lt|litros?|ml|un|unidad(?:es)?|doc|docena(?:s)?)\b/i);
+  if(fromQty){
+    return normalizePresentation(`${fromQty[1]} ${fromQty[2]}`);
+  }
+  if(/\(\s*kg\s*\)/i.test(raw) || /\bpor\s*kg\b/i.test(raw)) return "1 kg";
+  return "N/D";
+}
+
+function resolvePresentation(row){
+  const direct=normalizePresentation(row.presentation||"N/D");
+  if(direct!=="N/D") return direct;
+  const inferred=inferPresentationFromName(row.product_name||"");
+  if(inferred!=="N/D") return inferred;
+  return "N/D";
 }
 
 function encodeHash(){
@@ -1393,6 +2790,9 @@ function encodeHash(){
   q.set("ord",st.sort_by);
   q.set("mb",st.base_month||"");
   q.set("pm",st.price_mode);
+  q.set("mscope",st.macro_scope||"general");
+  q.set("mreg",st.macro_region||"patagonia");
+  q.set("mcat",st.macro_category||"");
   q.set("bp",st.band_product||"");
   q.set("real",st.show_real_column?"1":"0");
   q.set("sel",(st.selected_products||[]).join(","));
@@ -1412,6 +2812,9 @@ function applyHashState(){
     st.sort_by=q.get("ord")??st.sort_by;
     st.base_month=q.get("mb")??st.base_month;
     st.price_mode=q.get("pm")??st.price_mode;
+    st.macro_scope=q.get("mscope")??st.macro_scope;
+    st.macro_region=q.get("mreg")??st.macro_region;
+    st.macro_category=q.get("mcat")??st.macro_category;
     st.band_product=q.get("bp")??st.band_product;
     st.show_real_column=(q.get("real")||"0")==="1";
     const sel=q.get("sel");
@@ -1440,6 +2843,59 @@ function saveState(){
   if(window.location.hash.slice(1)!==encoded){
     history.replaceState(null,"",`#${encoded}`);
   }
+}
+
+function buildShareUrl(){
+  const encoded=encodeHash();
+  const current=window.location.href.split("#")[0];
+  return `${current}#${encoded}`;
+}
+
+let _copyStatusTimer=null;
+function setCopyStatus(message,isError=false){
+  if(!el.copyLinkStatus)return;
+  el.copyLinkStatus.textContent=message||"";
+  el.copyLinkStatus.classList.toggle("error",!!isError);
+  if(_copyStatusTimer){
+    clearTimeout(_copyStatusTimer);
+    _copyStatusTimer=null;
+  }
+  if(message){
+    _copyStatusTimer=window.setTimeout(()=>{
+      if(el.copyLinkStatus){
+        el.copyLinkStatus.textContent="";
+        el.copyLinkStatus.classList.remove("error");
+      }
+    },2600);
+  }
+}
+
+async function copyCurrentViewLink(){
+  saveState();
+  const link=buildShareUrl();
+  try{
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      await navigator.clipboard.writeText(link);
+      setCopyStatus("Link copiado.");
+      return;
+    }
+  }catch(_e){}
+  try{
+    const ta=document.createElement("textarea");
+    ta.value=link;
+    ta.style.position="fixed";
+    ta.style.left="-9999px";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    const ok=document.execCommand("copy");
+    document.body.removeChild(ta);
+    if(ok){
+      setCopyStatus("Link copiado.");
+      return;
+    }
+  }catch(_e){}
+  setCopyStatus("No se pudo copiar. Copialo manualmente desde la barra.",true);
 }
 
 const refsNom={};
@@ -1529,6 +2985,9 @@ function syncSelection(rows){
     o.textContent=`${r.product_name||r.canonical_id} (${r.canonical_id})`;
     el.sel.appendChild(o);
   }
+  if(el.selectionMeta){
+    el.selectionMeta.textContent=`${st.selected_products.length} productos seleccionados`;
+  }
 }
 
 function paginatedRows(rows){
@@ -1562,17 +3021,32 @@ function updateTableMeta(total,totalPages){
 
 function drawActiveFilters(totalRows){
   if(!el.activeFilters) return;
-  const items=[
-    `Productos filtrados: ${totalRows}`,
-    `Modo: ${st.price_mode==="real"?"Real":"Nominal"}`,
-    `CBA: ${st.cba_filter==="all"?"Todos":(st.cba_filter==="yes"?"Si":"No")}`,
-    `Categoria: ${st.category==="all"?"Todas":st.category}`,
-    `Base: ${st.base_month||"N/D"}`,
-  ];
-  if((st.query||"").trim()){
-    items.push(`Busqueda: "${st.query.trim()}"`);
+  const defaultBase=p.months?.[0]||"";
+  const sortLabels={alphabetical:"Alfabetico",price:"Precio",var_nominal:"Var. nominal",var_real:"Var. real"};
+  const chips=[];
+  if((st.query||"").trim()) chips.push({key:"query",label:`Busqueda: "${st.query.trim()}"`});
+  if(st.cba_filter!=="all") chips.push({key:"cba",label:`CBA: ${st.cba_filter==="yes"?"Si":"No"}`});
+  if(st.category!=="all") chips.push({key:"category",label:`Categoria: ${st.category}`});
+  if(st.sort_by!=="alphabetical") chips.push({key:"sort_by",label:`Orden: ${sortLabels[st.sort_by]||st.sort_by}`});
+  if(st.base_month && st.base_month!==defaultBase) chips.push({key:"base_month",label:`Base: ${st.base_month}`});
+  if(st.price_mode==="real") chips.push({key:"price_mode",label:"Modo: Real"});
+  if(st.show_real_column) chips.push({key:"show_real_column",label:"Tabla: var. real visible"});
+  if(st.macro_scope==="rubros") chips.push({key:"macro_scope",label:"Macro: Rubros"});
+  if(st.macro_region && st.macro_region!==(p.macro_default_region||"patagonia")) chips.push({key:"macro_region",label:`Region macro: ${st.macro_region}`});
+  if(st.macro_scope==="rubros" && st.macro_category) chips.push({key:"macro_category",label:`Rubro macro: ${st.macro_category}`});
+
+  const html=[`<span class="pill pill-info">Productos filtrados: ${totalRows}</span>`,`<span class="pill">En grafico: ${st.selected_products.length}</span>`];
+  if(!chips.length){
+    html.push(`<span class="pill">Sin filtros adicionales</span>`);
+  }else{
+    chips.forEach(item=>{
+      html.push(
+        `<button type="button" class="pill pill-action" data-filter="${item.key}" title="Quitar filtro">`
+        + `${esc(item.label)} <span aria-hidden="true">x</span></button>`
+      );
+    });
   }
-  el.activeFilters.innerHTML=items.map(v=>`<span class="pill">${esc(v)}</span>`).join("");
+  el.activeFilters.innerHTML=html.join("");
 }
 
 function exportFilteredCsv(rows){
@@ -1588,7 +3062,7 @@ function exportFilteredCsv(rows){
     lines.push([
       r.canonical_id,
       r.product_name,
-      normalizePresentation(r.presentation),
+      resolvePresentation(r),
       r.category,
       r.is_cba ? "1" : "0",
       r.current_price,
@@ -1634,7 +3108,14 @@ function toSeriesForMainChart(rows){
 function drawCanvasChart(container,legend,series,yLabel,xLabel="Tiempo"){
   container.innerHTML="";
   legend.innerHTML="";
-  if(!series.length){
+  const normalizedSeries=(series||[]).map(s=>({
+    ...s,
+    points:(s.points||[]).map(pt=>({
+      x:pt?.x instanceof Date ? pt.x : new Date(pt?.x),
+      y:Number(pt?.y),
+    })).filter(pt=>Number.isFinite(pt.x.getTime()) && Number.isFinite(pt.y))
+  })).filter(s=>s.points.length>0);
+  if(!normalizedSeries.length){
     const m=document.createElement("div");
     m.className="chart-empty";
     m.textContent="Sin datos para graficar";
@@ -1643,19 +3124,29 @@ function drawCanvasChart(container,legend,series,yLabel,xLabel="Tiempo"){
   }
 
   const canvas=document.createElement("canvas");
+  const tooltip=document.createElement("div");
+  tooltip.className="chart-tooltip";
   container.appendChild(canvas);
+  container.appendChild(tooltip);
   const w=Math.max(320,container.clientWidth||760);
-  const h=Math.max(220,container.classList.contains("small")?232:346);
+  const h=Math.max(220,container.classList.contains("small")?252:366);
   const ratio=Math.max(1,window.devicePixelRatio||1);
   canvas.width=Math.floor(w*ratio);
   canvas.height=Math.floor(h*ratio);
   canvas.style.width=`${w}px`;
   canvas.style.height=`${h}px`;
   const ctx=canvas.getContext("2d");
+  if(!ctx){
+    const m=document.createElement("div");
+    m.className="chart-empty";
+    m.textContent="No se pudo inicializar el canvas";
+    container.appendChild(m);
+    return;
+  }
   ctx.scale(ratio,ratio);
 
-  const xs=series.flatMap(s=>s.points.map(p=>p.x.getTime())).filter(Number.isFinite);
-  const ys=series.flatMap(s=>s.points.map(p=>Number(p.y))).filter(Number.isFinite);
+  const xs=normalizedSeries.flatMap(s=>s.points.map(p=>p.x.getTime())).filter(Number.isFinite);
+  const ys=normalizedSeries.flatMap(s=>s.points.map(p=>Number(p.y))).filter(Number.isFinite);
   if(!xs.length||!ys.length){
     const m=document.createElement("div");
     m.className="chart-empty";
@@ -1668,15 +3159,15 @@ function drawCanvasChart(container,legend,series,yLabel,xLabel="Tiempo"){
   const maxX=Math.max(...xs);
   const minY=Math.min(...ys);
   const maxY=Math.max(...ys);
-  const ySpan=Math.max(1,maxY-minY);
+  const ySpan=Math.max(1,maxY-minY||1);
   const yMin=minY-ySpan*0.08;
   const yMax=maxY+ySpan*0.08;
 
   const yTicks=[0,0.25,0.5,0.75,1];
-  ctx.font="12px Segoe UI";
+  ctx.font="12px Aptos";
   const yTickLabels=yTicks.map(t=>fmtAxisNum(yMin+(yMax-yMin)*t));
   const maxYLabelW=yTickLabels.reduce((acc,label)=>Math.max(acc,ctx.measureText(label).width),0);
-  const pad={l:Math.max(78,Math.ceil(maxYLabelW)+44),r:20,t:20,b:56};
+  const pad={l:Math.max(78,Math.ceil(maxYLabelW)+44),r:20,t:20,b:58};
   const innerW=Math.max(40,w-pad.l-pad.r);
   const innerH=Math.max(40,h-pad.t-pad.b);
   const mapX=x=>pad.l+((x-minX)/(Math.max(1,maxX-minX)))*innerW;
@@ -1685,76 +3176,205 @@ function drawCanvasChart(container,legend,series,yLabel,xLabel="Tiempo"){
   const xTicks=xTickCount===1
     ? [0.5]
     : Array.from({length:xTickCount},(_,i)=>i/(xTickCount-1));
+  const mappedSeries=normalizedSeries.map(s=>({
+    ...s,
+    mapped:s.points.map(pt=>{
+      const rawX=pt.x.getTime();
+      const rawY=Number(pt.y);
+      return {rawX,rawY,px:mapX(rawX),py:mapY(rawY)};
+    })
+  }));
+  const allPoints=mappedSeries.flatMap(s=>s.mapped.map(pt=>({...pt,name:s.name,color:s.color})));
 
-  ctx.clearRect(0,0,w,h);
-  ctx.strokeStyle="#d8dce3";
-  ctx.lineWidth=1;
-  for(const t of yTicks){
-    const y=pad.t+innerH*(1-t);
-    ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(w-pad.r,y);ctx.stroke();
-  }
-  for(const t of xTicks){
-    const x=pad.l+innerW*t;
-    ctx.beginPath();ctx.moveTo(x,pad.t);ctx.lineTo(x,h-pad.b);ctx.stroke();
-  }
-  ctx.beginPath();
-  ctx.moveTo(pad.l,pad.t);ctx.lineTo(pad.l,h-pad.b);ctx.lineTo(w-pad.r,h-pad.b);ctx.strokeStyle="#8b95a7";ctx.stroke();
-
-  ctx.fillStyle="#5a6577";
-  ctx.font="12px Segoe UI";
-  ctx.textBaseline="middle";
-  ctx.textAlign="right";
-  for(const t of yTicks){
-    const y=pad.t+innerH*(1-t);
-    const val=(yMin+(yMax-yMin)*t);
-    ctx.fillText(fmtAxisNum(val),pad.l-12,y);
-  }
-  ctx.save();
-  ctx.translate(18,pad.t+(innerH/2));
-  ctx.rotate(-Math.PI/2);
-  ctx.textAlign="center";
-  ctx.fillText(yLabel,0,0);
-  ctx.restore();
-
-  ctx.textBaseline="top";
-  xTicks.forEach((t,idx)=>{
-    const x=pad.l+innerW*t;
-    const ts=minX+(maxX-minX)*t;
-    const d=new Date(ts);
-    const lbl=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
-    ctx.textAlign=xTicks.length===1?"center":(idx===0?"left":(idx===xTicks.length-1?"right":"center"));
-    ctx.fillText(lbl,x,h-pad.b+12);
-  });
-  ctx.textAlign="center";
-  ctx.fillText(xLabel,w/2,h-18);
-
-  series.forEach(s=>{
-    if(!s.points.length)return;
-    ctx.strokeStyle=s.color;
-    ctx.lineWidth=2.2;
+  function drawFrame(hover){
+    ctx.clearRect(0,0,w,h);
+    ctx.strokeStyle="#d8e2ed";
+    ctx.lineWidth=1;
+    for(const t of yTicks){
+      const y=pad.t+innerH*(1-t);
+      ctx.beginPath();
+      ctx.moveTo(pad.l,y);
+      ctx.lineTo(w-pad.r,y);
+      ctx.stroke();
+    }
+    for(const t of xTicks){
+      const x=pad.l+innerW*t;
+      ctx.beginPath();
+      ctx.moveTo(x,pad.t);
+      ctx.lineTo(x,h-pad.b);
+      ctx.stroke();
+    }
     ctx.beginPath();
-    s.points.forEach((pt,idx)=>{
-      const x=mapX(pt.x.getTime());
-      const y=mapY(Number(pt.y));
-      if(idx===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
-    });
+    ctx.moveTo(pad.l,pad.t);
+    ctx.lineTo(pad.l,h-pad.b);
+    ctx.lineTo(w-pad.r,h-pad.b);
+    ctx.strokeStyle="#8b98ac";
     ctx.stroke();
-    if(s.points.length<=24){
-      ctx.fillStyle=s.color;
-      s.points.forEach(pt=>{
-        const x=mapX(pt.x.getTime());
-        const y=mapY(Number(pt.y));
+
+    ctx.fillStyle="#5a6577";
+    ctx.font="12px Aptos";
+    ctx.textBaseline="middle";
+    ctx.textAlign="right";
+    for(const t of yTicks){
+      const y=pad.t+innerH*(1-t);
+      const val=(yMin+(yMax-yMin)*t);
+      ctx.fillText(fmtAxisNum(val),pad.l-12,y);
+    }
+    ctx.save();
+    ctx.translate(18,pad.t+(innerH/2));
+    ctx.rotate(-Math.PI/2);
+    ctx.textAlign="center";
+    ctx.fillText(yLabel,0,0);
+    ctx.restore();
+
+    ctx.textBaseline="top";
+    xTicks.forEach((t,idx)=>{
+      const x=pad.l+innerW*t;
+      const ts=minX+(maxX-minX)*t;
+      const lbl=fmtMonthTick(ts);
+      ctx.textAlign=xTicks.length===1?"center":(idx===0?"left":(idx===xTicks.length-1?"right":"center"));
+      ctx.fillText(lbl,x,h-pad.b+12);
+    });
+    ctx.textAlign="center";
+    ctx.fillText(xLabel,w/2,h-17);
+
+    mappedSeries.forEach(s=>{
+      if(!s.mapped.length)return;
+      ctx.strokeStyle=s.color;
+      ctx.lineWidth=2.4;
+      ctx.beginPath();
+      s.mapped.forEach((pt,idx)=>{
+        if(idx===0)ctx.moveTo(pt.px,pt.py);else ctx.lineTo(pt.px,pt.py);
+      });
+      ctx.stroke();
+
+      if(s.mapped.length<=36){
+        ctx.fillStyle=s.color;
+        s.mapped.forEach(pt=>{
+          ctx.beginPath();
+          ctx.arc(pt.px,pt.py,2.5,0,Math.PI*2);
+          ctx.fill();
+        });
+      }
+
+      const latest=s.mapped[s.mapped.length-1];
+      if(latest){
         ctx.beginPath();
-        ctx.arc(x,y,2.4,0,Math.PI*2);
+        ctx.fillStyle="#fff";
+        ctx.arc(latest.px,latest.py,3.7,0,Math.PI*2);
         ctx.fill();
+        ctx.lineWidth=1.8;
+        ctx.strokeStyle=s.color;
+        ctx.stroke();
+      }
+    });
+
+    if(hover?.points?.length){
+      ctx.save();
+      ctx.setLineDash([6,5]);
+      ctx.strokeStyle="#75849a";
+      ctx.lineWidth=1.2;
+      ctx.beginPath();
+      ctx.moveTo(hover.xPx,pad.t);
+      ctx.lineTo(hover.xPx,h-pad.b);
+      ctx.stroke();
+      ctx.restore();
+
+      hover.points.forEach(pt=>{
+        ctx.beginPath();
+        ctx.fillStyle=pt.color;
+        ctx.arc(pt.px,pt.py,4.2,0,Math.PI*2);
+        ctx.fill();
+        ctx.lineWidth=2;
+        ctx.strokeStyle="#fff";
+        ctx.stroke();
       });
     }
+  }
+  function nearestHover(mouseX){
+    if(!allPoints.length) return null;
+    let nearest=allPoints[0];
+    let minDist=Number.POSITIVE_INFINITY;
+    for(const pt of allPoints){
+      const dist=Math.abs(pt.px-mouseX);
+      if(dist<minDist){
+        minDist=dist;
+        nearest=pt;
+      }
+    }
+    if(!nearest) return null;
+    const targetX=nearest.rawX;
+    const points=mappedSeries.map(s=>{
+      let localNearest=s.mapped[0];
+      let localDist=Number.POSITIVE_INFINITY;
+      for(const pt of s.mapped){
+        const dist=Math.abs(pt.rawX-targetX);
+        if(dist<localDist){
+          localDist=dist;
+          localNearest=pt;
+        }
+      }
+      if(!localNearest) return null;
+      return {...localNearest,name:s.name,color:s.color};
+    }).filter(Boolean);
+    if(!points.length) return null;
+    return {xPx:mapX(targetX),targetX,points};
+  }
+
+  function hideTooltip(){
+    tooltip.classList.remove("visible");
+    tooltip.innerHTML="";
+  }
+
+  function showTooltip(hover,mouseX,mouseY){
+    if(!hover?.points?.length){
+      hideTooltip();
+      return;
+    }
+    const lines=hover.points.map(pt=>
+      `<div><span class="dot" style="background:${pt.color}"></span> ${esc(pt.name)}: <strong>${esc(fmtAxisNum(pt.rawY))}</strong></div>`
+    );
+    tooltip.innerHTML=`<strong>${esc(fmtDate(hover.targetX))}</strong>${lines.join("")}`;
+    tooltip.classList.add("visible");
+    const tipRect=tooltip.getBoundingClientRect();
+    let left=mouseX+14;
+    let top=mouseY-tipRect.height-10;
+    if(left+tipRect.width>w-6) left=mouseX-tipRect.width-14;
+    if(top<6) top=mouseY+14;
+    tooltip.style.left=`${Math.max(6,Math.min(w-tipRect.width-6,left))}px`;
+    tooltip.style.top=`${Math.max(6,Math.min(h-tipRect.height-6,top))}px`;
+  }
+
+  drawFrame(null);
+  canvas.addEventListener("mousemove",(ev)=>{
+    const rect=canvas.getBoundingClientRect();
+    const mx=ev.clientX-rect.left;
+    const my=ev.clientY-rect.top;
+    const inside=mx>=pad.l && mx<=w-pad.r && my>=pad.t && my<=h-pad.b;
+    if(!inside){
+      hideTooltip();
+      drawFrame(null);
+      return;
+    }
+    const hover=nearestHover(mx);
+    drawFrame(hover);
+    if(hover){
+      showTooltip(hover,mx,my);
+    }else{
+      hideTooltip();
+    }
+  });
+  canvas.addEventListener("mouseleave",()=>{
+    hideTooltip();
+    drawFrame(null);
   });
 
-  for(const s of series){
+  for(const s of mappedSeries){
+    const lastPoint=s.mapped[s.mapped.length-1];
     const item=document.createElement("div");
     item.className="item";
-    item.innerHTML=`<span class="dot" style="background:${s.color}"></span>${esc(s.name)}`;
+    const valueLabel=lastPoint?fmtAxisNum(lastPoint.rawY):"N/D";
+    item.innerHTML=`<span class="dot" style="background:${s.color}"></span>${esc(s.name)}: <strong>${esc(valueLabel)}</strong>`;
     legend.appendChild(item);
   }
 }
@@ -1776,7 +3396,19 @@ function drawMainChart(rows,force=false){
 }
 
 function drawSecondaryChart(force=false){
-  const secondaryKey=[st.view,p.basket_vs_ipc_series?.length||0].join("|");
+  const region=st.macro_region||p.macro_default_region||"patagonia";
+  const regionLabel=region==="nacional"?"Nacional":"Patagonia";
+  const generalSrc=(p.ipc_comparison_by_region?.[region]||p.ipc_comparison_series||[]);
+  const categorySrc=(p.category_comparison_by_region?.[region]||p.category_comparison_series||[]);
+  const secondaryKey=[
+    st.view,
+    st.macro_scope,
+    region,
+    st.macro_category,
+    generalSrc.length,
+    categorySrc.length,
+    p.basket_vs_ipc_series?.length||0
+  ].join("|");
   if(!force && secondaryKey===_lastSecondaryChartKey){
     return;
   }
@@ -1786,16 +3418,93 @@ function drawSecondaryChart(force=false){
   }else{
     el.panelSecondary.style.display="";
   }
-  const src=(p.basket_vs_ipc_series||[]);
-  const basket=src.map(x=>({x:new Date(`${x.year_month}-01T00:00:00`),y:x.basket_index_base100})).filter(x=>x.y!=null);
-  const ipc=src.map(x=>({x:new Date(`${x.year_month}-01T00:00:00`),y:x.ipc_index_base100})).filter(x=>x.y!=null);
-  const gap=src.map(x=>({x:new Date(`${x.year_month}-01T00:00:00`),y:x.gap_points})).filter(x=>x.y!=null);
+
+  if(el.macroScope){
+    if(!["general","rubros"].includes(st.macro_scope)){
+      st.macro_scope="general";
+    }
+    el.macroScope.value=st.macro_scope;
+  }
+  if(el.macroRegion){
+    const validRegions=Array.from(el.macroRegion.options).map(o=>o.value);
+    if(!validRegions.includes(st.macro_region)){
+      st.macro_region=validRegions.includes(p.macro_default_region||"") ? (p.macro_default_region||"") : (validRegions[0]||"patagonia");
+    }
+    el.macroRegion.value=st.macro_region;
+  }
+
+  let src=[];
+  let macroLabel="General";
+  if(st.macro_scope==="rubros"){
+    const categories=[...new Set(categorySrc.map(x=>x.category_slug).filter(Boolean))].sort();
+    if(el.macroCategory){
+      el.macroCategory.innerHTML="";
+      if(!categories.length){
+        const empty=document.createElement("option");
+        empty.value="";
+        empty.textContent="Sin rubros comparables";
+        el.macroCategory.appendChild(empty);
+      }else{
+        categories.forEach(cat=>{
+          const o=document.createElement("option");
+          o.value=cat;
+          o.textContent=cat;
+          el.macroCategory.appendChild(o);
+        });
+      }
+      if(!categories.includes(st.macro_category)){
+        st.macro_category=categories[0]||"";
+      }
+      el.macroCategory.value=st.macro_category;
+      el.macroCategory.disabled=!categories.length;
+    }
+    src=categorySrc.filter(x=>x.category_slug===st.macro_category);
+    macroLabel=st.macro_category?`Rubro: ${st.macro_category}`:"Rubros";
+  }else{
+    if(el.macroCategory){
+      const o=document.createElement("option");
+      o.value="";
+      o.textContent="No aplica en General";
+      el.macroCategory.innerHTML="";
+      el.macroCategory.appendChild(o);
+      el.macroCategory.value="";
+      el.macroCategory.disabled=true;
+    }
+    src=generalSrc;
+  }
+
+  if(!src.length && (p.basket_vs_ipc_series||[]).length){
+    src=(p.basket_vs_ipc_series||[]).map(x=>({
+      year_month:x.year_month,
+      tracker_index_base100:x.basket_index_base100,
+      official_index_base100:x.ipc_index_base100,
+      gap_index_points:x.gap_points,
+      tracker_status:null,
+      official_status:null
+    }));
+  }
+
+  const tracker=src.map(x=>({x:new Date(`${x.year_month}-01T00:00:00`),y:x.tracker_index_base100})).filter(x=>x.y!=null);
+  const official=src.map(x=>({x:new Date(`${x.year_month}-01T00:00:00`),y:x.official_index_base100})).filter(x=>x.y!=null);
+  const gap=src.map(x=>({x:new Date(`${x.year_month}-01T00:00:00`),y:x.gap_index_points})).filter(x=>x.y!=null);
   const series=[
-    {name:"Canasta base 100",points:basket,color:"#005f73"},
-    {name:"IPC base 100",points:ipc,color:"#ca6702"},
+    {name:"IPC propio base 100",points:tracker,color:"#005f73"},
+    {name:`IPC ${regionLabel} base 100`,points:official,color:"#ca6702"},
     {name:"Brecha (puntos)",points:gap,color:"#9b2226"}
   ].filter(s=>s.points.length>0);
   drawCanvasChart(el.chartSecondary,el.legendSecondary,series,"Indice base 100 / brecha");
+
+  if(el.macroStatus){
+    const latest=[...src].reverse().find(x=>x.year_month)||null;
+    const pub=(p.publication_status_by_region?.[region]||p.publication_status||{});
+    const trackerStatus=latest?.tracker_status||"N/D";
+    const officialStatus=latest?.official_status||"N/D";
+    const pubStatus=pub.status||"sin_publicacion";
+    const latestMonth=latest?.year_month||"N/D";
+    el.macroStatus.textContent=
+      `${macroLabel} | region: ${regionLabel} | ultimo mes: ${latestMonth} | `
+      + `tracker: ${trackerStatus} | oficial: ${officialStatus} | publicacion: ${pubStatus}`;
+  }
 }
 
 function mountBandOptions(rows){
@@ -1874,7 +3583,7 @@ function drawTable(rows){
       : `<span title="${name}">${name}</span>`;
     const nomCls=trendClass(r.variation_nominal_pct);
     const realCls=trendClass(r.variation_real_pct);
-    const presentation=normalizePresentation(r.presentation||"N/D");
+    const presentation=resolvePresentation(r);
     tr.innerHTML=`
       <td>${linked}</td>
       <td>${esc(presentation)}</td>
@@ -1923,14 +3632,36 @@ function drawQuality(){
   const cov=p.coverage||{};
   const k=p.kpi_summary||{};
   const sq=p.scrape_quality||{};
+  const region=st.macro_region||p.macro_default_region||"patagonia";
+  const regionLabel=region==="nacional"?"Nacional":"Patagonia";
+  const pub=(p.publication_status_by_region?.[region]||p.publication_status||{});
+  const trackerSeries=p.tracker_ipc_series||[];
+  const officialSeries=(p.official_series_by_region?.[region]||p.official_patagonia_series||[]);
+  const latestTracker=trackerSeries.length?trackerSeries[trackerSeries.length-1]:{};
+  const latestOfficial=officialSeries.length?officialSeries[officialSeries.length-1]:{};
   const cba=sq.cba||{};
   const core=sq.daily_core||{};
   const rot=sq.daily_rotation||{};
+  const mapMeta=p.category_mapping_meta||{};
+  const unmapped=(mapMeta.unmapped_categories||[]);
   el.qualityBadge.textContent=qf.badge||"Datos parciales";
   el.qualityBadge.className=`badge${qf.is_partial?" warn":""}`;
-  el.qualityCoverage.textContent=`Cobertura total: ${fmtNum(cov.coverage_total_pct)}% | Esperados: ${cov.expected_products ?? "N/D"} | Observados: ${cov.observed_products_total ?? "N/D"}`;
+  el.qualityCoverage.textContent=
+    `Cobertura total: ${fmtNum(cov.coverage_total_pct)}% | Esperados: ${cov.expected_products ?? "N/D"} | `
+    + `Observados canasta: ${cov.observed_products_total ?? "N/D"} | `
+    + `Fuera canasta: ${cov.unexpected_observed_products ?? 0}`;
   el.qualityPanelSize.textContent=`Panel balanceado: ${qf.balanced_panel_n ?? "N/D"} productos`;
-  el.qualityIpc.textContent=`Meses sin IPC: ${(qf.missing_cpi_months||[]).length? qf.missing_cpi_months.join(", ") : "ninguno"}`;
+  if(el.qualityMacro){
+    el.qualityMacro.textContent=
+      `Macro tracker: inicio ${(trackerSeries[0]?.year_month)||"N/D"} | ultimo ${(latestTracker?.year_month)||"N/D"} `
+      + `| estado ultimo ${(latestTracker?.status)||"N/D"} | region oficial ${regionLabel}`;
+  }
+  el.qualityIpc.textContent=
+    `IPC oficial (${regionLabel}): ultimo ${(latestOfficial?.year_month)||"N/D"} | `
+    + `fuente ${(pub.official_source_effective)||pub.official_source||"N/D"} | `
+    + `validacion ${(pub.validation_status)||"unknown"} | `
+    + `publicacion ${(pub.status)||"sin_publicacion"} | `
+    + `meses sin IPC: ${(qf.missing_cpi_months||[]).length? qf.missing_cpi_months.join(", ") : "ninguno"}`;
   if(el.qualitySegments){
     el.qualitySegments.textContent=
       `Cobertura segmentos -> CBA: ${cba.observed ?? 0}/${cba.expected ?? 0} (${fmtNum(cba.coverage_pct)}%), `
@@ -1941,7 +3672,8 @@ function drawQuality(){
     el.qualityPolicy.textContent=
       `Politica: ${sq.observation_policy || "single"} | Candidate storage: ${sq.candidate_storage_mode || "off"} | `
       + `Regla de terna objetivo: >=${sq.tier_rule_target ?? 3} | `
-      + `Cumplimiento terna: ${pct(sq.terna_compliance_pct)} (${sq.products_with_full_terna ?? 0}/${sq.products_with_bands ?? 0})`;
+      + `Cumplimiento terna: ${pct(sq.terna_compliance_pct)} (${sq.products_with_full_terna ?? 0}/${sq.products_with_bands ?? 0}) | `
+      + `Mapping oficial: ${pct(mapMeta.mapped_coverage_pct)}${unmapped.length?` | excluidos: ${unmapped.join(", ")}`:""}`;
   }
   el.warnings.innerHTML="";
   for(const w of (qf.warnings||[])){
@@ -1958,6 +3690,106 @@ function drawQuality(){
     el.qualityPanel.style.display="none";
   }else{
     el.qualityPanel.style.display="";
+  }
+  if(el.freshnessMeta){
+    const status=p.web_status||"unknown";
+    const stale=p.is_stale?"si":"no";
+    const nextRun=p.next_update_eta||"N/D";
+    const lastData=p.last_data_timestamp?fmtDate(p.last_data_timestamp):"N/D";
+    el.freshnessMeta.textContent=`Estado web: ${status} | stale: ${stale} | ultimo dato: ${lastData} | proxima corrida estimada: ${nextRun}`;
+  }
+}
+
+function drawMonetization(){
+  const ads=p.ads||{};
+  if(el.adPanel && el.adSlots){
+    if(ads.enabled){
+      const slots=(ads.slots||["header","inline","sidebar","footer"]).map(v=>String(v||"").trim()).filter(Boolean);
+      el.adSlots.innerHTML="";
+      slots.forEach(slot=>{
+        const div=document.createElement("div");
+        div.className="ad-slot";
+        div.setAttribute("data-slot",slot);
+        div.textContent=`Espacio publicitario: ${slot}`;
+        el.adSlots.appendChild(div);
+      });
+      el.adPanel.style.display="";
+    }else{
+      el.adPanel.style.display="none";
+    }
+  }
+
+  const premium=p.premium_placeholders||{};
+  if(el.premiumPanel && el.premiumFeatures){
+    if(premium.enabled){
+      const features=(premium.features||[]).map(v=>String(v||"").trim()).filter(Boolean);
+      el.premiumFeatures.innerHTML="";
+      features.forEach(feature=>{
+        const li=document.createElement("li");
+        li.textContent=feature;
+        el.premiumFeatures.appendChild(li);
+      });
+      el.premiumPanel.style.display="";
+    }else{
+      el.premiumPanel.style.display="none";
+    }
+  }
+}
+
+function initConsentBanner(){
+  if(!el.cookieBanner) return;
+  const saved=window.localStorage?.getItem?.(COOKIE_KEY)||"";
+  if(saved==="accepted" || saved==="rejected"){
+    el.cookieBanner.style.display="none";
+    return;
+  }
+  el.cookieBanner.style.display="";
+  if(el.cookieAccept){
+    el.cookieAccept.addEventListener("click",()=>{
+      try{window.localStorage?.setItem?.(COOKIE_KEY,"accepted");}catch(_e){}
+      el.cookieBanner.style.display="none";
+    });
+  }
+  if(el.cookieReject){
+    el.cookieReject.addEventListener("click",()=>{
+      try{window.localStorage?.setItem?.(COOKIE_KEY,"rejected");}catch(_e){}
+      el.cookieBanner.style.display="none";
+    });
+  }
+}
+
+function dismissMobileOnboarding(persist=true){
+  if(!el.mobileOnboarding) return;
+  el.mobileOnboarding.setAttribute("hidden","hidden");
+  if(persist){
+    try{window.localStorage?.setItem?.(ONBOARDING_KEY,"dismissed");}catch(_e){}
+  }
+}
+
+function initMobileOnboarding(){
+  if(!el.mobileOnboarding) return;
+  const isMobile=window.innerWidth<=760;
+  const saved=window.localStorage?.getItem?.(ONBOARDING_KEY)||"";
+  if(!isMobile || saved==="dismissed"){
+    dismissMobileOnboarding(false);
+    return;
+  }
+  window.setTimeout(()=>{
+    if(el.mobileOnboarding){
+      el.mobileOnboarding.removeAttribute("hidden");
+    }
+  },380);
+  if(el.onboardingClose){
+    el.onboardingClose.addEventListener("click",()=>dismissMobileOnboarding(true));
+  }
+  if(el.onboardingGoto){
+    el.onboardingGoto.addEventListener("click",()=>{
+      if(el.filtersPanel){
+        el.filtersPanel.open=true;
+        el.filtersPanel.scrollIntoView({behavior:"smooth",block:"start"});
+      }
+      dismissMobileOnboarding(true);
+    });
   }
 }
 
@@ -1982,6 +3814,45 @@ function mountFilterOptions(){
       el.pageSize.appendChild(o);
     });
   }
+  if(el.macroScope){
+    const scopes=(p.filters_available?.macro_scopes||["general","rubros"]);
+    el.macroScope.innerHTML="";
+    scopes.forEach(scope=>{
+      const o=document.createElement("option");
+      o.value=scope;
+      o.textContent=scope==="rubros"?"Rubros":"General";
+      el.macroScope.appendChild(o);
+    });
+  }
+  if(el.macroRegion){
+    const regions=(p.filters_available?.macro_regions||p.official_regions||["patagonia"]);
+    el.macroRegion.innerHTML="";
+    regions.forEach(region=>{
+      const o=document.createElement("option");
+      o.value=region;
+      o.textContent=region==="nacional"?"Nacional":"Patagonia";
+      el.macroRegion.appendChild(o);
+    });
+  }
+  if(el.macroCategory){
+    const categories=(p.filters_available?.macro_categories||[]);
+    el.macroCategory.innerHTML="";
+    if(!categories.length){
+      const o=document.createElement("option");
+      o.value="";
+      o.textContent="Sin rubros comparables";
+      el.macroCategory.appendChild(o);
+      el.macroCategory.disabled=true;
+    }else{
+      categories.forEach(cat=>{
+        const o=document.createElement("option");
+        o.value=cat;
+        o.textContent=cat;
+        el.macroCategory.appendChild(o);
+      });
+      el.macroCategory.disabled=false;
+    }
+  }
 }
 
 function setButtonsState(){
@@ -1991,12 +3862,37 @@ function setButtonsState(){
 
 function applyStateToControls(){
   el.q.value=st.query||"";
+  if(el.clearSearch){
+    el.clearSearch.disabled=!(st.query||"").trim();
+  }
   el.cba.value=st.cba_filter||"all";
   el.cat.value=st.category||"all";
   el.ord.value=st.sort_by||"alphabetical";
   el.mb.value=(p.months||[]).includes(st.base_month)?st.base_month:(p.months?.[0]||"");
   st.base_month=el.mb.value;
   el.showReal.checked=!!st.show_real_column;
+  if(el.macroScope){
+    const validScopes=Array.from(el.macroScope.options).map(o=>o.value);
+    if(!validScopes.includes(st.macro_scope)){
+      st.macro_scope=validScopes.includes("general")?"general":(validScopes[0]||"general");
+    }
+    el.macroScope.value=st.macro_scope;
+  }
+  if(el.macroRegion){
+    const validRegions=Array.from(el.macroRegion.options).map(o=>o.value);
+    if(!validRegions.includes(st.macro_region)){
+      st.macro_region=validRegions.includes(p.macro_default_region||"") ? (p.macro_default_region||"") : (validRegions[0]||"patagonia");
+    }
+    el.macroRegion.value=st.macro_region;
+  }
+  if(el.macroCategory){
+    const validCats=Array.from(el.macroCategory.options).map(o=>o.value);
+    if(!validCats.includes(st.macro_category)){
+      st.macro_category=validCats[0]||"";
+    }
+    el.macroCategory.value=st.macro_category;
+    el.macroCategory.disabled=st.macro_scope!=="rubros" || validCats.length===0;
+  }
   if(el.pageSize){
     const validSizes=Array.from(el.pageSize.options).map(o=>Number(o.value));
     if(!validSizes.includes(Number(st.page_size))){
@@ -2009,6 +3905,9 @@ function applyStateToControls(){
 }
 
 function render(){
+  if(el.clearSearch){
+    el.clearSearch.disabled=!(st.query||"").trim();
+  }
   const rows=filteredRows();
   syncSelection(rows);
   drawTable(rows);
@@ -2030,6 +3929,9 @@ function resetState(){
   st.selected_products=[...(defaults.selected_products||[])];
   st.price_mode=defaults.price_mode||"nominal";
   st.show_real_column=!!defaults.show_real_column;
+  st.macro_scope=defaults.macro_scope||"general";
+  st.macro_region=defaults.macro_region||p.macro_default_region||"patagonia";
+  st.macro_category=defaults.macro_category||"";
   st.view=defaults.view||"executive";
   st.band_product=defaults.band_product||"";
   st.page_size=Number(defaults.page_size||50);
@@ -2057,6 +3959,39 @@ function quickPick(kind){
   render();
 }
 
+function clearFilterToken(filterKey){
+  const defaultBase=p.months?.[0]||"";
+  if(filterKey==="query"){
+    st.query="";
+  }else if(filterKey==="cba"){
+    st.cba_filter="all";
+  }else if(filterKey==="category"){
+    st.category="all";
+  }else if(filterKey==="sort_by"){
+    st.sort_by="alphabetical";
+  }else if(filterKey==="base_month"){
+    st.base_month=defaultBase;
+  }else if(filterKey==="price_mode"){
+    st.price_mode="nominal";
+    setButtonsState();
+  }else if(filterKey==="show_real_column"){
+    st.show_real_column=false;
+  }else if(filterKey==="macro_scope"){
+    st.macro_scope="general";
+  }else if(filterKey==="macro_region"){
+    st.macro_region=p.macro_default_region||"patagonia";
+  }else if(filterKey==="macro_category"){
+    st.macro_category=(p.filters_available?.macro_categories||[])[0]||"";
+  }else{
+    return;
+  }
+  st.current_page=1;
+  _rowsCacheKey="";
+  _lastMainChartKey="";
+  applyStateToControls();
+  render();
+}
+
 function debounce(fn,ms){
   let t=null;
   return (...args)=>{
@@ -2065,8 +4000,46 @@ function debounce(fn,ms){
   };
 }
 
+function bindShortcuts(){
+  document.addEventListener("keydown",(e)=>{
+    if(e.defaultPrevented) return;
+    const target=e.target;
+    const tag=String(target?.tagName||"").toLowerCase();
+    const editable=!!target?.isContentEditable || tag==="input" || tag==="textarea" || tag==="select";
+    if(e.key==="/" && !editable){
+      e.preventDefault();
+      if(el.filtersPanel && window.innerWidth<900 && !el.filtersPanel.open){
+        el.filtersPanel.open=true;
+      }
+      if(el.q){
+        el.q.focus();
+        el.q.select?.();
+      }
+      return;
+    }
+    if(e.key==="Escape" && target===el.q && (el.q?.value||"").trim()){
+      e.preventDefault();
+      st.query="";
+      el.q.value="";
+      st.current_page=1;
+      _rowsCacheKey="";
+      render();
+    }
+  });
+}
+
 function bindEvents(){
   el.q.addEventListener("input",debounce((e)=>{st.query=e.target.value||"";st.current_page=1;_rowsCacheKey="";render();},200));
+  if(el.clearSearch){
+    el.clearSearch.addEventListener("click",()=>{
+      st.query="";
+      el.q.value="";
+      st.current_page=1;
+      _rowsCacheKey="";
+      render();
+      el.q.focus();
+    });
+  }
   el.cba.addEventListener("change",(e)=>{st.cba_filter=e.target.value;st.current_page=1;_rowsCacheKey="";render();});
   el.cat.addEventListener("change",(e)=>{st.category=e.target.value;st.current_page=1;_rowsCacheKey="";render();});
   el.ord.addEventListener("change",(e)=>{st.sort_by=e.target.value;st.current_page=1;_rowsCacheKey="";render();});
@@ -2080,6 +4053,34 @@ function bindEvents(){
   el.showReal.addEventListener("change",(e)=>{st.show_real_column=!!e.target.checked;render();});
   el.modeNominal.addEventListener("click",()=>{st.price_mode="nominal";setButtonsState();_lastMainChartKey="";drawMainChart(filteredRows(),true);saveState();});
   el.modeReal.addEventListener("click",()=>{st.price_mode="real";setButtonsState();_lastMainChartKey="";drawMainChart(filteredRows(),true);saveState();});
+  if(el.macroScope){
+    el.macroScope.addEventListener("change",(e)=>{
+      st.macro_scope=e.target.value||"general";
+      _lastSecondaryChartKey="";
+      drawSecondaryChart(true);
+      drawActiveFilters(filteredRows().length);
+      saveState();
+    });
+  }
+  if(el.macroRegion){
+    el.macroRegion.addEventListener("change",(e)=>{
+      st.macro_region=e.target.value||p.macro_default_region||"patagonia";
+      _lastSecondaryChartKey="";
+      drawSecondaryChart(true);
+      drawQuality();
+      drawActiveFilters(filteredRows().length);
+      saveState();
+    });
+  }
+  if(el.macroCategory){
+    el.macroCategory.addEventListener("change",(e)=>{
+      st.macro_category=e.target.value||"";
+      _lastSecondaryChartKey="";
+      drawSecondaryChart(true);
+      drawActiveFilters(filteredRows().length);
+      saveState();
+    });
+  }
   if(el.bandProduct){
     el.bandProduct.addEventListener("change",(e)=>{st.band_product=e.target.value||"";drawBandChart(filteredRows());saveState();});
   }
@@ -2108,16 +4109,30 @@ function bindEvents(){
   if(el.exportCsv){
     el.exportCsv.addEventListener("click",()=>exportFilteredCsv(filteredRows()));
   }
+  if(el.copyLink){
+    el.copyLink.addEventListener("click",()=>{copyCurrentViewLink();});
+  }
+  if(el.activeFilters){
+    el.activeFilters.addEventListener("click",(e)=>{
+      const target=e.target?.closest?.("[data-filter]");
+      if(!target)return;
+      const key=target.getAttribute("data-filter");
+      clearFilterToken(key||"");
+    });
+  }
   el.reset.addEventListener("click",resetState);
   window.addEventListener("resize",debounce(()=>{const rows=filteredRows();drawMainChart(rows,true);drawSecondaryChart(true);drawBandChart(rows);},150));
 }
 
 function init(){
+  initConsentBanner();
+  initMobileOnboarding();
+  drawMonetization();
   if(!p.has_data){
     document.getElementById("empty").style.display="";
     document.getElementById("app").style.display="none";
-    const guide=document.getElementById("quick-guide");
-    if(guide) guide.style.display="none";
+    if(el.quickGuide) el.quickGuide.style.display="none";
+    dismissMobileOnboarding(false);
     drawQuality();
     return;
   }
@@ -2128,6 +4143,7 @@ function init(){
   loadState();
   mountFilterOptions();
   applyStateToControls();
+  bindShortcuts();
   bindEvents();
   render();
 }
@@ -2178,7 +4194,12 @@ init();
         inflation_total_pct = self._compute_inflation_total_pct(df, effective_from, effective_to)
         coverage = payload.get("coverage", self._coverage_metrics(df, effective_from, effective_to, basket_type))
 
-        out_dir = Path("data/analysis/reports")
+        reports_dir = (
+            self.config.get("analysis", {}).get("reports_dir", "data/analysis/reports")
+            if isinstance(self.config.get("analysis"), dict)
+            else "data/analysis/reports"
+        )
+        out_dir = Path(str(reports_dir))
         out_dir.mkdir(parents=True, exist_ok=True)
         generated_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
         stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
@@ -2199,6 +4220,11 @@ init();
         quality_flags = payload.get("quality_flags", {})
         scrape_quality = payload.get("scrape_quality", {})
         candidate_band_summary = payload.get("candidate_band_summary", {})
+        web_status = str(payload.get("web_status", "unknown"))
+        is_stale = bool(payload.get("is_stale", False))
+        next_update_eta = payload.get("next_update_eta")
+        ad_slots_enabled = bool(payload.get("ads", {}).get("enabled", False))
+        premium_placeholders_enabled = bool(payload.get("premium_placeholders", {}).get("enabled", False))
 
         metadata = {
             "generated_at": generated_at,
@@ -2218,6 +4244,7 @@ init();
                 "balanced_panel_n": quality_flags.get("balanced_panel_n", 0),
                 "missing_cpi_months": quality_flags.get("missing_cpi_months", []),
                 "quality_flags": quality_flags,
+                "publication_status": payload.get("publication_status", {}),
                 "scrape_quality": scrape_quality,
                 "candidate_band_summary": candidate_band_summary,
             },
@@ -2233,6 +4260,11 @@ init();
             "observation_policy": scrape_quality.get("observation_policy", "single"),
             "candidate_storage_mode": scrape_quality.get("candidate_storage_mode", "off"),
             "price_candidates_ready": bool(scrape_quality.get("price_candidates_ready", False)),
+            "web_status": web_status,
+            "is_stale": is_stale,
+            "next_update_eta": next_update_eta,
+            "ad_slots_enabled": ad_slots_enabled,
+            "premium_placeholders_enabled": premium_placeholders_enabled,
             "artifacts": {"html": str(html_path), "pdf": pdf_path},
         }
         metadata_path = out_dir / f"{base}.metadata.json"

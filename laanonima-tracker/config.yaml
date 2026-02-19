@@ -503,6 +503,9 @@ storage:
     database_path: "data/laanonima_prices.db"
     
   postgresql:
+    # Preferred for managed providers (Neon/Supabase/Render):
+    # set DB_URL env var to full SQLAlchemy URL.
+    url: "${DB_URL:}"
     host: "${DB_HOST:localhost}"
     port: "${DB_PORT:5432}"
     database: "${DB_NAME:laanonima_tracker}"
@@ -615,11 +618,59 @@ analysis:
   # Output settings
   output_dir: "data/analysis"
   plots_dir: "data/analysis/plots"
+  reports_dir: "data/analysis/reports"
 
   # Data quality controls
   validation:
     min_coverage_rate: 0.70
     max_price_jump_pct: 200
+
+  # Tracker-owned IPC methodology (monthly, robust, fixed weights)
+  ipc_tracker:
+    method_version: "v1_fixed_weight_robust_monthly"
+    monthly_aggregation: "winsorized_mean"
+    winsor_limits: [0.1, 0.9]
+    min_obs_per_product_month: 1
+    coverage_min_weight_pct: 0.7
+    provisional_freeze_days: 7
+
+  # Official IPC sync strategy (INDEC Nivel4 + XLS/PDF hybrid)
+  ipc_official:
+    source_mode: "xls_pdf_hybrid"       # xls_pdf_hybrid | fallback | auto_with_fallback
+    source_code: "indec_patagonia"
+    region_default: "patagonia"
+    region_scope: ["patagonia", "nacional"]
+    discovery_url: "https://www.indec.gob.ar/Nivel4/Tema/3/5/31"
+    fallback_file: "data/cpi/ipc_indec_patagonia.csv"
+    validation:
+      max_abs_diff_pp: 0.10
+    auto_source:
+      url: "data/cpi/ipc_indec_patagonia.csv"
+      format: "csv"                     # csv | json
+      timeout_seconds: 20
+
+  # Canonical app category -> INDEC Cuadro 1 division (strict mapping)
+  ipc_category_mapping:
+    app_to_indec_division:
+      almacen: "alimentos_y_bebidas_no_alcoholicas"
+      lacteos: "alimentos_y_bebidas_no_alcoholicas"
+      carniceria: "alimentos_y_bebidas_no_alcoholicas"
+      congelados: "alimentos_y_bebidas_no_alcoholicas"
+      frutas_y_verduras: "alimentos_y_bebidas_no_alcoholicas"
+      bebidas: "alimentos_y_bebidas_no_alcoholicas"
+      limpieza: "equipamiento_y_mantenimiento_del_hogar"
+      perfumeria: "bienes_y_servicios_varios"
+      mascotas: null
+    # Legacy alias consumed by older code paths; kept for compatibility.
+    map:
+      almacen: "alimentos_y_bebidas_no_alcoholicas"
+      lacteos: "alimentos_y_bebidas_no_alcoholicas"
+      carniceria: "alimentos_y_bebidas_no_alcoholicas"
+      congelados: "alimentos_y_bebidas_no_alcoholicas"
+      frutas_y_verduras: "alimentos_y_bebidas_no_alcoholicas"
+      bebidas: "alimentos_y_bebidas_no_alcoholicas"
+      limpieza: "equipamiento_y_mantenimiento_del_hogar"
+      perfumeria: "bienes_y_servicios_varios"
   
 # Logging Configuration
 # ---------------------
@@ -629,3 +680,37 @@ logging:
   file: "data/logs/tracker.log"
   rotation: "1 week"
   retention: "1 month"
+
+# Static web publication (low-cost public website mode)
+# -----------------------------------------------------
+deployment:
+  mode: "static_first"              # static_first | api_first
+  output_dir: "public"
+  public_base_url: "${PUBLIC_BASE_URL:https://example.com}"
+  default_region: "patagonia"
+  keep_history_months: 24
+  fresh_max_hours: 36
+  # Daily run reference time in UTC (06:10 ART ~= 09:10 UTC)
+  schedule_utc: "09:10"
+
+# Advertising placeholders
+# ------------------------
+ads:
+  enabled: false                    # true in production website
+  provider: "adsense_placeholder"
+  client_id_placeholder: "ca-pub-xxxxxxxxxxxxxxxx"
+  slots:
+    - "header"
+    - "inline"
+    - "sidebar"
+    - "footer"
+
+# Premium roadmap placeholders (no paywall yet)
+# ---------------------------------------------
+premium_placeholders:
+  enabled: true
+  features:
+    - "Alertas de precio personalizadas"
+    - "Descarga avanzada CSV/API"
+    - "Comparador multi-zona"
+    - "Panel Pro sin anuncios"

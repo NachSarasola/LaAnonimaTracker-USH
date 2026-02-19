@@ -1,6 +1,7 @@
 """Database models for La Anónima Price Tracker."""
 
 from datetime import datetime, timezone
+import os
 
 def now_utc():
     return datetime.now(timezone.utc)
@@ -17,6 +18,7 @@ from sqlalchemy import (
     String,
     Text,
     Boolean,
+    UniqueConstraint,
     create_engine,
     event,
     inspect,
@@ -372,6 +374,168 @@ class Category(Base):
         return f"<Category(slug='{self.slug}', name='{self.name}')>"
 
 
+class OfficialCPIMonthly(Base):
+    """Official monthly CPI observations (INDEC or fallback source)."""
+
+    __tablename__ = "official_cpi_monthly"
+    __table_args__ = (
+        UniqueConstraint(
+            "source",
+            "region",
+            "metric_code",
+            "year_month",
+            name="uq_official_cpi_source_region_metric_month",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    source = Column(String(50), nullable=False, index=True)  # indec_auto | indec_fallback
+    region = Column(String(50), nullable=False, index=True)  # patagonia
+    metric_code = Column(String(64), nullable=False, index=True)  # general | division code
+    category_slug = Column(String(64), nullable=True, index=True)
+    year_month = Column(String(7), nullable=False, index=True)  # YYYY-MM
+
+    index_value = Column(Numeric(12, 4), nullable=False)
+    mom_change = Column(Numeric(8, 4), nullable=True)
+    yoy_change = Column(Numeric(8, 4), nullable=True)
+
+    status = Column(String(32), nullable=False, default="final", index=True)
+    is_fallback = Column(Boolean, nullable=False, default=False)
+    raw_snapshot_path = Column(Text, nullable=True)
+
+    created_at = Column(DateTime, default=now_utc)
+    updated_at = Column(DateTime, default=now_utc, onupdate=now_utc)
+
+    def __repr__(self):
+        return (
+            f"<OfficialCPIMonthly(region='{self.region}', metric='{self.metric_code}', "
+            f"period='{self.year_month}', index={self.index_value})>"
+        )
+
+
+class TrackerIPCMonthly(Base):
+    """Tracker-owned monthly CPI index (general)."""
+
+    __tablename__ = "tracker_ipc_monthly"
+    __table_args__ = (
+        UniqueConstraint(
+            "basket_type",
+            "year_month",
+            "method_version",
+            name="uq_tracker_ipc_basket_month_method",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    basket_type = Column(String(20), nullable=False, index=True)  # cba|extended|all
+    year_month = Column(String(7), nullable=False, index=True)
+    method_version = Column(String(64), nullable=False, index=True)
+    status = Column(String(32), nullable=False, default="provisional", index=True)
+
+    index_value = Column(Numeric(12, 4), nullable=True)  # base 100
+    mom_change = Column(Numeric(8, 4), nullable=True)  # percent
+    yoy_change = Column(Numeric(8, 4), nullable=True)  # percent
+
+    coverage_weight_pct = Column(Numeric(8, 4), nullable=True)
+    coverage_product_pct = Column(Numeric(8, 4), nullable=True)
+    products_expected = Column(Integer, nullable=False, default=0)
+    products_observed = Column(Integer, nullable=False, default=0)
+    products_with_relative = Column(Integer, nullable=False, default=0)
+    outlier_count = Column(Integer, nullable=False, default=0)
+    missing_products = Column(Integer, nullable=False, default=0)
+
+    base_month = Column(String(7), nullable=True)
+    notes = Column(Text, nullable=True)
+
+    computed_at = Column(DateTime, default=now_utc)
+    frozen_at = Column(DateTime, nullable=True)
+
+    def __repr__(self):
+        return (
+            f"<TrackerIPCMonthly(basket='{self.basket_type}', period='{self.year_month}', "
+            f"method='{self.method_version}', index={self.index_value})>"
+        )
+
+
+class TrackerIPCCategoryMonthly(Base):
+    """Tracker-owned monthly CPI index by category."""
+
+    __tablename__ = "tracker_ipc_category_monthly"
+    __table_args__ = (
+        UniqueConstraint(
+            "basket_type",
+            "category_slug",
+            "year_month",
+            "method_version",
+            name="uq_tracker_ipc_cat_basket_cat_month_method",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    basket_type = Column(String(20), nullable=False, index=True)
+    category_slug = Column(String(64), nullable=False, index=True)
+    indec_division_code = Column(String(32), nullable=True, index=True)
+    year_month = Column(String(7), nullable=False, index=True)
+    method_version = Column(String(64), nullable=False, index=True)
+    status = Column(String(32), nullable=False, default="provisional", index=True)
+
+    index_value = Column(Numeric(12, 4), nullable=True)
+    mom_change = Column(Numeric(8, 4), nullable=True)
+    yoy_change = Column(Numeric(8, 4), nullable=True)
+
+    coverage_weight_pct = Column(Numeric(8, 4), nullable=True)
+    coverage_product_pct = Column(Numeric(8, 4), nullable=True)
+    products_expected = Column(Integer, nullable=False, default=0)
+    products_observed = Column(Integer, nullable=False, default=0)
+    products_with_relative = Column(Integer, nullable=False, default=0)
+    outlier_count = Column(Integer, nullable=False, default=0)
+    missing_products = Column(Integer, nullable=False, default=0)
+
+    base_month = Column(String(7), nullable=True)
+    notes = Column(Text, nullable=True)
+
+    computed_at = Column(DateTime, default=now_utc)
+    frozen_at = Column(DateTime, nullable=True)
+
+    def __repr__(self):
+        return (
+            f"<TrackerIPCCategoryMonthly(basket='{self.basket_type}', category='{self.category_slug}', "
+            f"period='{self.year_month}', method='{self.method_version}', index={self.index_value})>"
+        )
+
+
+class IPCPublicationRun(Base):
+    """Audit trail for each IPC publication pipeline execution."""
+
+    __tablename__ = "ipc_publication_runs"
+
+    id = Column(Integer, primary_key=True)
+    run_uuid = Column(String(36), unique=True, nullable=False, index=True)
+
+    basket_type = Column(String(20), nullable=False, index=True)
+    region = Column(String(50), nullable=False, index=True)
+    method_version = Column(String(64), nullable=False, index=True)
+    from_month = Column(String(7), nullable=True, index=True)
+    to_month = Column(String(7), nullable=True, index=True)
+
+    status = Column(String(32), nullable=False, default="running", index=True)
+    official_source = Column(String(64), nullable=True)
+    official_rows = Column(Integer, nullable=False, default=0)
+    tracker_rows = Column(Integer, nullable=False, default=0)
+    tracker_category_rows = Column(Integer, nullable=False, default=0)
+
+    overlap_months = Column(Integer, nullable=False, default=0)
+    warnings_json = Column(Text, nullable=True)
+    metrics_json = Column(Text, nullable=True)
+    error_message = Column(Text, nullable=True)
+
+    started_at = Column(DateTime, default=now_utc)
+    completed_at = Column(DateTime, nullable=True)
+
+    def __repr__(self):
+        return f"<IPCPublicationRun(run_uuid='{self.run_uuid}', status='{self.status}')>"
+
+
 # Database initialization functions
 
 def get_engine(config: dict, backend: Optional[str] = None):
@@ -383,6 +547,9 @@ def get_engine(config: dict, backend: Optional[str] = None):
         return create_engine(f"sqlite:///{db_path}")
     elif backend == "postgresql":
         pg_config = config.get("storage", {}).get("postgresql", {})
+        db_url = str(pg_config.get("url") or os.getenv("DB_URL") or "").strip()
+        if db_url:
+            return create_engine(db_url)
         host = pg_config.get("host", "localhost")
         port = pg_config.get("port", "5432")
         database = pg_config.get("database", "laanonima_tracker")
@@ -468,5 +635,59 @@ def _ensure_runtime_indexes(engine):
             text(
                 "CREATE INDEX IF NOT EXISTS ix_price_candidates_canonical_scraped_at "
                 "ON price_candidates (canonical_id, scraped_at)"
+            )
+        )
+        conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_official_cpi_monthly_region_month "
+                "ON official_cpi_monthly (region, year_month)"
+            )
+        )
+        conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_official_cpi_monthly_category_month "
+                "ON official_cpi_monthly (category_slug, year_month)"
+            )
+        )
+        conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_official_cpi_monthly_status "
+                "ON official_cpi_monthly (status)"
+            )
+        )
+        conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_tracker_ipc_monthly_basket_month "
+                "ON tracker_ipc_monthly (basket_type, year_month)"
+            )
+        )
+        conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_tracker_ipc_monthly_status "
+                "ON tracker_ipc_monthly (status)"
+            )
+        )
+        conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_tracker_ipc_category_monthly_key "
+                "ON tracker_ipc_category_monthly (basket_type, category_slug, year_month)"
+            )
+        )
+        conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_tracker_ipc_category_monthly_status "
+                "ON tracker_ipc_category_monthly (status)"
+            )
+        )
+        conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_ipc_publication_runs_status "
+                "ON ipc_publication_runs (status)"
+            )
+        )
+        conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_ipc_publication_runs_region_month "
+                "ON ipc_publication_runs (region, from_month, to_month)"
             )
         )

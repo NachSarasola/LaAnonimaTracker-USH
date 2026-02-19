@@ -1560,3 +1560,391 @@ OSError: [Errno 22] Invalid argument
 2026-02-19 01:09:56 | INFO     | __main__ | Generating app report: from=2026-01, to=2026-02, basket=all, pdf=False, benchmark=ipc, view=executive, offline_assets=embed
 2026-02-19 01:15:17 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
 2026-02-19 01:15:17 | INFO     | __main__ | Generating app report: from=2026-01, to=2026-02, basket=all, pdf=False, benchmark=ipc, view=executive, offline_assets=embed
+2026-02-19 13:05:37 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-19 13:05:37 | INFO     | __main__ | Initializing tracker...
+2026-02-19 13:05:46 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-19 13:05:46 | INFO     | __main__ | Starting scrape: basket=all, headless=True, backend=sqlite, limit=25, profile=balanced, budget_min=25, rotation_items=6, sample_random=False, dry_plan=False, candidate_storage=db, observation_policy=single+audit
+2026-02-19 13:05:46 | ERROR    | src.scraper | Scrape failed: limit=25 es menor al minimo obligatorio (44). Aumenta --limit o usa --sample-random para debug.
+2026-02-19 13:05:46 | ERROR    | __main__ | Scrape failed
+Traceback (most recent call last):
+
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+
+  File "C:\Users\insarasola\Desktop\LaAnonimaTracker-USH\laanonima-tracker\src\cli.py", line 782, in <module>
+    cli()
+    └ <Group cli>
+
+  File "C:\Users\insarasola\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\click\core.py", line 1485, in __call__
+    return self.main(*args, **kwargs)
+           │    │     │       └ {}
+           │    │     └ ()
+           │    └ <function Command.main at 0x0000027D1308A0C0>
+           └ <Group cli>
+  File "C:\Users\insarasola\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\click\core.py", line 1406, in main
+    rv = self.invoke(ctx)
+         │    │      └ <click.core.Context object at 0x0000027D3772ED50>
+         │    └ <function Group.invoke at 0x0000027D1308AFC0>
+         └ <Group cli>
+  File "C:\Users\insarasola\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\click\core.py", line 1873, in invoke
+    return _process_result(sub_ctx.command.invoke(sub_ctx))
+           │               │       │       │      └ <click.core.Context object at 0x0000027D35C1F490>
+           │               │       │       └ <function Command.invoke at 0x0000027D13089DA0>
+           │               │       └ <Command scrape>
+           │               └ <click.core.Context object at 0x0000027D35C1F490>
+           └ <function Group.invoke.<locals>._process_result at 0x0000027D3772A7A0>
+  File "C:\Users\insarasola\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\click\core.py", line 1269, in invoke
+    return ctx.invoke(self.callback, **ctx.params)
+           │   │      │    │           │   └ {'basket': 'all', 'headless': True, 'limit': 25, 'profile': 'balanced', 'runtime_budget_minutes': 25, 'rotation_items': 6, 'b...
+           │   │      │    │           └ <click.core.Context object at 0x0000027D35C1F490>
+           │   │      │    └ <function scrape at 0x0000027D3772ADE0>
+           │   │      └ <Command scrape>
+           │   └ <function Context.invoke at 0x0000027D13088FE0>
+           └ <click.core.Context object at 0x0000027D35C1F490>
+  File "C:\Users\insarasola\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\click\core.py", line 824, in invoke
+    return callback(*args, **kwargs)
+           │         │       └ {'basket': 'all', 'headless': True, 'limit': 25, 'profile': 'balanced', 'runtime_budget_minutes': 25, 'rotation_items': 6, 'b...
+           │         └ ()
+           └ <function scrape at 0x0000027D3772ADE0>
+  File "C:\Users\insarasola\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\click\decorators.py", line 34, in new_func
+    return f(get_current_context(), *args, **kwargs)
+           │ │                       │       └ {'basket': 'all', 'headless': True, 'limit': 25, 'profile': 'balanced', 'runtime_budget_minutes': 25, 'rotation_items': 6, 'b...
+           │ │                       └ ()
+           │ └ <function get_current_context at 0x0000027D13027740>
+           └ <function scrape at 0x0000027D3772AD40>
+
+> File "C:\Users\insarasola\Desktop\LaAnonimaTracker-USH\laanonima-tracker\src\cli.py", line 191, in scrape
+    results = run_scrape(
+              └ <function run_scrape at 0x0000027D154D5580>
+
+  File "C:\Users\insarasola\Desktop\LaAnonimaTracker-USH\laanonima-tracker\src\scraper.py", line 1277, in run_scrape
+    plan = build_scrape_plan(
+           └ <function build_scrape_plan at 0x0000027D154D4360>
+
+  File "C:\Users\insarasola\Desktop\LaAnonimaTracker-USH\laanonima-tracker\src\basket_planner.py", line 236, in build_scrape_plan
+    raise ValueError(
+
+ValueError: limit=25 es menor al minimo obligatorio (44). Aumenta --limit o usa --sample-random para debug.
+2026-02-19 13:05:58 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-19 13:05:58 | INFO     | __main__ | Starting scrape: basket=all, headless=True, backend=sqlite, limit=44, profile=balanced, budget_min=25, rotation_items=6, sample_random=False, dry_plan=False, candidate_storage=db, observation_policy=single+audit
+2026-02-19 13:05:58 | INFO     | src.scraper | Scraper initialized (headless=True)
+2026-02-19 13:05:58 | INFO     | src.scraper | Starting browser...
+2026-02-19 13:06:01 | INFO     | src.scraper | Browser started successfully
+2026-02-19 13:06:01 | INFO     | src.scraper | Selecting branch...
+2026-02-19 13:06:01 | INFO     | src.scraper | Selecting branch attempt 0/3: USHUAIA 5 (CP: 9410)
+2026-02-19 13:06:01 | INFO     | src.scraper | Navigating to https://www.laanonima.com.ar/
+2026-02-19 13:06:05 | INFO     | src.scraper | Current branch: Neuquén (8300), need to change to USHUAIA 5
+2026-02-19 13:06:05 | INFO     | src.scraper | Clicking branch selector: a[data-toggle='codigo-postal']
+2026-02-19 13:06:05 | INFO     | src.scraper | Branch selector clicked
+2026-02-19 13:06:05 | INFO     | src.scraper | Filling postal code: 9410
+2026-02-19 13:06:06 | INFO     | src.scraper | Branch selection confirmed
+2026-02-19 13:06:08 | INFO     | src.scraper | Branch selection verified: Ushuaia (9410)
+2026-02-19 13:06:08 | INFO     | src.scraper | Scraping 44 products from basket 'all' with profile='balanced'
+2026-02-19 13:06:08 | INFO     | src.scraper | Processing: Aceite de girasol (cba_aceite)
+2026-02-19 13:06:08 | INFO     | src.scraper | Searching for: aceite girasol
+2026-02-19 13:06:10 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/aceite%20girasol)
+2026-02-19 13:06:11 | INFO     | src.scraper | Found 12 products for 'aceite girasol'
+2026-02-19 13:06:13 | INFO     | src.scraper | Aceite de girasol: tiered candidates selected (low=3550.00, mid=4275.00, high=6600.00)
+2026-02-19 13:06:14 | INFO     | src.scraper | Processing: Arroz (cba_arroz)
+2026-02-19 13:06:14 | INFO     | src.scraper | Searching for: arroz
+2026-02-19 13:06:16 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/arroz)
+2026-02-19 13:06:17 | INFO     | src.scraper | Found 12 products for 'arroz'
+2026-02-19 13:06:19 | INFO     | src.scraper | Arroz: tiered candidates selected (low=1150.00, mid=2200.00, high=4200.00)
+2026-02-19 13:06:20 | INFO     | src.scraper | Processing: Azúcar (cba_azucar)
+2026-02-19 13:06:20 | INFO     | src.scraper | Searching for: azucar
+2026-02-19 13:06:22 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/azucar)
+2026-02-19 13:06:23 | INFO     | src.scraper | Found 12 products for 'azucar'
+2026-02-19 13:06:25 | INFO     | src.scraper | Azúcar: tiered candidates selected (low=1350.00, mid=3050.00, high=7000.00)
+2026-02-19 13:06:26 | INFO     | src.scraper | Processing: Banana (cba_banana)
+2026-02-19 13:06:26 | INFO     | src.scraper | Searching for: banana
+2026-02-19 13:06:28 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/banana)
+2026-02-19 13:06:29 | INFO     | src.scraper | Found 12 products for 'banana'
+2026-02-19 13:06:31 | WARNING  | src.scraper | Banana: boosting representative confidence 0.04 -> 0.20 for runnable mode
+2026-02-19 13:06:31 | INFO     | src.scraper | Banana: tiered candidates selected (low=350.00, mid=5050.00, high=15250.00)
+2026-02-19 13:06:32 | INFO     | src.scraper | Processing: Bife de chorizo (cba_bife)
+2026-02-19 13:06:32 | INFO     | src.scraper | Searching for: bife chorizo
+2026-02-19 13:06:34 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/bife%20chorizo)
+2026-02-19 13:06:35 | INFO     | src.scraper | Found 12 products for 'bife chorizo'
+2026-02-19 13:06:37 | WARNING  | src.scraper | Bife de chorizo: boosting representative confidence 0.10 -> 0.20 for runnable mode
+2026-02-19 13:06:37 | INFO     | src.scraper | Bife de chorizo: tiered candidates selected (low=11590.00, mid=31010.00, high=32600.00)
+2026-02-19 13:06:38 | INFO     | src.scraper | Processing: Café molido (cba_cafe)
+2026-02-19 13:06:38 | INFO     | src.scraper | Searching for: cafe molido
+2026-02-19 13:06:40 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/cafe%20molido)
+2026-02-19 13:06:41 | INFO     | src.scraper | Found 12 products for 'cafe molido'
+2026-02-19 13:06:43 | INFO     | src.scraper | Café molido: tiered candidates selected (low=6200.00, mid=14250.00, high=28500.00)
+2026-02-19 13:06:44 | INFO     | src.scraper | Processing: Carne picada común (cba_carne_picada)
+2026-02-19 13:06:44 | INFO     | src.scraper | Searching for: carne picada
+2026-02-19 13:06:46 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/carne%20picada)
+2026-02-19 13:06:46 | INFO     | src.scraper | Found 12 products for 'carne picada'
+2026-02-19 13:06:49 | WARNING  | src.scraper | Carne picada común: boosting representative confidence 0.10 -> 0.20 for runnable mode
+2026-02-19 13:06:49 | INFO     | src.scraper | Carne picada común: tiered candidates selected (low=5940.00, mid=18690.00, high=26420.00)
+2026-02-19 13:06:50 | INFO     | src.scraper | Processing: Cebolla (cba_cebolla)
+2026-02-19 13:06:50 | INFO     | src.scraper | Searching for: cebolla
+2026-02-19 13:06:52 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/cebolla)
+2026-02-19 13:06:52 | INFO     | src.scraper | Found 12 products for 'cebolla'
+2026-02-19 13:06:54 | INFO     | src.scraper | Cebolla: tiered candidates selected (low=1399.00, mid=3150.00, high=15990.00)
+2026-02-19 13:06:55 | INFO     | src.scraper | Processing: Dulce de leche (cba_dulce_leche)
+2026-02-19 13:06:55 | INFO     | src.scraper | Searching for: dulce leche
+2026-02-19 13:06:57 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/dulce%20leche)
+2026-02-19 13:06:58 | INFO     | src.scraper | Found 12 products for 'dulce leche'
+2026-02-19 13:07:00 | INFO     | src.scraper | Dulce de leche: tiered candidates selected (low=2250.00, mid=4550.00, high=9750.00)
+2026-02-19 13:07:01 | INFO     | src.scraper | Processing: Fideos secos (cba_fideos)
+2026-02-19 13:07:01 | INFO     | src.scraper | Searching for: fideos
+2026-02-19 13:07:03 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/fideos)
+2026-02-19 13:07:04 | INFO     | src.scraper | Found 12 products for 'fideos'
+2026-02-19 13:07:06 | INFO     | src.scraper | Fideos secos: tiered candidates selected (low=655.00, mid=2000.00, high=3250.00)
+2026-02-19 13:07:07 | INFO     | src.scraper | Processing: Galletitas de agua (cba_galletitas)
+2026-02-19 13:07:07 | INFO     | src.scraper | Searching for: galletitas agua
+2026-02-19 13:07:14 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/galletitas%20agua)
+2026-02-19 13:07:14 | INFO     | src.scraper | Found 12 products for 'galletitas agua'
+2026-02-19 13:07:16 | INFO     | src.scraper | Galletitas de agua: tiered candidates selected (low=1200.00*, mid=3150.00*, high=5950.00*)
+2026-02-19 13:07:17 | INFO     | src.scraper | Processing: Huevos (cba_huevos)
+2026-02-19 13:07:17 | INFO     | src.scraper | Searching for: huevos
+2026-02-19 13:07:20 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/huevos)
+2026-02-19 13:07:20 | INFO     | src.scraper | Found 12 products for 'huevos'
+2026-02-19 13:07:22 | INFO     | src.scraper | Huevos: tiered candidates selected (low=2600.00, mid=5350.00, high=10700.00)
+2026-02-19 13:07:23 | INFO     | src.scraper | Processing: Leche fluida entera (cba_leche)
+2026-02-19 13:07:23 | INFO     | src.scraper | Searching for: leche entera
+2026-02-19 13:07:25 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/leche%20entera)
+2026-02-19 13:07:26 | INFO     | src.scraper | Found 12 products for 'leche entera'
+2026-02-19 13:07:28 | WARNING  | src.scraper | Leche fluida entera: boosting representative confidence 0.03 -> 0.20 for runnable mode
+2026-02-19 13:07:28 | INFO     | src.scraper | Leche fluida entera: tiered candidates selected (low=1350.00, mid=2150.00, high=3000.00)
+2026-02-19 13:07:29 | INFO     | src.scraper | Processing: Lechuga (cba_lechuga)
+2026-02-19 13:07:29 | INFO     | src.scraper | Searching for: lechuga
+2026-02-19 13:07:31 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/lechuga)
+2026-02-19 13:07:32 | INFO     | src.scraper | Found 12 products for 'lechuga'
+2026-02-19 13:07:34 | INFO     | src.scraper | Lechuga: tiered candidates selected (low=1490.00, mid=3690.00, high=4790.00)
+2026-02-19 13:07:35 | INFO     | src.scraper | Processing: Lentejas (cba_lentejas)
+2026-02-19 13:07:35 | INFO     | src.scraper | Searching for: lentejas
+2026-02-19 13:07:37 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/lentejas)
+2026-02-19 13:07:38 | INFO     | src.scraper | Found 12 products for 'lentejas'
+2026-02-19 13:07:40 | INFO     | src.scraper | Lentejas: tiered candidates selected (low=910.00, mid=2050.00, high=6000.00)
+2026-02-19 13:07:41 | INFO     | src.scraper | Processing: Manteca (cba_manteca)
+2026-02-19 13:07:41 | INFO     | src.scraper | Searching for: manteca
+2026-02-19 13:07:43 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/manteca)
+2026-02-19 13:07:44 | INFO     | src.scraper | Found 12 products for 'manteca'
+2026-02-19 13:07:46 | INFO     | src.scraper | Manteca: tiered candidates selected (low=1800.00, mid=4550.00, high=12250.00)
+2026-02-19 13:07:47 | INFO     | src.scraper | Processing: Manzana (cba_manzana)
+2026-02-19 13:07:47 | INFO     | src.scraper | Searching for: manzana
+2026-02-19 13:07:49 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/manzana)
+2026-02-19 13:07:50 | INFO     | src.scraper | Found 12 products for 'manzana'
+2026-02-19 13:07:52 | INFO     | src.scraper | Manzana: tiered candidates selected (low=613.00, mid=2400.00, high=5990.00)
+2026-02-19 13:07:53 | INFO     | src.scraper | Processing: Mayonesa (cba_mayonesa)
+2026-02-19 13:07:53 | INFO     | src.scraper | Searching for: mayonesa
+2026-02-19 13:07:55 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/mayonesa)
+2026-02-19 13:07:56 | INFO     | src.scraper | Found 12 products for 'mayonesa'
+2026-02-19 13:07:58 | INFO     | src.scraper | Mayonesa: tiered candidates selected (low=790.00, mid=3550.00, high=7700.00)
+2026-02-19 13:07:59 | INFO     | src.scraper | Processing: Mermelada (cba_mermelada)
+2026-02-19 13:07:59 | INFO     | src.scraper | Searching for: mermelada
+2026-02-19 13:08:01 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/mermelada)
+2026-02-19 13:08:02 | INFO     | src.scraper | Found 12 products for 'mermelada'
+2026-02-19 13:08:04 | INFO     | src.scraper | Mermelada: tiered candidates selected (low=2250.00, mid=3300.00, high=7000.00)
+2026-02-19 13:08:05 | INFO     | src.scraper | Processing: Naranja (cba_naranja)
+2026-02-19 13:08:05 | INFO     | src.scraper | Searching for: naranja
+2026-02-19 13:08:07 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/naranja)
+2026-02-19 13:08:08 | INFO     | src.scraper | Found 12 products for 'naranja'
+2026-02-19 13:08:10 | INFO     | src.scraper | Naranja: tiered candidates selected (low=480.00, mid=2400.00, high=4000.00)
+2026-02-19 13:08:11 | INFO     | src.scraper | Processing: Paleta de cerdo (cba_paleta)
+2026-02-19 13:08:11 | INFO     | src.scraper | Searching for: paleta cerdo
+2026-02-19 13:08:14 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/paleta%20cerdo)
+2026-02-19 13:08:15 | INFO     | src.scraper | Found 12 products for 'paleta cerdo'
+2026-02-19 13:08:17 | WARNING  | src.scraper | Paleta de cerdo: boosting representative confidence 0.10 -> 0.20 for runnable mode
+2026-02-19 13:08:17 | INFO     | src.scraper | Paleta de cerdo: tiered candidates selected (low=10650.00, mid=16650.00, high=47850.00)
+2026-02-19 13:08:18 | INFO     | src.scraper | Processing: Pan flauta/familia (cba_pan_fam)
+2026-02-19 13:08:18 | INFO     | src.scraper | Searching for: pan flauta
+2026-02-19 13:08:20 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/pan%20flauta)
+2026-02-19 13:08:21 | INFO     | src.scraper | Found 12 products for 'pan flauta'
+2026-02-19 13:08:23 | WARNING  | src.scraper | Pan flauta/familia: boosting representative confidence 0.10 -> 0.20 for runnable mode
+2026-02-19 13:08:23 | WARNING  | src.scraper | Pan flauta/familia: only 2 candidates found (target=3)
+2026-02-19 13:08:24 | INFO     | src.scraper | Processing: Papas (cba_papa)
+2026-02-19 13:08:24 | INFO     | src.scraper | Searching for: papa
+2026-02-19 13:08:26 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/papa)
+2026-02-19 13:08:26 | INFO     | src.scraper | Found 12 products for 'papa'
+2026-02-19 13:08:29 | WARNING  | src.scraper | Papas: boosting representative confidence 0.10 -> 0.20 for runnable mode
+2026-02-19 13:08:29 | INFO     | src.scraper | Papas: tiered candidates selected (low=1690.00, mid=23000.00, high=41000.00)
+2026-02-19 13:08:30 | INFO     | src.scraper | Processing: Pollo entero (cba_pollo)
+2026-02-19 13:08:30 | INFO     | src.scraper | Searching for: pollo entero
+2026-02-19 13:08:32 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/pollo%20entero)
+2026-02-19 13:08:33 | INFO     | src.scraper | Found 12 products for 'pollo entero'
+2026-02-19 13:08:35 | WARNING  | src.scraper | Pollo entero: boosting representative confidence 0.10 -> 0.20 for runnable mode
+2026-02-19 13:08:35 | INFO     | src.scraper | Pollo entero: tiered candidates selected (low=4590.00, mid=10650.00, high=192600.00)
+2026-02-19 13:08:36 | INFO     | src.scraper | Processing: Porotos (cba_porotos)
+2026-02-19 13:08:36 | INFO     | src.scraper | Searching for: porotos
+2026-02-19 13:08:39 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/porotos)
+2026-02-19 13:08:40 | INFO     | src.scraper | Found 12 products for 'porotos'
+2026-02-19 13:08:43 | INFO     | src.scraper | Porotos: tiered candidates selected (low=622.00, mid=1350.00, high=5250.00)
+2026-02-19 13:08:44 | INFO     | src.scraper | Processing: Queso cremoso (cba_queso_cremoso)
+2026-02-19 13:08:44 | INFO     | src.scraper | Searching for: queso cremoso
+2026-02-19 13:08:46 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/queso%20cremoso)
+2026-02-19 13:08:47 | INFO     | src.scraper | Found 12 products for 'queso cremoso'
+2026-02-19 13:08:50 | WARNING  | src.scraper | Queso cremoso: boosting representative confidence 0.11 -> 0.20 for runnable mode
+2026-02-19 13:08:50 | INFO     | src.scraper | Queso cremoso: tiered candidates selected (low=2950.00, mid=9300.00, high=14250.00)
+2026-02-19 13:08:51 | INFO     | src.scraper | Processing: Queso rallado (cba_queso_rallado)
+2026-02-19 13:08:51 | INFO     | src.scraper | Searching for: queso rallado
+2026-02-19 13:08:54 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/queso%20rallado)
+2026-02-19 13:08:54 | INFO     | src.scraper | Found 12 products for 'queso rallado'
+2026-02-19 13:08:57 | INFO     | src.scraper | Queso rallado: tiered candidates selected (low=890.00, mid=3650.00, high=8300.00)
+2026-02-19 13:08:58 | INFO     | src.scraper | Processing: Sal fina (cba_sal)
+2026-02-19 13:08:58 | INFO     | src.scraper | Searching for: sal fina
+2026-02-19 13:09:00 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/sal%20fina)
+2026-02-19 13:09:01 | INFO     | src.scraper | Found 12 products for 'sal fina'
+2026-02-19 13:09:03 | INFO     | src.scraper | Sal fina: tiered candidates selected (low=930.00, mid=2000.00, high=5350.00)
+2026-02-19 13:09:04 | INFO     | src.scraper | Processing: Té en saquitos (cba_te)
+2026-02-19 13:09:04 | INFO     | src.scraper | Searching for: te saquitos
+2026-02-19 13:09:07 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/te%20saquitos)
+2026-02-19 13:09:08 | INFO     | src.scraper | Found 12 products for 'te saquitos'
+2026-02-19 13:09:10 | WARNING  | src.scraper | Té en saquitos: boosting representative confidence 0.10 -> 0.20 for runnable mode
+2026-02-19 13:09:10 | INFO     | src.scraper | Té en saquitos: tiered candidates selected (low=1600.00, mid=1650.00, high=2100.00)
+2026-02-19 13:09:11 | INFO     | src.scraper | Processing: Tomate (cba_tomate)
+2026-02-19 13:09:11 | INFO     | src.scraper | Searching for: tomate
+2026-02-19 13:09:13 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/tomate)
+2026-02-19 13:09:14 | INFO     | src.scraper | Found 12 products for 'tomate'
+2026-02-19 13:09:16 | INFO     | src.scraper | Tomate: tiered candidates selected (low=1050.00, mid=1750.00, high=4490.00)
+2026-02-19 13:09:17 | INFO     | src.scraper | Processing: Vino común (cba_vino)
+2026-02-19 13:09:17 | INFO     | src.scraper | Searching for: vino común
+2026-02-19 13:09:20 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/vino%20com%C3%BAn)
+2026-02-19 13:09:21 | INFO     | src.scraper | Found 12 products for 'vino común'
+2026-02-19 13:09:23 | INFO     | src.scraper | Vino común: tiered candidates selected (low=1499.00, mid=3800.00, high=7850.00)
+2026-02-19 13:09:24 | INFO     | src.scraper | Processing: Yerba mate (cba_yerba)
+2026-02-19 13:09:24 | INFO     | src.scraper | Searching for: yerba mate
+2026-02-19 13:09:26 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/yerba%20mate)
+2026-02-19 13:09:27 | INFO     | src.scraper | Found 12 products for 'yerba mate'
+2026-02-19 13:09:29 | INFO     | src.scraper | Yerba mate: tiered candidates selected (low=1800.00, mid=2688.00, high=5200.00)
+2026-02-19 13:09:30 | INFO     | src.scraper | Processing: Yogur bebible (cba_yogur)
+2026-02-19 13:09:30 | INFO     | src.scraper | Searching for: yogur bebible
+2026-02-19 13:09:33 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/yogur%20bebible)
+2026-02-19 13:09:33 | INFO     | src.scraper | Found 12 products for 'yogur bebible'
+2026-02-19 13:09:36 | INFO     | src.scraper | Yogur bebible: tiered candidates selected (low=1960.00, mid=3250.00, high=5062.00)
+2026-02-19 13:09:37 | INFO     | src.scraper | Processing: Zanahoria (cba_zanahoria)
+2026-02-19 13:09:37 | INFO     | src.scraper | Searching for: zanahoria
+2026-02-19 13:09:39 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/zanahoria)
+2026-02-19 13:09:39 | INFO     | src.scraper | Found 12 products for 'zanahoria'
+2026-02-19 13:09:42 | INFO     | src.scraper | Zanahoria: tiered candidates selected (low=2390.00, mid=3490.00, high=5290.00)
+2026-02-19 13:09:43 | INFO     | src.scraper | Processing: Harina de trigo 000 (ext_harina)
+2026-02-19 13:09:43 | INFO     | src.scraper | Searching for: harina 000
+2026-02-19 13:09:45 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/harina%20000)
+2026-02-19 13:09:46 | INFO     | src.scraper | Found 12 products for 'harina 000'
+2026-02-19 13:09:48 | WARNING  | src.scraper | Harina de trigo 000: boosting representative confidence 0.08 -> 0.20 for runnable mode
+2026-02-19 13:09:48 | INFO     | src.scraper | Harina de trigo 000: tiered candidates selected (low=645.00, mid=1250.00, high=1550.00)
+2026-02-19 13:09:49 | INFO     | src.scraper | Processing: Puré de tomate (ext_pure_tomate)
+2026-02-19 13:09:49 | INFO     | src.scraper | Searching for: pure tomate
+2026-02-19 13:09:51 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/pure%20tomate)
+2026-02-19 13:09:52 | INFO     | src.scraper | Found 12 products for 'pure tomate'
+2026-02-19 13:09:54 | WARNING  | src.scraper | Puré de tomate: boosting representative confidence 0.10 -> 0.20 for runnable mode
+2026-02-19 13:09:54 | WARNING  | src.scraper | Puré de tomate: only 2 candidates found (target=3)
+2026-02-19 13:09:55 | INFO     | src.scraper | Processing: Atún en lata (ext_atun)
+2026-02-19 13:09:55 | INFO     | src.scraper | Searching for: atun lata
+2026-02-19 13:09:58 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/atun%20lata)
+2026-02-19 13:09:59 | INFO     | src.scraper | Found 12 products for 'atun lata'
+2026-02-19 13:10:01 | INFO     | src.scraper | Atún en lata: tiered candidates selected (low=1250.00*, mid=4350.00*, high=8350.00*)
+2026-02-19 13:10:02 | INFO     | src.scraper | Processing: Gaseosa (ext_gaseosa)
+2026-02-19 13:10:02 | INFO     | src.scraper | Searching for: gaseosa
+2026-02-19 13:10:05 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/gaseosa)
+2026-02-19 13:10:06 | INFO     | src.scraper | Found 12 products for 'gaseosa'
+2026-02-19 13:10:08 | INFO     | src.scraper | Gaseosa: tiered candidates selected (low=1208.00, mid=3000.00, high=4250.00)
+2026-02-19 13:10:09 | INFO     | src.scraper | Processing: Shampoo (ext_shampoo)
+2026-02-19 13:10:09 | INFO     | src.scraper | Searching for: shampoo
+2026-02-19 13:10:11 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/shampoo)
+2026-02-19 13:10:12 | INFO     | src.scraper | Found 12 products for 'shampoo'
+2026-02-19 13:10:14 | INFO     | src.scraper | Shampoo: tiered candidates selected (low=3500.00, mid=8714.00, high=18450.00)
+2026-02-19 13:10:15 | INFO     | src.scraper | Processing: Jabón de tocador (ext_jabon)
+2026-02-19 13:10:15 | INFO     | src.scraper | Searching for: jabon tocador
+2026-02-19 13:10:17 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/jabon%20tocador)
+2026-02-19 13:10:18 | INFO     | src.scraper | Found 12 products for 'jabon tocador'
+2026-02-19 13:10:21 | INFO     | src.scraper | Jabón de tocador: tiered candidates selected (low=1350.00, mid=2350.00, high=6300.00)
+2026-02-19 13:10:22 | INFO     | src.scraper | Processing: Pasta dental (ext_pasta_dental)
+2026-02-19 13:10:22 | INFO     | src.scraper | Searching for: pasta dental
+2026-02-19 13:10:24 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/pasta%20dental)
+2026-02-19 13:10:25 | INFO     | src.scraper | Found 12 products for 'pasta dental'
+2026-02-19 13:10:27 | WARNING  | src.scraper | Pasta dental: boosting representative confidence 0.10 -> 0.20 for runnable mode
+2026-02-19 13:10:27 | INFO     | src.scraper | Pasta dental: tiered candidates selected (low=1500.00, mid=6300.00, high=10150.00)
+2026-02-19 13:10:28 | INFO     | src.scraper | Processing: Papel higiénico (ext_papel_higienico)
+2026-02-19 13:10:28 | INFO     | src.scraper | Searching for: papel higienico
+2026-02-19 13:10:30 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/papel%20higienico)
+2026-02-19 13:10:30 | INFO     | src.scraper | Found 12 products for 'papel higienico'
+2026-02-19 13:10:32 | INFO     | src.scraper | Papel higiénico: tiered candidates selected (low=2500.00, mid=4050.00, high=11850.00)
+2026-02-19 13:10:33 | INFO     | src.scraper | Processing: Detergente (ext_detergente)
+2026-02-19 13:10:33 | INFO     | src.scraper | Searching for: detergente
+2026-02-19 13:10:36 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/detergente)
+2026-02-19 13:10:36 | INFO     | src.scraper | Found 12 products for 'detergente'
+2026-02-19 13:10:39 | INFO     | src.scraper | Detergente: tiered candidates selected (low=1550.00, mid=4750.00, high=7100.00)
+2026-02-19 13:10:40 | INFO     | src.scraper | Processing: Lavandina (ext_lavandina)
+2026-02-19 13:10:40 | INFO     | src.scraper | Searching for: lavandina
+2026-02-19 13:10:42 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/lavandina)
+2026-02-19 13:10:42 | INFO     | src.scraper | Found 12 products for 'lavandina'
+2026-02-19 13:10:45 | INFO     | src.scraper | Lavandina: tiered candidates selected (low=1050.00, mid=2050.00, high=6900.00)
+2026-02-19 13:10:46 | INFO     | src.scraper | Stopping browser...
+2026-02-19 13:10:46 | INFO     | src.scraper | Browser stopped
+2026-02-19 13:11:03 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-19 13:11:03 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-19 13:11:03 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-19 13:11:03 | INFO     | __main__ | Generating app report: from=None, to=None, basket=all, pdf=False, benchmark=ipc, view=analyst, offline_assets=embed
+2026-02-19 13:18:35 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-19 13:18:35 | INFO     | __main__ | Generating app report: from=None, to=None, basket=all, pdf=False, benchmark=ipc, view=analyst, offline_assets=embed
+2026-02-19 13:53:46 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-19 13:53:47 | INFO     | src.ipc_official | Official IPC auto-source rows loaded: 13
+2026-02-19 13:53:56 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-19 13:53:57 | INFO     | src.ipc_tracker | Tracker IPC build done basket=all method=v1_fixed_weight_robust_monthly months=2 general=2 categories=14
+2026-02-19 13:54:05 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-19 13:54:05 | INFO     | src.ipc_official | Official IPC auto-source rows loaded: 13
+2026-02-19 13:54:05 | INFO     | src.ipc_tracker | Tracker IPC build done basket=all method=v1_fixed_weight_robust_monthly months=2 general=2 categories=14
+2026-02-19 13:54:14 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-19 13:54:14 | INFO     | __main__ | Generating app report: from=None, to=None, basket=all, pdf=False, benchmark=ipc, view=analyst, offline_assets=embed
+2026-02-19 14:01:49 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-19 14:01:49 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-19 14:01:49 | INFO     | __main__ | Generating app report: from=None, to=None, basket=all, pdf=False, benchmark=ipc, view=analyst, offline_assets=embed
+2026-02-19 14:01:49 | INFO     | src.ipc_official | Official IPC auto-source rows loaded: 13
+2026-02-19 14:01:49 | INFO     | src.ipc_tracker | Tracker IPC build done basket=all method=v1_fixed_weight_robust_monthly months=2 general=2 categories=14
+2026-02-19 14:45:07 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-19 14:45:10 | INFO     | src.ipc_official | Official IPC xls rows loaded: 2420
+2026-02-19 14:45:11 | WARNING  | src.ipc_official | Official IPC PDF parse failed: No se pudo extraer tabla Nacional/Patagonia desde el PDF.
+2026-02-19 14:48:16 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-19 14:48:19 | INFO     | src.ipc_official | Official IPC xls rows loaded: 2420
+2026-02-19 14:48:21 | INFO     | src.ipc_official | Official IPC pdf rows loaded: 24
+2026-02-19 14:48:54 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-19 14:48:57 | INFO     | src.ipc_official | Official IPC xls rows loaded: 2420
+2026-02-19 14:48:59 | INFO     | src.ipc_official | Official IPC pdf rows loaded: 24
+2026-02-19 14:48:59 | INFO     | src.ipc_tracker | Tracker IPC build done basket=all method=v1_fixed_weight_robust_monthly months=2 general=2 categories=14
+2026-02-19 14:49:10 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-19 14:49:10 | INFO     | __main__ | Generating app report: from=2026-01, to=2026-02, basket=all, pdf=False, benchmark=ipc, view=analyst, offline_assets=embed
+2026-02-19 14:54:02 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-19 14:54:02 | INFO     | __main__ | Generating app report: from=2026-01, to=2026-02, basket=all, pdf=False, benchmark=ipc, view=analyst, offline_assets=embed
+2026-02-19 14:55:23 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-19 14:55:32 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-19 14:55:34 | INFO     | src.ipc_official | Official IPC xls rows loaded: 2420
+2026-02-19 14:55:36 | INFO     | src.ipc_official | Official IPC pdf rows loaded: 24
+2026-02-19 14:55:45 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-19 14:55:48 | INFO     | src.ipc_official | Official IPC xls rows loaded: 2420
+2026-02-19 14:55:50 | INFO     | src.ipc_official | Official IPC pdf rows loaded: 24
+2026-02-19 14:55:50 | INFO     | src.ipc_tracker | Tracker IPC build done basket=all method=v1_fixed_weight_robust_monthly months=2 general=2 categories=14
+2026-02-19 14:55:58 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-19 14:56:05 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-19 14:56:05 | INFO     | __main__ | Generating app report: from=2026-01, to=2026-02, basket=all, pdf=False, benchmark=ipc, view=analyst, offline_assets=embed
+2026-02-19 15:00:44 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-19 15:00:47 | INFO     | src.ipc_official | Official IPC xls rows loaded: 2860
+2026-02-19 15:00:49 | INFO     | src.ipc_official | Official IPC pdf rows loaded: 26
+2026-02-19 15:01:08 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-19 15:01:11 | INFO     | src.ipc_official | Official IPC xls rows loaded: 2860
+2026-02-19 15:01:13 | INFO     | src.ipc_official | Official IPC pdf rows loaded: 26
+2026-02-19 15:01:13 | INFO     | src.ipc_tracker | Tracker IPC build done basket=all method=v1_fixed_weight_robust_monthly months=2 general=2 categories=14
+2026-02-19 15:01:26 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-19 15:01:26 | INFO     | __main__ | Generating app report: from=2026-01, to=2026-02, basket=all, pdf=False, benchmark=ipc, view=analyst, offline_assets=embed
+2026-02-19 15:03:43 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-19 15:03:46 | INFO     | src.ipc_official | Official IPC xls rows loaded: 2860
+2026-02-19 15:03:48 | INFO     | src.ipc_official | Official IPC pdf rows loaded: 26
+2026-02-19 15:03:56 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-19 15:03:56 | INFO     | __main__ | Generating app report: from=2026-01, to=2026-02, basket=all, pdf=False, benchmark=ipc, view=analyst, offline_assets=embed
+2026-02-19 15:36:58 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-19 15:37:30 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-19 15:40:13 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-19 15:46:21 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-19 15:47:20 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-19 15:48:55 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-19 15:59:16 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-19 15:59:31 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-19 16:00:13 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-19 16:00:13 | INFO     | __main__ | Generating app report: from=None, to=None, basket=all, pdf=False, benchmark=ipc, view=analyst, offline_assets=external
+2026-02-19 16:07:36 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-19 16:07:36 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-19 16:07:36 | INFO     | __main__ | Generating app report: from=None, to=None, basket=all, pdf=False, benchmark=ipc, view=analyst, offline_assets=external
+2026-02-19 16:08:33 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized

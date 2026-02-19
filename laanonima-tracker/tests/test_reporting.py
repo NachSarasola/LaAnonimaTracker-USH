@@ -137,17 +137,25 @@ class TestReportMonthlyRange(unittest.TestCase):
         self.assertIn("id=\"ord\"", html)
         self.assertIn("id=\"mbase\"", html)
         self.assertIn("id=\"reset\"", html)
+        self.assertIn("id=\"copy-link\"", html)
+        self.assertIn("id=\"copy-link-status\"", html)
+        self.assertIn("id=\"mobile-onboarding\"", html)
         self.assertIn("Producto (hipervinculo)", html)
         self.assertIn("id=\"kpi-grid\"", html)
         self.assertIn("id=\"quality-panel\"", html)
         self.assertIn("id=\"quality-segments\"", html)
         self.assertIn("id=\"quality-policy\"", html)
-        self.assertIn("Canasta vs IPC (indice base 100)", html)
+        self.assertIn("IPC Propio vs IPC Oficial", html)
+        self.assertIn("id=\"macro-scope\"", html)
+        self.assertIn("id=\"macro-region\"", html)
+        self.assertIn("id=\"macro-category\"", html)
+        self.assertIn("id=\"macro-status\"", html)
         self.assertIn("id=\"panel-bands\"", html)
         self.assertIn("id=\"band-product\"", html)
         self.assertIn("id=\"chart-bands\"", html)
         self.assertIn("id=\"page-size\"", html)
         self.assertIn("id=\"export-csv\"", html)
+        self.assertIn("id=\"quality-macro\"", html)
         self.assertIn("terna low/mid/high auditada", html)
 
     def test_coverage_metrics_uses_expected_products_by_selected_basket(self):
@@ -162,7 +170,9 @@ class TestReportMonthlyRange(unittest.TestCase):
 
         self.assertEqual(coverage["expected_products"], 1)
         self.assertEqual(coverage["expected_products_by_category"]["lacteos"], 1)
-        self.assertAlmostEqual(coverage["coverage_total_pct"], 200.0)
+        self.assertEqual(coverage["observed_products_total"], 1)
+        self.assertEqual(coverage["unexpected_observed_products"], 1)
+        self.assertAlmostEqual(coverage["coverage_total_pct"], 100.0)
 
     def test_coverage_metrics_tracks_category_denominator_independently(self):
         self.generator.config["baskets"]["cba"]["items"] = [
@@ -172,15 +182,16 @@ class TestReportMonthlyRange(unittest.TestCase):
         ]
         df = pd.DataFrame(
             [
-                {"canonical_id": "prod1", "month": "2024-02", "category": "lacteos"},
-                {"canonical_id": "prod2", "month": "2024-02", "category": "lacteos"},
-                {"canonical_id": "prod3", "month": "2024-02", "category": "carnes"},
+                {"canonical_id": "a", "month": "2024-02", "category": "lacteos"},
+                {"canonical_id": "b", "month": "2024-02", "category": "lacteos"},
+                {"canonical_id": "c", "month": "2024-02", "category": "carnes"},
             ]
         )
 
         coverage = self.generator._coverage_metrics(df, "2024-02", "2024-02", "cba")
         by_category = {item["category"]: item for item in coverage["coverage_by_category"]}
 
+        self.assertAlmostEqual(coverage["coverage_total_pct"], 100.0)
         self.assertEqual(by_category["lacteos"]["expected_products"], 2)
         self.assertAlmostEqual(by_category["lacteos"]["coverage_pct"], 100.0)
         self.assertEqual(by_category["carnes"]["expected_products"], 1)

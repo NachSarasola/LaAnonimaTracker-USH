@@ -189,3 +189,12 @@ def ensure_directories(config: Dict[str, Any]):
     
     plots_path = config.get("analysis", {}).get("plots_dir", "data/analysis/plots")
     Path(plots_path).mkdir(parents=True, exist_ok=True)
+    reports_path = config.get("analysis", {}).get("reports_dir", "data/analysis/reports")
+    Path(reports_path).mkdir(parents=True, exist_ok=True)
+
+    # Official CPI snapshots directory
+    Path("data/cpi/raw").mkdir(parents=True, exist_ok=True)
+
+    # Static web output directory
+    deployment_out = config.get("deployment", {}).get("output_dir", "public")
+    Path(deployment_out).mkdir(parents=True, exist_ok=True)

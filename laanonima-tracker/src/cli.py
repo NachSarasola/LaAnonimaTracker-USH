@@ -23,6 +23,10 @@ from src.category_backfill import (
     backfill_canonical_categories,
     validate_price_category_traceability,
 )
+from src.ipc_official import run_ipc_sync
+from src.ipc_pipeline import run_ipc_publish
+from src.ipc_tracker import run_ipc_build
+from src.web_publish import run_web_publish
 
 # Configure logging
 MONTH_PATTERN = re.compile(r"^\d{4}-\d{2}$")
@@ -596,6 +600,91 @@ def app(
         sys.exit(1)
 
 
+@cli.command("publish-web")
+@click.option("--from", "from_month", required=False, type=MONTH_TYPE, help="Mes inicial opcional (YYYY-MM)")
+@click.option("--to", "to_month", required=False, type=MONTH_TYPE, help="Mes final opcional (YYYY-MM)")
+@click.option(
+    "--basket", "basket_type",
+    type=click.Choice(["cba", "extended", "all"], case_sensitive=False),
+    default="all",
+    show_default=True,
+    help="Canasta para generar reporte publico",
+)
+@click.option(
+    "--benchmark",
+    "benchmark_mode",
+    type=click.Choice(["ipc", "none"], case_sensitive=False),
+    default="ipc",
+    show_default=True,
+    help="Benchmark macroeconomico para reporte publico",
+)
+@click.option(
+    "--view",
+    "analysis_depth",
+    type=click.Choice(["executive", "intermediate", "analyst"], case_sensitive=False),
+    default="analyst",
+    show_default=True,
+    help="Profundidad visual de reporte para sitio publico",
+)
+@click.option(
+    "--offline-assets",
+    "offline_assets",
+    type=click.Choice(["embed", "external"], case_sensitive=False),
+    default="external",
+    show_default=True,
+    help="Modo assets para sitio publico (external recomendado para CDN)",
+)
+@click.option(
+    "--skip-report",
+    is_flag=True,
+    default=False,
+    help="No regenerar reporte interactivo; usar ultimo artefacto disponible",
+)
+@click.pass_context
+def publish_web(
+    ctx,
+    from_month: Optional[str],
+    to_month: Optional[str],
+    basket_type: str,
+    benchmark_mode: str,
+    analysis_depth: str,
+    offline_assets: str,
+    skip_report: bool,
+):
+    """Build static public website in ./public using latest interactive report."""
+    config_path = ctx.obj["config_path"]
+    if (from_month and not to_month) or (to_month and not from_month):
+        click.echo("Error: si usas --from o --to debes indicar ambos.", err=True)
+        sys.exit(2)
+
+    try:
+        result = run_web_publish(
+            config_path=config_path,
+            from_month=from_month,
+            to_month=to_month,
+            basket_type=basket_type,
+            benchmark_mode=benchmark_mode,
+            analysis_depth=analysis_depth,
+            offline_assets=offline_assets,
+            build_report=not skip_report,
+        )
+        click.echo(f"\n{'='*68}")
+        click.echo("PUBLIC WEB BUILD READY")
+        click.echo(f"{'='*68}")
+        click.echo(f"Estado web: {result.get('web_status')} | stale: {result.get('is_stale')}")
+        click.echo(f"Salida: {result.get('output_dir')}")
+        click.echo(f"Tracker: {result.get('tracker_path')}")
+        click.echo(f"Manifest: {result.get('manifest_path')}")
+        click.echo(f"Metadata latest: {result.get('latest_metadata_path')}")
+        click.echo(f"Historico (meses): {result.get('history_count')}")
+        click.echo(f"Proxima corrida estimada (UTC): {result.get('next_update_eta')}")
+        click.echo(f"{'='*68}")
+    except Exception as e:
+        logger.exception("Public web build failed")
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
 @cli.command()
 @click.option("--days", "-d", default=30, help="Number of days to look back")
 @click.pass_context
@@ -774,6 +863,173 @@ def backfill_categories(ctx, backend: str):
 
     except Exception as e:
         logger.exception("Category backfill failed")
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+@cli.command("ipc-sync")
+@click.option("--from", "from_month", required=False, type=MONTH_TYPE, help="Mes inicial opcional (YYYY-MM)")
+@click.option("--to", "to_month", required=False, type=MONTH_TYPE, help="Mes final opcional (YYYY-MM)")
+@click.option("--region", default="all", show_default=True, help="Region oficial: patagonia | nacional | all")
+@click.pass_context
+def ipc_sync(ctx, from_month: Optional[str], to_month: Optional[str], region: str):
+    """Sync IPC oficial INDEC (Nacional/Patagonia) (auto + fallback) a base local."""
+    config_path = ctx.obj["config_path"]
+
+    if (from_month and not to_month) or (to_month and not from_month):
+        click.echo("Error: si usas --from o --to debes indicar ambos.", err=True)
+        sys.exit(2)
+
+    try:
+        result = run_ipc_sync(
+            config_path=config_path,
+            from_month=from_month,
+            to_month=to_month,
+            region=region,
+        )
+        click.echo(f"\n{'='*68}")
+        click.echo("IPC OFFICIAL SYNC")
+        click.echo(f"{'='*68}")
+        click.echo(f"Status: {result.get('status')}")
+        click.echo(f"Source mode: {result.get('source_mode')}")
+        click.echo(f"Source: {result.get('source')}")
+        click.echo(f"Region solicitada: {result.get('region')}")
+        click.echo(f"Regiones sincronizadas: {', '.join(result.get('regions') or [])}")
+        click.echo(f"Fuente efectiva: {result.get('official_source')}")
+        click.echo(f"Validacion XLS/PDF: {result.get('validation_status')}")
+        click.echo(f"Used fallback: {'si' if result.get('used_fallback') else 'no'}")
+        click.echo(f"Fetched rows: {result.get('fetched_rows')}")
+        click.echo(f"Upserted rows: {result.get('upserted_rows')}")
+        if result.get("snapshot_path"):
+            click.echo(f"Snapshot: {result.get('snapshot_path')}")
+        if result.get("source_document_url"):
+            click.echo(f"Documento fuente: {result.get('source_document_url')}")
+        warnings = result.get("warnings") or []
+        if warnings:
+            click.echo("\nWarnings:")
+            for w in warnings:
+                click.echo(f"  - {w}")
+        click.echo(f"{'='*68}")
+    except Exception as e:
+        logger.exception("IPC official sync failed")
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+@cli.command("ipc-build")
+@click.option(
+    "--basket",
+    "basket_type",
+    type=click.Choice(["cba", "extended", "all"], case_sensitive=False),
+    default="all",
+    show_default=True,
+    help="Canasta para IPC tracker",
+)
+@click.option("--from", "from_month", required=False, type=MONTH_TYPE, help="Mes inicial opcional (YYYY-MM)")
+@click.option("--to", "to_month", required=False, type=MONTH_TYPE, help="Mes final opcional (YYYY-MM)")
+@click.pass_context
+def ipc_build(ctx, basket_type: str, from_month: Optional[str], to_month: Optional[str]):
+    """Build IPC propio mensual (general + rubros) usando precios relevados."""
+    config_path = ctx.obj["config_path"]
+
+    if (from_month and not to_month) or (to_month and not from_month):
+        click.echo("Error: si usas --from o --to debes indicar ambos.", err=True)
+        sys.exit(2)
+
+    try:
+        result = run_ipc_build(
+            config_path=config_path,
+            basket_type=basket_type,
+            from_month=from_month,
+            to_month=to_month,
+        )
+        click.echo(f"\n{'='*68}")
+        click.echo("IPC TRACKER BUILD")
+        click.echo(f"{'='*68}")
+        click.echo(f"Status: {result.get('status')}")
+        click.echo(f"Basket: {result.get('basket_type')}")
+        click.echo(f"Method: {result.get('method_version')}")
+        click.echo(f"Range: {result.get('from_month')} -> {result.get('to_month')}")
+        click.echo(f"Months processed: {result.get('months_processed')}")
+        click.echo(f"General rows: {result.get('general_rows')}")
+        click.echo(f"Category rows: {result.get('category_rows')}")
+        warnings = result.get("warnings") or []
+        if warnings:
+            click.echo("\nWarnings:")
+            for w in warnings:
+                click.echo(f"  - {w}")
+        click.echo(f"{'='*68}")
+    except Exception as e:
+        logger.exception("IPC tracker build failed")
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+@cli.command("ipc-publish")
+@click.option(
+    "--basket",
+    "basket_type",
+    type=click.Choice(["cba", "extended", "all"], case_sensitive=False),
+    default="all",
+    show_default=True,
+    help="Canasta para publicacion IPC tracker",
+)
+@click.option("--from", "from_month", required=False, type=MONTH_TYPE, help="Mes inicial opcional (YYYY-MM)")
+@click.option("--to", "to_month", required=False, type=MONTH_TYPE, help="Mes final opcional (YYYY-MM)")
+@click.option("--region", default="patagonia", show_default=True, help="Region oficial para comparacion")
+@click.pass_context
+def ipc_publish(
+    ctx,
+    basket_type: str,
+    from_month: Optional[str],
+    to_month: Optional[str],
+    region: str,
+):
+    """Run full monthly IPC publish pipeline: sync -> build -> compare -> audit."""
+    config_path = ctx.obj["config_path"]
+
+    if (from_month and not to_month) or (to_month and not from_month):
+        click.echo("Error: si usas --from o --to debes indicar ambos.", err=True)
+        sys.exit(2)
+
+    try:
+        result = run_ipc_publish(
+            config_path=config_path,
+            basket_type=basket_type,
+            from_month=from_month,
+            to_month=to_month,
+            region=region,
+        )
+        click.echo(f"\n{'='*72}")
+        click.echo("IPC PUBLISH PIPELINE")
+        click.echo(f"{'='*72}")
+        click.echo(f"Run UUID: {result.get('run_uuid')}")
+        click.echo(f"Status: {result.get('status')}")
+        click.echo(f"Basket: {result.get('basket_type')}")
+        click.echo(f"Region: {result.get('region')}")
+        click.echo(f"Method: {result.get('method_version')}")
+        click.echo(f"Range: {result.get('from_month')} -> {result.get('to_month')}")
+        click.echo(f"Official rows: {result.get('official_rows')}")
+        click.echo(f"Tracker rows: {result.get('tracker_rows')}")
+        click.echo(f"Tracker category rows: {result.get('tracker_category_rows')}")
+        click.echo(f"Overlap months: {result.get('overlap_months')}")
+        metrics = result.get("metrics") or {}
+        if metrics:
+            click.echo(
+                "Metrics: "
+                f"MAE base100={metrics.get('mae_base100')} | "
+                f"RMSE base100={metrics.get('rmse_base100')} | "
+                f"MAE MoM={metrics.get('mae_mom')} | "
+                f"RMSE MoM={metrics.get('rmse_mom')}"
+            )
+        warnings = result.get("warnings") or []
+        if warnings:
+            click.echo("\nWarnings:")
+            for w in warnings:
+                click.echo(f"  - {w}")
+        click.echo(f"{'='*72}")
+    except Exception as e:
+        logger.exception("IPC publish pipeline failed")
         click.echo(f"Error: {e}", err=True)
         sys.exit(1)
 

@@ -11,7 +11,20 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.api import app, get_session
-from src.models import CategoryIndex, IndexQualityAudit, Price, Product, ScrapeRun, get_engine, get_session_factory, init_db
+from src.models import (
+    CategoryIndex,
+    IPCPublicationRun,
+    IndexQualityAudit,
+    OfficialCPIMonthly,
+    Price,
+    Product,
+    ScrapeRun,
+    TrackerIPCCategoryMonthly,
+    TrackerIPCMonthly,
+    get_engine,
+    get_session_factory,
+    init_db,
+)
 
 
 class TestAPI(unittest.TestCase):
@@ -25,9 +38,9 @@ class TestAPI(unittest.TestCase):
                 "sqlite": {"database_path": self.tmp.name},
             }
         }
-        engine = get_engine(config, "sqlite")
-        init_db(engine)
-        Session = get_session_factory(engine)
+        self.engine = get_engine(config, "sqlite")
+        init_db(self.engine)
+        Session = get_session_factory(self.engine)
 
         self.session = Session()
         self._seed_data(self.session)
@@ -44,8 +57,16 @@ class TestAPI(unittest.TestCase):
 
     def tearDown(self):
         app.dependency_overrides.clear()
-        self.session.close()
-        Path(self.tmp.name).unlink(missing_ok=True)
+        if hasattr(self, "client"):
+            self.client.close()
+        if hasattr(self, "session"):
+            self.session.close()
+        if hasattr(self, "engine"):
+            self.engine.dispose()
+        try:
+            Path(self.tmp.name).unlink(missing_ok=True)
+        except PermissionError:
+            pass
 
     def _seed_data(self, session):
         run = ScrapeRun(
@@ -110,6 +131,90 @@ class TestAPI(unittest.TestCase):
                 is_coverage_sufficient=False,
             )
         )
+        session.add(
+            TrackerIPCMonthly(
+                basket_type="all",
+                year_month="2024-01",
+                method_version="v1_fixed_weight_robust_monthly",
+                status="final",
+                index_value=100,
+                mom_change=None,
+                yoy_change=None,
+                coverage_weight_pct=1.0,
+                coverage_product_pct=1.0,
+                products_expected=2,
+                products_observed=2,
+                products_with_relative=0,
+                outlier_count=0,
+                missing_products=0,
+                base_month="2024-01",
+            )
+        )
+        session.add(
+            TrackerIPCCategoryMonthly(
+                basket_type="all",
+                category_slug="lacteos",
+                indec_division_code="DIV03",
+                year_month="2024-01",
+                method_version="v1_fixed_weight_robust_monthly",
+                status="final",
+                index_value=100,
+                mom_change=None,
+                yoy_change=None,
+                coverage_weight_pct=1.0,
+                coverage_product_pct=1.0,
+                products_expected=1,
+                products_observed=1,
+                products_with_relative=0,
+                outlier_count=0,
+                missing_products=0,
+                base_month="2024-01",
+            )
+        )
+        session.add(
+            OfficialCPIMonthly(
+                source="indec_patagonia",
+                region="patagonia",
+                metric_code="general",
+                category_slug=None,
+                year_month="2024-01",
+                index_value=100,
+                mom_change=None,
+                yoy_change=None,
+                status="final",
+                is_fallback=False,
+            )
+        )
+        session.add(
+            OfficialCPIMonthly(
+                source="indec_patagonia",
+                region="patagonia",
+                metric_code="DIV03",
+                category_slug="lacteos",
+                year_month="2024-01",
+                index_value=100,
+                mom_change=None,
+                yoy_change=None,
+                status="final",
+                is_fallback=False,
+            )
+        )
+        session.add(
+            IPCPublicationRun(
+                run_uuid="aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+                basket_type="all",
+                region="patagonia",
+                method_version="v1_fixed_weight_robust_monthly",
+                from_month="2024-01",
+                to_month="2024-01",
+                status="completed",
+                official_source="indec_patagonia",
+                official_rows=2,
+                tracker_rows=1,
+                tracker_category_rows=1,
+                overlap_months=1,
+            )
+        )
         session.commit()
 
     def test_series_producto_with_pagination(self):
@@ -138,6 +243,54 @@ class TestAPI(unittest.TestCase):
         self.assertEqual(payload["items"][0]["category"], "lacteos")
         self.assertTrue(payload["items"][0]["coverage_warning"])
         self.assertEqual(payload["items"][0]["outlier_count"], 2)
+
+    def test_ipc_tracker(self):
+        response = self.client.get("/ipc/tracker", params={"basket": "all", "from": "2024-01", "to": "2024-01"})
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["pagination"]["total"], 1)
+        self.assertEqual(payload["items"][0]["year_month"], "2024-01")
+        self.assertEqual(payload["items"][0]["status"], "final")
+
+    def test_ipc_oficial_patagonia(self):
+        response = self.client.get("/ipc/oficial/patagonia", params={"from": "2024-01", "to": "2024-01"})
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["pagination"]["total"], 1)
+        self.assertEqual(payload["items"][0]["metric_code"], "general")
+        self.assertIn("meta", payload)
+        self.assertEqual(payload["meta"]["region"], "patagonia")
+
+    def test_ipc_oficial_region(self):
+        response = self.client.get("/ipc/oficial", params={"region": "patagonia", "from": "2024-01", "to": "2024-01"})
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["pagination"]["total"], 1)
+        self.assertEqual(payload["meta"]["region"], "patagonia")
+
+    def test_ipc_comparacion_general(self):
+        response = self.client.get("/ipc/comparacion", params={"basket": "all", "from": "2024-01", "to": "2024-01"})
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["pagination"]["total"], 1)
+        self.assertTrue(payload["items"][0]["is_overlap"])
+
+    def test_ipc_comparacion_categorias(self):
+        response = self.client.get(
+            "/ipc/comparacion/categorias",
+            params={"basket": "all", "from": "2024-01", "to": "2024-01", "category": "lacteos"},
+        )
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["pagination"]["total"], 1)
+        self.assertEqual(payload["items"][0]["category_slug"], "lacteos")
+
+    def test_ipc_publicacion_latest(self):
+        response = self.client.get("/ipc/publicacion/latest", params={"basket": "all"})
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertIsNotNone(payload["item"])
+        self.assertEqual(payload["item"]["status"], "completed")
 
 
 if __name__ == "__main__":
