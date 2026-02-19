@@ -59,7 +59,8 @@ class TestScraperContract(unittest.TestCase):
     """Contract-level unit tests for scraper internals."""
 
     def setUp(self):
-        self.config = load_config()
+        config_path = Path(__file__).parent.parent / "config.yaml"
+        self.config = load_config(str(config_path))
         self.scraper = LaAnonimaScraper(self.config)
 
     def test_search_url_uses_buscar_query_path(self):
@@ -79,6 +80,10 @@ class TestScraperContract(unittest.TestCase):
     def test_parse_price_argentine_format(self):
         parsed = self.scraper._parse_price("$ 1.234,56")
         self.assertEqual(parsed, Decimal("1234.56"))
+
+    def test_detect_closed_target_error_message(self):
+        exc = RuntimeError("Target page, context or browser has been closed")
+        self.assertTrue(self.scraper._is_closed_target_error(exc))
 
     def test_parse_product_uses_fallback_selectors_when_primary_fails(self):
         product_element = FakeProductElement(
@@ -113,6 +118,25 @@ class TestScraperContract(unittest.TestCase):
         self.assertEqual(parsed["original_price"], Decimal("1500.00"))
         self.assertTrue(parsed["url_valid"])
         self.assertIn("/art_98765_arroz", parsed["url"])
+
+    def test_select_tiered_candidates_returns_low_mid_high(self):
+        basket_item = {"name": "Arroz", "keywords": ["arroz"], "quantity": 1, "unit": "kg"}
+        search_results = [
+            {"name": "Arroz A 1kg", "price": Decimal("1200"), "url": "https://www.laanonima.com.ar/a/art_1/"},
+            {"name": "Arroz B 1kg", "price": Decimal("1800"), "url": "https://www.laanonima.com.ar/b/art_2/"},
+            {"name": "Arroz C 1kg", "price": Decimal("2400"), "url": "https://www.laanonima.com.ar/c/art_3/"},
+            {"name": "Arroz D 1kg", "price": Decimal("2600"), "url": "https://www.laanonima.com.ar/d/art_4/"},
+        ]
+
+        selected, representative = self.scraper.select_tiered_candidates(search_results, basket_item, min_candidates=3)
+
+        self.assertGreaterEqual(len(selected), 3)
+        tiers = {row["tier"] for row in selected}
+        self.assertIn("low", tiers)
+        self.assertIn("mid", tiers)
+        self.assertIn("high", tiers)
+        self.assertIsNotNone(representative)
+        self.assertIn(representative["tier"], {"mid", "high", "low"})
 
 
 if __name__ == "__main__":

@@ -53,7 +53,83 @@ python -m src.cli scrape --basket extended
 
 # Scrape all baskets
 python -m src.cli scrape --basket all
+
+# Perfil balanceado (default): CBA completa + nucleo diario + rotacion
+python -m src.cli scrape --profile balanced
+
+# Ver plan sin ejecutar navegador
+python -m src.cli scrape --dry-plan --profile balanced
+
+# Ajustar presupuesto de tiempo y rotacion
+python -m src.cli scrape --runtime-budget-minutes 20 --rotation-items 4
+
+# Auditoria de terna low/mid/high en DB (prepara modo futuro "guardar 3")
+python -m src.cli scrape --observation-policy single+audit --candidate-storage db
 ```
+
+Por defecto, `scrape` usa `--candidate-storage db` y deja la serie principal en `prices` con observacion representativa (`single`), manteniendo la terna auditada separada en `price_candidates`.
+
+Modo liviano por defecto:
+- Cada búsqueda toma una terna de candidatos por precio (`barato/medio/caro`) y usa el candidato medio como representativo.
+- Esto evita abrir fichas de detalle para cada resultado y reduce consumo de CPU/memoria.
+- Configurable en `config.yaml`: `scraping.min_candidates_per_product` (default `3`) y `scraping.min_match_confidence` (default `0.2`).
+- Optimización de tiempo: se usan timeouts cortos de parseo/listado (`quick_selector_timeout_ms`, `search_settle_delay_ms`) para reducir latencia por producto.
+
+### Recommended runnable flow (single HTML for end users)
+
+```bash
+# 1) Inicializa DB y carpetas
+python -m src.cli init
+
+# 2) Trae observaciones de precios
+python -m src.cli scrape --basket all
+
+# 3) Genera app HTML interactiva (autorange ultimos 6 meses)
+python -m src.cli app
+```
+
+El comando `app` siempre genera un HTML local y su metadata JSON.
+Si no hay datos, genera un estado vacio con instrucciones.
+Por defecto usa benchmark IPC, vista ejecutiva y assets embebidos (offline total).
+
+Tambien puedes forzar rango:
+
+```bash
+python -m src.cli app --from 2025-09 --to 2026-02 --basket all
+```
+
+### Reporte economico standalone (UI v2)
+
+Comandos compatibles:
+
+```bash
+# Ejecuta reporte de rango fijo
+python -m src.cli report --from 2025-09 --to 2026-02 --basket all
+
+# App autorange (ultimos 6 meses segun datos)
+python -m src.cli app
+```
+
+Flags nuevos en `report` y `app`:
+
+```bash
+--benchmark [ipc|none]          # default: ipc
+--view [executive|intermediate|analyst]   # default: executive
+--offline-assets [embed|external]         # default: embed
+```
+
+Metodologia resumida:
+- `nominal`: variacion directa de precios observados.
+- `real`: precio deflactado por IPC INDEC del mes.
+- `brecha`: inflacion canasta nominal menos IPC del periodo.
+- el KPI de inflacion usa panel balanceado (productos presentes en ambos extremos del rango).
+- si no hay panel balanceado para el rango pedido, el reporte aplica fallback de ventana efectiva y lo informa en calidad.
+
+Mejoras UX/performance del reporte:
+- tabla paginada (25/50/100/250 filas), con contador y navegación.
+- exportación CSV de la tabla filtrada.
+- cache de filtros/render para reducir recálculos innecesarios en navegador.
+- guía de lectura rápida + chips de filtros activos para entender el estado actual de análisis.
 
 ### Run Analysis
 
@@ -79,7 +155,7 @@ python -m src.cli export --format both
 ```
 
 
-### Dashboard web (Streamlit)
+### Dashboard web (Streamlit, opcional)
 
 ```bash
 # Instalar dependencias del dashboard

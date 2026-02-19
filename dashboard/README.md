@@ -1,5 +1,12 @@
 # Dashboard (Streamlit)
 
+> Nota: este dashboard es opcional. Para una salida lista para usuario final sin levantar API/Streamlit, usa:
+>
+> `python -m src.cli app` (desde `laanonima-tracker/`)
+>
+> Tambien soporta modo economico avanzado:
+> `python -m src.cli app --benchmark ipc --view executive --offline-assets embed`
+
 Interfaz web para visualizar series de precios e índices por categoría consumiendo exclusivamente la API (`src/api.py`).
 
 ## Requisitos

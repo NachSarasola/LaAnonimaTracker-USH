@@ -122,53 +122,33 @@ class TestReportMonthlyRange(unittest.TestCase):
         self.assertTrue(pd.isna(by_id.loc["prod_zero", "variation_pct"]))
         self.assertTrue(pd.isna(by_id.loc["prod_nan", "variation_pct"]))
 
-    def test_render_html_displays_nd_for_missing_variation(self):
-        top_products = pd.DataFrame(
-            [
-                {
-                    "canonical_id": "prod_zero",
-                    "product_name": "Producto cero",
-                    "price_from": 0.0,
-                    "price_to": 20.0,
-                    "variation_pct": pd.NA,
-                }
-            ]
+    def test_render_interactive_html_contains_required_controls(self):
+        payload = self.generator._build_interactive_payload(
+            self.generator._load_prices("2024-02", "2024-03", "all"),
+            "2024-02",
+            "2024-03",
+            "all",
         )
-        top_categories = pd.DataFrame(
-            [
-                {
-                    "category": "lacteos",
-                    "price_from": pd.NA,
-                    "price_to": 10.0,
-                    "variation_pct": pd.NA,
-                    "mom_change": pd.NA,
-                    "yoy_change": pd.NA,
-                    "products_included": pd.NA,
-                    "products_missing": pd.NA,
-                }
-            ]
-        )
+        html = self.generator._render_interactive_html(payload, "2024-03-10 00:00:00 UTC")
 
-        html = self.generator._render_html(
-            from_month="2024-01",
-            to_month="2024-02",
-            inflation_total_pct=10.0,
-            top_categories=top_categories,
-            top_products=top_products,
-            coverage={
-                "basket_type": "cba",
-                "expected_products": 1,
-                "observed_products_total": 1,
-                "coverage_total_pct": 100.0,
-                "observed_from": 1,
-                "observed_to": 1,
-                "coverage_from_pct": 100.0,
-                "coverage_to_pct": 100.0,
-            },
-            generated_at="2024-02-01 00:00:00 UTC",
-        )
-
-        self.assertIn("<td>N/D</td>", html)
+        self.assertIn("id=\"q\"", html)
+        self.assertIn("id=\"cba\"", html)
+        self.assertIn("id=\"cat\"", html)
+        self.assertIn("id=\"ord\"", html)
+        self.assertIn("id=\"mbase\"", html)
+        self.assertIn("id=\"reset\"", html)
+        self.assertIn("Producto (hipervinculo)", html)
+        self.assertIn("id=\"kpi-grid\"", html)
+        self.assertIn("id=\"quality-panel\"", html)
+        self.assertIn("id=\"quality-segments\"", html)
+        self.assertIn("id=\"quality-policy\"", html)
+        self.assertIn("Canasta vs IPC (indice base 100)", html)
+        self.assertIn("id=\"panel-bands\"", html)
+        self.assertIn("id=\"band-product\"", html)
+        self.assertIn("id=\"chart-bands\"", html)
+        self.assertIn("id=\"page-size\"", html)
+        self.assertIn("id=\"export-csv\"", html)
+        self.assertIn("terna low/mid/high auditada", html)
 
     def test_coverage_metrics_uses_expected_products_by_selected_basket(self):
         df = pd.DataFrame(

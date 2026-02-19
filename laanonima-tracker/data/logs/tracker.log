@@ -758,3 +758,805 @@ Traceback (most recent call last):
           └ <function rewrite_error at 0x00000189FC4C1800>
 
 playwright._impl._errors.TargetClosedError: Page.goto: Target page, context or browser has been closed
+2026-02-18 20:54:46 | INFO     | __main__ | La Anónima Price Tracker initialized
+2026-02-18 20:54:46 | INFO     | __main__ | Generating report: from=2025-01, to=2025-02, basket=cba, pdf=False
+2026-02-18 20:54:47 | ERROR    | __main__ | Report generation failed
+Traceback (most recent call last):
+
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+
+  File "C:\Users\Usuario\Desktop\Proyectos IA\LaAnonimaTracker-USH\laanonima-tracker\src\cli.py", line 517, in <module>
+    cli()
+    └ <Group cli>
+
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\click\core.py", line 1462, in __call__
+    return self.main(*args, **kwargs)
+           │    │     │       └ {}
+           │    │     └ ()
+           │    └ <function Command.main at 0x0000025EF23CEB60>
+           └ <Group cli>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\click\core.py", line 1383, in main
+    rv = self.invoke(ctx)
+         │    │      └ <click.core.Context object at 0x0000025E8F9FA210>
+         │    └ <function Group.invoke at 0x0000025EF23CFA60>
+         └ <Group cli>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\click\core.py", line 1850, in invoke
+    return _process_result(sub_ctx.command.invoke(sub_ctx))
+           │               │       │       │      └ <click.core.Context object at 0x0000025E8F9FA350>
+           │               │       │       └ <function Command.invoke at 0x0000025EF23CE840>
+           │               │       └ <Command report>
+           │               └ <click.core.Context object at 0x0000025E8F9FA350>
+           └ <function Group.invoke.<locals>._process_result at 0x0000025E8F9F47C0>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\click\core.py", line 1246, in invoke
+    return ctx.invoke(self.callback, **ctx.params)
+           │   │      │    │           │   └ {'from_month': '2025-01', 'to_month': '2025-02', 'basket_type': 'cba', 'export_pdf': False}
+           │   │      │    │           └ <click.core.Context object at 0x0000025E8F9FA350>
+           │   │      │    └ <function report at 0x0000025E8F9F4EA0>
+           │   │      └ <Command report>
+           │   └ <function Context.invoke at 0x0000025EF23CDA80>
+           └ <click.core.Context object at 0x0000025E8F9FA350>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\click\core.py", line 814, in invoke
+    return callback(*args, **kwargs)
+           │         │       └ {'from_month': '2025-01', 'to_month': '2025-02', 'basket_type': 'cba', 'export_pdf': False}
+           │         └ ()
+           └ <function report at 0x0000025E8F9F4EA0>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\click\decorators.py", line 34, in new_func
+    return f(get_current_context(), *args, **kwargs)
+           │ │                       │       └ {'from_month': '2025-01', 'to_month': '2025-02', 'basket_type': 'cba', 'export_pdf': False}
+           │ │                       └ ()
+           │ └ <function get_current_context at 0x0000025EF23A0220>
+           └ <function report at 0x0000025E8F9F4E00>
+
+> File "C:\Users\Usuario\Desktop\Proyectos IA\LaAnonimaTracker-USH\laanonima-tracker\src\cli.py", line 307, in report
+    results = run_report(
+              └ <function run_report at 0x0000025E8F9C25C0>
+
+  File "C:\Users\Usuario\Desktop\Proyectos IA\LaAnonimaTracker-USH\laanonima-tracker\src\reporting.py", line 456, in run_report
+    return generator.generate(
+           │         └ <function ReportGenerator.generate at 0x0000025E8F9C3240>
+           └ <src.reporting.ReportGenerator object at 0x0000025E8FA07090>
+
+  File "C:\Users\Usuario\Desktop\Proyectos IA\LaAnonimaTracker-USH\laanonima-tracker\src\reporting.py", line 356, in generate
+    raise ValueError("No hay datos de precios para el rango indicado")
+
+ValueError: No hay datos de precios para el rango indicado
+2026-02-18 20:54:54 | INFO     | __main__ | La Anónima Price Tracker initialized
+2026-02-18 21:20:21 | INFO     | __main__ | La Anónima Price Tracker initialized
+2026-02-18 21:20:21 | INFO     | __main__ | La Anónima Price Tracker initialized
+2026-02-18 21:20:21 | INFO     | __main__ | Generating report: from=2025-01, to=2025-02, basket=cba, pdf=False
+2026-02-18 21:20:21 | INFO     | __main__ | Generating app report: from=None, to=None, basket=all, pdf=False
+2026-02-18 21:21:30 | INFO     | __main__ | La Anónima Price Tracker initialized
+2026-02-18 21:22:14 | INFO     | __main__ | La Anónima Price Tracker initialized
+2026-02-18 21:22:38 | INFO     | __main__ | La Anónima Price Tracker initialized
+2026-02-18 21:22:38 | INFO     | __main__ | Generating report: from=2025-01, to=2025-02, basket=all, pdf=False
+2026-02-18 21:48:21 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-18 21:48:21 | INFO     | __main__ | Generating app report: from=None, to=None, basket=all, pdf=False, benchmark=ipc, view=executive, offline_assets=embed
+2026-02-18 21:48:53 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-18 21:48:53 | INFO     | __main__ | Generating report: from=2025-09, to=2026-02, basket=all, pdf=False, benchmark=none, view=analyst, offline_assets=external
+2026-02-18 22:01:21 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-18 22:01:21 | INFO     | __main__ | Starting scrape: basket=all, headless=True, backend=sqlite, limit=5
+2026-02-18 22:01:21 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-18 22:01:21 | INFO     | __main__ | Initializing tracker...
+2026-02-18 22:01:21 | ERROR    | __main__ | Scrape failed
+Traceback (most recent call last):
+
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\sqlalchemy\engine\base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+    │    │       └ <function DefaultDialect.do_execute at 0x0000021762B6CE00>
+    │    └ <sqlalchemy.dialects.sqlite.pysqlite.SQLiteDialect_pysqlite object at 0x000002177E612990>
+    └ <sqlalchemy.engine.base.Connection object at 0x000002177E640950>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\sqlalchemy\engine\default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+    │      │       │          └ ()
+    │      │       └ 'ALTER TABLE products ADD COLUMN category_id INTEGER'
+    │      └ <method 'execute' of 'sqlite3.Cursor' objects>
+    └ <sqlite3.Cursor object at 0x000002177E7089C0>
+
+sqlite3.OperationalError: duplicate column name: category_id
+
+
+The above exception was the direct cause of the following exception:
+
+
+Traceback (most recent call last):
+
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+
+  File "C:\Users\Usuario\Desktop\Proyectos IA\LaAnonimaTracker-USH\laanonima-tracker\src\cli.py", line 669, in <module>
+    cli()
+    └ <Group cli>
+
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\click\core.py", line 1462, in __call__
+    return self.main(*args, **kwargs)
+           │    │     │       └ {}
+           │    │     └ ()
+           │    └ <function Command.main at 0x0000021760F4EC00>
+           └ <Group cli>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\click\core.py", line 1383, in main
+    rv = self.invoke(ctx)
+         │    │      └ <click.core.Context object at 0x000002177E605A90>
+         │    └ <function Group.invoke at 0x0000021760F4FB00>
+         └ <Group cli>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\click\core.py", line 1850, in invoke
+    return _process_result(sub_ctx.command.invoke(sub_ctx))
+           │               │       │       │      └ <click.core.Context object at 0x000002177D6DC9D0>
+           │               │       │       └ <function Command.invoke at 0x0000021760F4E8E0>
+           │               │       └ <Command scrape>
+           │               └ <click.core.Context object at 0x000002177D6DC9D0>
+           └ <function Group.invoke.<locals>._process_result at 0x000002177E5F9440>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\click\core.py", line 1246, in invoke
+    return ctx.invoke(self.callback, **ctx.params)
+           │   │      │    │           │   └ {'basket': 'all', 'limit': 5, 'headless': True, 'backend': 'sqlite'}
+           │   │      │    │           └ <click.core.Context object at 0x000002177D6DC9D0>
+           │   │      │    └ <function scrape at 0x000002177E5F9620>
+           │   │      └ <Command scrape>
+           │   └ <function Context.invoke at 0x0000021760F4DB20>
+           └ <click.core.Context object at 0x000002177D6DC9D0>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\click\core.py", line 814, in invoke
+    return callback(*args, **kwargs)
+           │         │       └ {'basket': 'all', 'limit': 5, 'headless': True, 'backend': 'sqlite'}
+           │         └ ()
+           └ <function scrape at 0x000002177E5F9620>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\click\decorators.py", line 34, in new_func
+    return f(get_current_context(), *args, **kwargs)
+           │ │                       │       └ {'basket': 'all', 'limit': 5, 'headless': True, 'backend': 'sqlite'}
+           │ │                       └ ()
+           │ └ <function get_current_context at 0x0000021760F202C0>
+           └ <function scrape at 0x000002177E5F9580>
+
+> File "C:\Users\Usuario\Desktop\Proyectos IA\LaAnonimaTracker-USH\laanonima-tracker\src\cli.py", line 127, in scrape
+    results = run_scrape(
+              └ <function run_scrape at 0x00000217617AC220>
+
+  File "C:\Users\Usuario\Desktop\Proyectos IA\LaAnonimaTracker-USH\laanonima-tracker\src\scraper.py", line 976, in run_scrape
+    init_db(engine)
+    │       └ Engine(sqlite:///data/laanonima_prices.db)
+    └ <function init_db at 0x0000021762FAE7A0>
+
+  File "C:\Users\Usuario\Desktop\Proyectos IA\LaAnonimaTracker-USH\laanonima-tracker\src\models.py", line 359, in init_db
+    _ensure_category_columns(engine)
+    │                        └ Engine(sqlite:///data/laanonima_prices.db)
+    └ <function _ensure_category_columns at 0x0000021762FAE8E0>
+
+  File "C:\Users\Usuario\Desktop\Proyectos IA\LaAnonimaTracker-USH\laanonima-tracker\src\models.py", line 377, in _ensure_category_columns
+    conn.execute(text("ALTER TABLE products ADD COLUMN category_id INTEGER"))
+    │    │       └ <function text at 0x0000021762A520C0>
+    │    └ <function Connection.execute at 0x0000021762AB8D60>
+    └ <sqlalchemy.engine.base.Connection object at 0x000002177E640950>
+
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\sqlalchemy\engine\base.py", line 1419, in execute
+    return meth(
+           └ <bound method ClauseElement._execute_on_connection of <sqlalchemy.sql.elements.TextClause object at 0x000002177E6426D0>>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\sqlalchemy\sql\elements.py", line 527, in _execute_on_connection
+    return connection._execute_clauseelement(
+           │          └ <function Connection._execute_clauseelement at 0x0000021762AB9080>
+           └ <sqlalchemy.engine.base.Connection object at 0x000002177E640950>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\sqlalchemy\engine\base.py", line 1641, in _execute_clauseelement
+    ret = self._execute_context(
+          │    └ <function Connection._execute_context at 0x0000021762AB9260>
+          └ <sqlalchemy.engine.base.Connection object at 0x000002177E640950>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\sqlalchemy\engine\base.py", line 1846, in _execute_context
+    return self._exec_single_context(
+           │    └ <function Connection._exec_single_context at 0x0000021762AB9300>
+           └ <sqlalchemy.engine.base.Connection object at 0x000002177E640950>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\sqlalchemy\engine\base.py", line 1986, in _exec_single_context
+    self._handle_dbapi_exception(
+    │    └ <function Connection._handle_dbapi_exception at 0x0000021762AB9580>
+    └ <sqlalchemy.engine.base.Connection object at 0x000002177E640950>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\sqlalchemy\engine\base.py", line 2363, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+          │                    │              │                 └ OperationalError('duplicate column name: category_id')
+          │                    │              └ (<class 'sqlite3.OperationalError'>, OperationalError('duplicate column name: category_id'), <traceback object at 0x000002177...
+          │                    └ <method 'with_traceback' of 'BaseException' objects>
+          └ OperationalError('(sqlite3.OperationalError) duplicate column name: category_id')
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\sqlalchemy\engine\base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+    │    │       └ <function DefaultDialect.do_execute at 0x0000021762B6CE00>
+    │    └ <sqlalchemy.dialects.sqlite.pysqlite.SQLiteDialect_pysqlite object at 0x000002177E612990>
+    └ <sqlalchemy.engine.base.Connection object at 0x000002177E640950>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\sqlalchemy\engine\default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+    │      │       │          └ ()
+    │      │       └ 'ALTER TABLE products ADD COLUMN category_id INTEGER'
+    │      └ <method 'execute' of 'sqlite3.Cursor' objects>
+    └ <sqlite3.Cursor object at 0x000002177E7089C0>
+
+sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) duplicate column name: category_id
+[SQL: ALTER TABLE products ADD COLUMN category_id INTEGER]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+2026-02-18 22:02:14 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-18 22:02:14 | INFO     | __main__ | Starting scrape: basket=all, headless=True, backend=sqlite, limit=5
+2026-02-18 22:02:14 | INFO     | src.scraper | Scraper initialized (headless=True)
+2026-02-18 22:02:14 | INFO     | src.scraper | Starting browser...
+2026-02-18 22:02:19 | INFO     | src.scraper | Browser started successfully
+2026-02-18 22:02:19 | INFO     | src.scraper | Selecting branch...
+2026-02-18 22:02:19 | INFO     | src.scraper | Selecting branch attempt 0/3: USHUAIA 5 (CP: 9410)
+2026-02-18 22:02:19 | INFO     | src.scraper | Navigating to https://www.laanonima.com.ar/
+2026-02-18 22:02:28 | INFO     | src.scraper | Current branch: None, need to change to USHUAIA 5
+2026-02-18 22:02:28 | INFO     | src.scraper | Clicking branch selector: a[data-toggle='codigo-postal']
+2026-02-18 22:02:28 | INFO     | src.scraper | Branch selector clicked
+2026-02-18 22:02:29 | INFO     | src.scraper | Filling postal code: 9410
+2026-02-18 22:02:59 | ERROR    | src.scraper | Branch selection failed (attempt 1): Locator.fill: Timeout 30000ms exceeded.
+Call log:
+  - waiting for locator("#idCodigoPostalUnificado")
+    - locator resolved to <input type="text" inputmode="numeric" id="idCodigoPostalUnificado" oninput="setCodigoPostalUnificado()" placeholder="Completa tu código postal" class="font-size-16 border-0 border-bottom-1 outline-none bgffffff px-0 py-4 mb-1"/>
+    - fill("9410")
+  - attempting fill action
+    2 × waiting for element to be visible, enabled and editable
+      - element is not visible
+    - retrying fill action
+    - waiting 20ms
+    2 × waiting for element to be visible, enabled and editable
+      - element is not visible
+    - retrying fill action
+      - waiting 100ms
+    59 × waiting for element to be visible, enabled and editable
+       - element is not visible
+     - retrying fill action
+       - waiting 500ms
+
+2026-02-18 22:03:00 | INFO     | src.scraper | Error screenshot saved to data/logs/branch_error_20260218_220259.png
+2026-02-18 22:03:02 | INFO     | src.scraper | Selecting branch attempt 1/3: USHUAIA 5 (CP: 9410)
+2026-02-18 22:03:02 | INFO     | src.scraper | Navigating to https://www.laanonima.com.ar/
+2026-02-18 22:03:05 | INFO     | src.scraper | Current branch: None, need to change to USHUAIA 5
+2026-02-18 22:03:05 | INFO     | src.scraper | Clicking branch selector: a[data-toggle='codigo-postal']
+2026-02-18 22:03:05 | INFO     | src.scraper | Branch selector clicked
+2026-02-18 22:03:06 | INFO     | src.scraper | Filling postal code: 9410
+2026-02-18 22:03:08 | INFO     | src.scraper | Branch selection confirmed
+2026-02-18 22:03:11 | WARNING  | src.scraper | Branch indicator not found after selection (may still be applied). Continuing.
+2026-02-18 22:03:11 | INFO     | src.scraper | Limited to 5 random products
+2026-02-18 22:03:11 | INFO     | src.scraper | Scraping 5 products from basket 'all'
+2026-02-18 22:03:11 | INFO     | src.scraper | Processing: Desodorante (ext_desodorante)
+2026-02-18 22:03:11 | INFO     | src.scraper | Searching for: desodorante
+2026-02-18 22:03:14 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/desodorante)
+2026-02-18 22:03:16 | INFO     | src.scraper | Found 0 products for 'desodorante'
+2026-02-18 22:03:16 | ERROR    | src.scraper | Error processing Desodorante: No results for Desodorante
+2026-02-18 22:03:16 | INFO     | src.scraper | Processing: Shampoo (ext_shampoo)
+2026-02-18 22:03:16 | INFO     | src.scraper | Searching for: shampoo
+2026-02-18 22:03:18 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/shampoo)
+2026-02-18 22:03:20 | INFO     | src.scraper | Found 0 products for 'shampoo'
+2026-02-18 22:03:20 | INFO     | src.scraper | Searching for: shampoo
+2026-02-18 22:03:21 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/shampoo)
+2026-02-18 22:03:23 | INFO     | src.scraper | Found 0 products for 'shampoo'
+2026-02-18 22:03:23 | ERROR    | src.scraper | Error processing Shampoo: No results for Shampoo
+2026-02-18 22:03:23 | INFO     | src.scraper | Processing: Choclo en lata (ext_choclo)
+2026-02-18 22:03:23 | INFO     | src.scraper | Searching for: choclo lata
+2026-02-18 22:03:25 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/choclo%20lata)
+2026-02-18 22:03:27 | INFO     | src.scraper | Found 0 products for 'choclo lata'
+2026-02-18 22:03:27 | INFO     | src.scraper | Searching for: choclo en lata
+2026-02-18 22:03:30 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/choclo%20en%20lata)
+2026-02-18 22:03:32 | INFO     | src.scraper | Found 0 products for 'choclo en lata'
+2026-02-18 22:03:32 | INFO     | src.scraper | Searching for: maíz dulce
+2026-02-18 22:03:34 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/ma%C3%ADz%20dulce)
+2026-02-18 22:03:37 | INFO     | src.scraper | Found 0 products for 'maíz dulce'
+2026-02-18 22:03:37 | ERROR    | src.scraper | Error processing Choclo en lata: No results for Choclo en lata
+2026-02-18 22:03:37 | INFO     | src.scraper | Processing: Queso rallado (cba_queso_rallado)
+2026-02-18 22:03:37 | INFO     | src.scraper | Searching for: queso rallado
+2026-02-18 22:03:39 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/queso%20rallado)
+2026-02-18 22:03:41 | INFO     | src.scraper | Found 0 products for 'queso rallado'
+2026-02-18 22:03:41 | INFO     | src.scraper | Searching for: rallado
+2026-02-18 22:03:43 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/rallado)
+2026-02-18 22:03:45 | INFO     | src.scraper | Found 0 products for 'rallado'
+2026-02-18 22:03:45 | ERROR    | src.scraper | Error processing Queso rallado: No results for Queso rallado
+2026-02-18 22:03:45 | INFO     | src.scraper | Processing: Vino común (cba_vino)
+2026-02-18 22:03:45 | INFO     | src.scraper | Searching for: vino común
+2026-02-18 22:03:48 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/vino%20com%C3%BAn)
+2026-02-18 22:03:50 | INFO     | src.scraper | Found 0 products for 'vino común'
+2026-02-18 22:03:50 | INFO     | src.scraper | Searching for: vino mesa
+2026-02-18 22:03:54 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/vino%20mesa)
+2026-02-18 22:03:56 | INFO     | src.scraper | Found 0 products for 'vino mesa'
+2026-02-18 22:03:56 | INFO     | src.scraper | Searching for: vino tinto
+2026-02-18 22:03:59 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/vino%20tinto)
+2026-02-18 22:04:01 | INFO     | src.scraper | Found 0 products for 'vino tinto'
+2026-02-18 22:04:01 | ERROR    | src.scraper | Error processing Vino común: No results for Vino común
+2026-02-18 22:04:01 | INFO     | src.scraper | Stopping browser...
+2026-02-18 22:04:01 | INFO     | src.scraper | Browser stopped
+2026-02-18 22:04:01 | ERROR    | src.scraper | Scrape failed: can't subtract offset-naive and offset-aware datetimes
+2026-02-18 22:04:01 | ERROR    | __main__ | Scrape failed
+Traceback (most recent call last):
+
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+
+  File "C:\Users\Usuario\Desktop\Proyectos IA\LaAnonimaTracker-USH\laanonima-tracker\src\cli.py", line 669, in <module>
+    cli()
+    └ <Group cli>
+
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\click\core.py", line 1462, in __call__
+    return self.main(*args, **kwargs)
+           │    │     │       └ {}
+           │    │     └ ()
+           │    └ <function Command.main at 0x000001F27343EC00>
+           └ <Group cli>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\click\core.py", line 1383, in main
+    rv = self.invoke(ctx)
+         │    │      └ <click.core.Context object at 0x000001F210AE5B50>
+         │    └ <function Group.invoke at 0x000001F27343FB00>
+         └ <Group cli>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\click\core.py", line 1850, in invoke
+    return _process_result(sub_ctx.command.invoke(sub_ctx))
+           │               │       │       │      └ <click.core.Context object at 0x000001F210AE5C90>
+           │               │       │       └ <function Command.invoke at 0x000001F27343E8E0>
+           │               │       └ <Command scrape>
+           │               └ <click.core.Context object at 0x000001F210AE5C90>
+           └ <function Group.invoke.<locals>._process_result at 0x000001F210AD9580>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\click\core.py", line 1246, in invoke
+    return ctx.invoke(self.callback, **ctx.params)
+           │   │      │    │           │   └ {'basket': 'all', 'limit': 5, 'headless': True, 'backend': 'sqlite'}
+           │   │      │    │           └ <click.core.Context object at 0x000001F210AE5C90>
+           │   │      │    └ <function scrape at 0x000001F210AD9760>
+           │   │      └ <Command scrape>
+           │   └ <function Context.invoke at 0x000001F27343DB20>
+           └ <click.core.Context object at 0x000001F210AE5C90>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\click\core.py", line 814, in invoke
+    return callback(*args, **kwargs)
+           │         │       └ {'basket': 'all', 'limit': 5, 'headless': True, 'backend': 'sqlite'}
+           │         └ ()
+           └ <function scrape at 0x000001F210AD9760>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\click\decorators.py", line 34, in new_func
+    return f(get_current_context(), *args, **kwargs)
+           │ │                       │       └ {'basket': 'all', 'limit': 5, 'headless': True, 'backend': 'sqlite'}
+           │ │                       └ ()
+           │ └ <function get_current_context at 0x000001F2734102C0>
+           └ <function scrape at 0x000001F210AD96C0>
+
+> File "C:\Users\Usuario\Desktop\Proyectos IA\LaAnonimaTracker-USH\laanonima-tracker\src\cli.py", line 127, in scrape
+    results = run_scrape(
+              └ <function run_scrape at 0x000001F273C9C220>
+
+  File "C:\Users\Usuario\Desktop\Proyectos IA\LaAnonimaTracker-USH\laanonima-tracker\src\scraper.py", line 1152, in run_scrape
+    (scrape_run.completed_at - scrape_run.started_at).total_seconds()
+     │          │              │          └ <sqlalchemy.orm.attributes.InstrumentedAttribute object at 0x000001F2754747C0>
+     │          │              └ <unprintable ScrapeRun object>
+     │          └ <sqlalchemy.orm.attributes.InstrumentedAttribute object at 0x000001F275474860>
+     └ <unprintable ScrapeRun object>
+
+TypeError: can't subtract offset-naive and offset-aware datetimes
+2026-02-18 22:05:18 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-18 22:05:18 | INFO     | __main__ | Starting scrape: basket=all, headless=True, backend=sqlite, limit=5
+2026-02-18 22:05:18 | INFO     | src.scraper | Scraper initialized (headless=True)
+2026-02-18 22:05:18 | INFO     | src.scraper | Starting browser...
+2026-02-18 22:05:19 | INFO     | src.scraper | Browser started successfully
+2026-02-18 22:05:19 | INFO     | src.scraper | Selecting branch...
+2026-02-18 22:05:19 | INFO     | src.scraper | Selecting branch attempt 0/3: USHUAIA 5 (CP: 9410)
+2026-02-18 22:05:19 | INFO     | src.scraper | Navigating to https://www.laanonima.com.ar/
+2026-02-18 22:05:25 | INFO     | src.scraper | Current branch: None, need to change to USHUAIA 5
+2026-02-18 22:05:25 | INFO     | src.scraper | Clicking branch selector: a[data-toggle='codigo-postal']
+2026-02-18 22:05:25 | INFO     | src.scraper | Branch selector clicked
+2026-02-18 22:05:26 | INFO     | src.scraper | Filling postal code: 9410
+2026-02-18 22:05:56 | ERROR    | src.scraper | Branch selection failed (attempt 1): Locator.fill: Timeout 30000ms exceeded.
+Call log:
+  - waiting for locator("#idCodigoPostalUnificado")
+    - locator resolved to <input type="text" inputmode="numeric" id="idCodigoPostalUnificado" oninput="setCodigoPostalUnificado()" placeholder="Completa tu código postal" class="font-size-16 border-0 border-bottom-1 outline-none bgffffff px-0 py-4 mb-1"/>
+    - fill("9410")
+  - attempting fill action
+    2 × waiting for element to be visible, enabled and editable
+      - element is not visible
+    - retrying fill action
+    - waiting 20ms
+    2 × waiting for element to be visible, enabled and editable
+      - element is not visible
+    - retrying fill action
+      - waiting 100ms
+    59 × waiting for element to be visible, enabled and editable
+       - element is not visible
+     - retrying fill action
+       - waiting 500ms
+
+2026-02-18 22:05:56 | INFO     | src.scraper | Error screenshot saved to data/logs/branch_error_20260218_220556.png
+2026-02-18 22:05:58 | INFO     | src.scraper | Selecting branch attempt 1/3: USHUAIA 5 (CP: 9410)
+2026-02-18 22:05:58 | INFO     | src.scraper | Navigating to https://www.laanonima.com.ar/
+2026-02-18 22:06:02 | INFO     | src.scraper | Current branch: None, need to change to USHUAIA 5
+2026-02-18 22:06:02 | INFO     | src.scraper | Clicking branch selector: a[data-toggle='codigo-postal']
+2026-02-18 22:06:02 | INFO     | src.scraper | Branch selector clicked
+2026-02-18 22:06:03 | INFO     | src.scraper | Filling postal code: 9410
+2026-02-18 22:06:05 | INFO     | src.scraper | Branch selection confirmed
+2026-02-18 22:06:10 | WARNING  | src.scraper | Branch indicator not found after selection (may still be applied). Continuing.
+2026-02-18 22:06:10 | INFO     | src.scraper | Limited to 5 random products
+2026-02-18 22:06:10 | INFO     | src.scraper | Scraping 5 products from basket 'all'
+2026-02-18 22:06:10 | INFO     | src.scraper | Processing: Jabón de tocador (ext_jabon)
+2026-02-18 22:06:10 | INFO     | src.scraper | Searching for: jabon tocador
+2026-02-18 22:06:12 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/jabon%20tocador)
+2026-02-18 22:06:14 | INFO     | src.scraper | Found 0 products for 'jabon tocador'
+2026-02-18 22:06:14 | INFO     | src.scraper | Searching for: jabón de tocador
+2026-02-18 22:06:17 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/jab%C3%B3n%20de%20tocador)
+2026-02-18 22:06:19 | INFO     | src.scraper | Found 0 products for 'jabón de tocador'
+2026-02-18 22:06:19 | ERROR    | src.scraper | Error processing Jabón de tocador: No results for Jabón de tocador
+2026-02-18 22:06:19 | INFO     | src.scraper | Processing: Papas (cba_papa)
+2026-02-18 22:06:19 | INFO     | src.scraper | Searching for: papa
+2026-02-18 22:06:21 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/papa)
+2026-02-18 22:06:23 | INFO     | src.scraper | Found 0 products for 'papa'
+2026-02-18 22:06:23 | INFO     | src.scraper | Searching for: papas
+2026-02-18 22:06:25 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/papas)
+2026-02-18 22:06:27 | INFO     | src.scraper | Found 0 products for 'papas'
+2026-02-18 22:06:27 | ERROR    | src.scraper | Error processing Papas: No results for Papas
+2026-02-18 22:06:27 | INFO     | src.scraper | Processing: Pollo entero (cba_pollo)
+2026-02-18 22:06:27 | INFO     | src.scraper | Searching for: pollo entero
+2026-02-18 22:06:30 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/pollo%20entero)
+2026-02-18 22:06:32 | INFO     | src.scraper | Found 0 products for 'pollo entero'
+2026-02-18 22:06:32 | INFO     | src.scraper | Searching for: pollo fresco
+2026-02-18 22:06:35 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/pollo%20fresco)
+2026-02-18 22:06:37 | INFO     | src.scraper | Found 0 products for 'pollo fresco'
+2026-02-18 22:06:37 | ERROR    | src.scraper | Error processing Pollo entero: No results for Pollo entero
+2026-02-18 22:06:37 | INFO     | src.scraper | Processing: Mayonesa (cba_mayonesa)
+2026-02-18 22:06:37 | INFO     | src.scraper | Searching for: mayonesa
+2026-02-18 22:06:39 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/mayonesa)
+2026-02-18 22:06:41 | INFO     | src.scraper | Found 0 products for 'mayonesa'
+2026-02-18 22:06:41 | ERROR    | src.scraper | Error processing Mayonesa: No results for Mayonesa
+2026-02-18 22:06:41 | INFO     | src.scraper | Processing: Shampoo (ext_shampoo)
+2026-02-18 22:06:41 | INFO     | src.scraper | Searching for: shampoo
+2026-02-18 22:06:42 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/shampoo)
+2026-02-18 22:06:44 | INFO     | src.scraper | Found 0 products for 'shampoo'
+2026-02-18 22:06:44 | INFO     | src.scraper | Searching for: shampoo
+2026-02-18 22:06:44 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/shampoo)
+2026-02-18 22:06:47 | INFO     | src.scraper | Found 0 products for 'shampoo'
+2026-02-18 22:06:47 | ERROR    | src.scraper | Error processing Shampoo: No results for Shampoo
+2026-02-18 22:06:47 | INFO     | src.scraper | Stopping browser...
+2026-02-18 22:06:47 | INFO     | src.scraper | Browser stopped
+2026-02-18 22:15:04 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-18 22:15:04 | INFO     | __main__ | Starting scrape: basket=all, headless=True, backend=sqlite, limit=3
+2026-02-18 22:15:04 | INFO     | src.scraper | Scraper initialized (headless=True)
+2026-02-18 22:15:04 | INFO     | src.scraper | Starting browser...
+2026-02-18 22:15:05 | INFO     | src.scraper | Browser started successfully
+2026-02-18 22:15:05 | INFO     | src.scraper | Selecting branch...
+2026-02-18 22:15:05 | INFO     | src.scraper | Selecting branch attempt 0/3: USHUAIA 5 (CP: 9410)
+2026-02-18 22:15:05 | INFO     | src.scraper | Navigating to https://www.laanonima.com.ar/
+2026-02-18 22:15:12 | INFO     | src.scraper | Current branch: Neuquén (8300), need to change to USHUAIA 5
+2026-02-18 22:15:12 | INFO     | src.scraper | Clicking branch selector: a[data-toggle='codigo-postal']
+2026-02-18 22:15:12 | INFO     | src.scraper | Branch selector clicked
+2026-02-18 22:15:13 | INFO     | src.scraper | Filling postal code: 9410
+2026-02-18 22:15:15 | INFO     | src.scraper | Branch selection confirmed
+2026-02-18 22:15:18 | INFO     | src.scraper | Branch selection verified: Ushuaia (9410)
+2026-02-18 22:15:18 | INFO     | src.scraper | Limited to 3 random products
+2026-02-18 22:15:18 | INFO     | src.scraper | Scraping 3 products from basket 'all'
+2026-02-18 22:15:18 | INFO     | src.scraper | Processing: Papas (cba_papa)
+2026-02-18 22:15:18 | INFO     | src.scraper | Searching for: papa
+2026-02-18 22:15:19 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/papa)
+2026-02-18 22:15:21 | INFO     | src.scraper | Found 12 products for 'papa'
+2026-02-18 22:20:20 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-18 22:20:20 | INFO     | __main__ | Starting scrape: basket=all, headless=True, backend=sqlite, limit=1
+2026-02-18 22:20:20 | INFO     | src.scraper | Scraper initialized (headless=True)
+2026-02-18 22:20:20 | INFO     | src.scraper | Starting browser...
+2026-02-18 22:20:22 | INFO     | src.scraper | Browser started successfully
+2026-02-18 22:20:22 | INFO     | src.scraper | Selecting branch...
+2026-02-18 22:20:22 | INFO     | src.scraper | Selecting branch attempt 0/3: USHUAIA 5 (CP: 9410)
+2026-02-18 22:20:22 | INFO     | src.scraper | Navigating to https://www.laanonima.com.ar/
+2026-02-18 22:20:28 | INFO     | src.scraper | Current branch: Neuquén (8300), need to change to USHUAIA 5
+2026-02-18 22:20:28 | INFO     | src.scraper | Clicking branch selector: a[data-toggle='codigo-postal']
+2026-02-18 22:20:28 | INFO     | src.scraper | Branch selector clicked
+2026-02-18 22:20:29 | INFO     | src.scraper | Filling postal code: 9410
+2026-02-18 22:20:59 | ERROR    | src.scraper | Branch selection failed (attempt 1): Locator.fill: Timeout 30000ms exceeded.
+Call log:
+  - waiting for locator("#idCodigoPostalUnificado")
+    - locator resolved to <input type="text" inputmode="numeric" id="idCodigoPostalUnificado" oninput="setCodigoPostalUnificado()" placeholder="Completa tu código postal" class="font-size-16 border-0 border-bottom-1 outline-none bgffffff px-0 py-4 mb-1"/>
+    - fill("9410")
+  - attempting fill action
+    2 × waiting for element to be visible, enabled and editable
+      - element is not visible
+    - retrying fill action
+    - waiting 20ms
+    2 × waiting for element to be visible, enabled and editable
+      - element is not visible
+    - retrying fill action
+      - waiting 100ms
+    59 × waiting for element to be visible, enabled and editable
+       - element is not visible
+     - retrying fill action
+       - waiting 500ms
+
+2026-02-18 22:21:00 | INFO     | src.scraper | Error screenshot saved to data/logs/branch_error_20260218_222059.png
+2026-02-18 22:21:02 | INFO     | src.scraper | Selecting branch attempt 1/3: USHUAIA 5 (CP: 9410)
+2026-02-18 22:21:02 | INFO     | src.scraper | Navigating to https://www.laanonima.com.ar/
+2026-02-18 22:21:06 | INFO     | src.scraper | Current branch: Neuquén (8300), need to change to USHUAIA 5
+2026-02-18 22:21:06 | INFO     | src.scraper | Clicking branch selector: a[data-toggle='codigo-postal']
+2026-02-18 22:21:06 | INFO     | src.scraper | Branch selector clicked
+2026-02-18 22:21:07 | INFO     | src.scraper | Filling postal code: 9410
+2026-02-18 22:21:09 | INFO     | src.scraper | Branch selection confirmed
+2026-02-18 22:21:12 | INFO     | src.scraper | Branch selection verified: Ushuaia (9410)
+2026-02-18 22:21:12 | INFO     | src.scraper | Limited to 1 random products
+2026-02-18 22:21:12 | INFO     | src.scraper | Scraping 1 products from basket 'all'
+2026-02-18 22:21:12 | INFO     | src.scraper | Processing: Harina de trigo 000 (ext_harina)
+2026-02-18 22:21:12 | INFO     | src.scraper | Searching for: harina 000
+2026-02-18 22:21:15 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/harina%20000)
+2026-02-18 22:21:17 | INFO     | src.scraper | Found 12 products for 'harina 000'
+2026-02-18 22:22:52 | ERROR    | src.scraper | Error processing Papas: too many values to unpack (expected 2)
+2026-02-18 22:22:52 | INFO     | src.scraper | Processing: Mayonesa (cba_mayonesa)
+2026-02-18 22:22:52 | INFO     | src.scraper | Searching for: mayonesa
+2026-02-18 22:22:55 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/mayonesa)
+2026-02-18 22:22:57 | INFO     | src.scraper | Found 12 products for 'mayonesa'
+2026-02-18 22:28:48 | ERROR    | src.scraper | Error processing Harina de trigo 000: too many values to unpack (expected 2)
+2026-02-18 22:28:48 | INFO     | src.scraper | Stopping browser...
+2026-02-18 22:28:48 | INFO     | src.scraper | Browser stopped
+2026-02-18 22:29:54 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-18 22:29:54 | INFO     | __main__ | Starting scrape: basket=all, headless=True, backend=sqlite, limit=1
+2026-02-18 22:29:54 | INFO     | src.scraper | Scraper initialized (headless=True)
+2026-02-18 22:29:54 | INFO     | src.scraper | Starting browser...
+2026-02-18 22:29:57 | INFO     | src.scraper | Browser started successfully
+2026-02-18 22:29:57 | INFO     | src.scraper | Selecting branch...
+2026-02-18 22:29:57 | INFO     | src.scraper | Selecting branch attempt 0/3: USHUAIA 5 (CP: 9410)
+2026-02-18 22:29:57 | INFO     | src.scraper | Navigating to https://www.laanonima.com.ar/
+2026-02-18 22:30:04 | INFO     | src.scraper | Current branch: Neuquén (8300), need to change to USHUAIA 5
+2026-02-18 22:30:04 | INFO     | src.scraper | Clicking branch selector: a[data-toggle='codigo-postal']
+2026-02-18 22:30:04 | INFO     | src.scraper | Branch selector clicked
+2026-02-18 22:30:05 | INFO     | src.scraper | Filling postal code: 9410
+2026-02-18 22:30:08 | INFO     | src.scraper | Branch selection confirmed
+2026-02-18 22:30:11 | INFO     | src.scraper | Branch selection verified: Ushuaia (9410)
+2026-02-18 22:30:11 | INFO     | src.scraper | Limited to 1 random products
+2026-02-18 22:30:11 | INFO     | src.scraper | Scraping 1 products from basket 'all'
+2026-02-18 22:30:11 | INFO     | src.scraper | Processing: Pan flauta/familia (cba_pan_fam)
+2026-02-18 22:30:11 | INFO     | src.scraper | Searching for: pan flauta
+2026-02-18 22:30:14 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/pan%20flauta)
+2026-02-18 22:30:16 | INFO     | src.scraper | Found 12 products for 'pan flauta'
+2026-02-18 22:30:27 | ERROR    | src.scraper | Error processing Mayonesa: too many values to unpack (expected 2)
+2026-02-18 22:30:28 | INFO     | src.scraper | Processing: Pasta dental (ext_pasta_dental)
+2026-02-18 22:30:28 | INFO     | src.scraper | Searching for: pasta dental
+2026-02-18 22:30:31 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/pasta%20dental)
+2026-02-18 22:30:33 | INFO     | src.scraper | Found 12 products for 'pasta dental'
+2026-02-18 22:38:04 | ERROR    | src.scraper | Error processing Pasta dental: too many values to unpack (expected 2)
+2026-02-18 22:38:04 | INFO     | src.scraper | Stopping browser...
+2026-02-18 22:38:05 | INFO     | src.scraper | Browser stopped
+2026-02-18 22:38:05 | ERROR    | __main__ | Scrape failed
+Traceback (most recent call last):
+
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+
+  File "C:\Users\Usuario\Desktop\Proyectos IA\LaAnonimaTracker-USH\laanonima-tracker\src\cli.py", line 669, in <module>
+    cli()
+    └ <Group cli>
+
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\click\core.py", line 1462, in __call__
+    return self.main(*args, **kwargs)
+           │    │     │       └ {}
+           │    │     └ ()
+           │    └ <function Command.main at 0x00000203ABCCEC00>
+           └ <Group cli>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\click\core.py", line 1383, in main
+    rv = self.invoke(ctx)
+         │    │      └ <click.core.Context object at 0x00000203C9375D90>
+         │    └ <function Group.invoke at 0x00000203ABCCFB00>
+         └ <Group cli>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\click\core.py", line 1850, in invoke
+    return _process_result(sub_ctx.command.invoke(sub_ctx))
+           │               │       │       │      └ <click.core.Context object at 0x00000203C9375ED0>
+           │               │       │       └ <function Command.invoke at 0x00000203ABCCE8E0>
+           │               │       └ <Command scrape>
+           │               └ <click.core.Context object at 0x00000203C9375ED0>
+           └ <function Group.invoke.<locals>._process_result at 0x00000203C9369580>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\click\core.py", line 1246, in invoke
+    return ctx.invoke(self.callback, **ctx.params)
+           │   │      │    │           │   └ {'basket': 'all', 'limit': 3, 'headless': True, 'backend': 'sqlite'}
+           │   │      │    │           └ <click.core.Context object at 0x00000203C9375ED0>
+           │   │      │    └ <function scrape at 0x00000203C9369760>
+           │   │      └ <Command scrape>
+           │   └ <function Context.invoke at 0x00000203ABCCDB20>
+           └ <click.core.Context object at 0x00000203C9375ED0>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\click\core.py", line 814, in invoke
+    return callback(*args, **kwargs)
+           │         │       └ {'basket': 'all', 'limit': 3, 'headless': True, 'backend': 'sqlite'}
+           │         └ ()
+           └ <function scrape at 0x00000203C9369760>
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\click\decorators.py", line 34, in new_func
+    return f(get_current_context(), *args, **kwargs)
+           │ │                       │       └ {'basket': 'all', 'limit': 3, 'headless': True, 'backend': 'sqlite'}
+           │ │                       └ ()
+           │ └ <function get_current_context at 0x00000203ABCA02C0>
+           └ <function scrape at 0x00000203C93696C0>
+
+> File "C:\Users\Usuario\Desktop\Proyectos IA\LaAnonimaTracker-USH\laanonima-tracker\src\cli.py", line 135, in scrape
+    click.echo(f"\n{'='*60}")
+    │     └ <function echo at 0x00000203ABCA0A40>
+    └ <module 'click' from 'C:\\Users\\Usuario\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\click\\__init__.py'>
+
+  File "C:\Users\Usuario\AppData\Local\Programs\Python\Python311\Lib\site-packages\click\utils.py", line 322, in echo
+    file.flush()
+    │    └ <method 'flush' of '_io.TextIOWrapper' objects>
+    └ <_io.TextIOWrapper name='<stdout>' mode='w' encoding='cp1252'>
+
+OSError: [Errno 22] Invalid argument
+2026-02-18 22:38:08 | ERROR    | src.scraper | Error processing Pan flauta/familia: No acceptable match for Pan flauta/familia (confidence=0.10)
+2026-02-18 22:38:08 | INFO     | src.scraper | Stopping browser...
+2026-02-18 22:38:09 | INFO     | src.scraper | Browser stopped
+2026-02-18 22:41:50 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-18 22:41:50 | INFO     | __main__ | Starting scrape: basket=all, headless=True, backend=sqlite, limit=1
+2026-02-18 22:41:50 | INFO     | src.scraper | Scraper initialized (headless=True)
+2026-02-18 22:41:50 | INFO     | src.scraper | Starting browser...
+2026-02-18 22:41:56 | INFO     | src.scraper | Browser started successfully
+2026-02-18 22:41:56 | INFO     | src.scraper | Selecting branch...
+2026-02-18 22:41:56 | INFO     | src.scraper | Selecting branch attempt 0/3: USHUAIA 5 (CP: 9410)
+2026-02-18 22:41:56 | INFO     | src.scraper | Navigating to https://www.laanonima.com.ar/
+2026-02-18 22:42:03 | INFO     | src.scraper | Current branch: Neuquén (8300), need to change to USHUAIA 5
+2026-02-18 22:42:03 | INFO     | src.scraper | Clicking branch selector: a[data-toggle='codigo-postal']
+2026-02-18 22:42:03 | INFO     | src.scraper | Branch selector clicked
+2026-02-18 22:42:04 | INFO     | src.scraper | Filling postal code: 9410
+2026-02-18 22:42:07 | INFO     | src.scraper | Branch selection confirmed
+2026-02-18 22:42:10 | INFO     | src.scraper | Branch selection verified: Ushuaia (9410)
+2026-02-18 22:42:10 | INFO     | src.scraper | Limited to 1 random products
+2026-02-18 22:42:10 | INFO     | src.scraper | Scraping 1 products from basket 'all'
+2026-02-18 22:42:10 | INFO     | src.scraper | Processing: Detergente (ext_detergente)
+2026-02-18 22:42:10 | INFO     | src.scraper | Searching for: detergente
+2026-02-18 22:42:13 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/detergente)
+2026-02-18 22:42:15 | INFO     | src.scraper | Found 12 products for 'detergente'
+2026-02-18 22:44:46 | INFO     | src.scraper | Detergente: tiered candidates selected (low=1550.00, mid=1750.00, high=4750.00)
+2026-02-18 22:44:47 | INFO     | src.scraper | Stopping browser...
+2026-02-18 22:44:48 | INFO     | src.scraper | Browser stopped
+2026-02-18 22:45:11 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-18 22:45:11 | INFO     | __main__ | Generating app report: from=None, to=None, basket=all, pdf=False, benchmark=ipc, view=executive, offline_assets=embed
+2026-02-18 22:46:33 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-18 22:46:33 | INFO     | __main__ | Starting scrape: basket=all, headless=True, backend=sqlite, limit=1
+2026-02-18 22:46:33 | INFO     | src.scraper | Scraper initialized (headless=True)
+2026-02-18 22:46:33 | INFO     | src.scraper | Starting browser...
+2026-02-18 22:46:38 | INFO     | src.scraper | Browser started successfully
+2026-02-18 22:46:38 | INFO     | src.scraper | Selecting branch...
+2026-02-18 22:46:38 | INFO     | src.scraper | Selecting branch attempt 0/3: USHUAIA 5 (CP: 9410)
+2026-02-18 22:46:38 | INFO     | src.scraper | Navigating to https://www.laanonima.com.ar/
+2026-02-18 22:46:45 | INFO     | src.scraper | Current branch: Neuquén (8300), need to change to USHUAIA 5
+2026-02-18 22:46:45 | INFO     | src.scraper | Clicking branch selector: a[data-toggle='codigo-postal']
+2026-02-18 22:46:45 | INFO     | src.scraper | Branch selector clicked
+2026-02-18 22:46:46 | INFO     | src.scraper | Filling postal code: 9410
+2026-02-18 22:46:49 | INFO     | src.scraper | Branch selection confirmed
+2026-02-18 22:46:53 | INFO     | src.scraper | Branch selection verified: Ushuaia (9410)
+2026-02-18 22:46:53 | INFO     | src.scraper | Limited to 1 random products
+2026-02-18 22:46:53 | INFO     | src.scraper | Scraping 1 products from basket 'all'
+2026-02-18 22:46:53 | INFO     | src.scraper | Processing: Azúcar (cba_azucar)
+2026-02-18 22:46:53 | INFO     | src.scraper | Searching for: azucar
+2026-02-18 22:46:56 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/azucar)
+2026-02-18 22:46:58 | INFO     | src.scraper | Found 12 products for 'azucar'
+2026-02-18 22:49:29 | INFO     | src.scraper | Azúcar: tiered candidates selected (low=1350.00, mid=1800.00, high=3350.00)
+2026-02-18 22:49:29 | ERROR    | src.scraper | Error processing Azúcar: No acceptable match for Azúcar (confidence=0.26)
+2026-02-18 22:49:29 | INFO     | src.scraper | Stopping browser...
+2026-02-18 22:49:29 | INFO     | src.scraper | Browser stopped
+2026-02-18 22:50:26 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-18 22:50:26 | INFO     | __main__ | Starting scrape: basket=all, headless=True, backend=sqlite, limit=1
+2026-02-18 22:50:26 | INFO     | src.scraper | Scraper initialized (headless=True)
+2026-02-18 22:50:26 | INFO     | src.scraper | Starting browser...
+2026-02-18 22:50:30 | INFO     | src.scraper | Browser started successfully
+2026-02-18 22:50:30 | INFO     | src.scraper | Selecting branch...
+2026-02-18 22:50:30 | INFO     | src.scraper | Selecting branch attempt 0/3: USHUAIA 5 (CP: 9410)
+2026-02-18 22:50:30 | INFO     | src.scraper | Navigating to https://www.laanonima.com.ar/
+2026-02-18 22:50:37 | INFO     | src.scraper | Current branch: Neuquén (8300), need to change to USHUAIA 5
+2026-02-18 22:50:37 | INFO     | src.scraper | Clicking branch selector: a[data-toggle='codigo-postal']
+2026-02-18 22:50:37 | INFO     | src.scraper | Branch selector clicked
+2026-02-18 22:50:38 | INFO     | src.scraper | Filling postal code: 9410
+2026-02-18 22:50:41 | INFO     | src.scraper | Branch selection confirmed
+2026-02-18 22:50:44 | INFO     | src.scraper | Branch selection verified: Ushuaia (9410)
+2026-02-18 22:50:44 | INFO     | src.scraper | Limited to 1 random products
+2026-02-18 22:50:44 | INFO     | src.scraper | Scraping 1 products from basket 'all'
+2026-02-18 22:50:44 | INFO     | src.scraper | Processing: Cebolla (cba_cebolla)
+2026-02-18 22:50:44 | INFO     | src.scraper | Searching for: cebolla
+2026-02-18 22:50:46 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/cebolla)
+2026-02-18 22:50:48 | INFO     | src.scraper | Found 12 products for 'cebolla'
+2026-02-18 22:53:20 | INFO     | src.scraper | Cebolla: tiered candidates selected (low=1399.00, mid=1990.00, high=3350.00)
+2026-02-18 22:53:21 | INFO     | src.scraper | Stopping browser...
+2026-02-18 22:53:21 | INFO     | src.scraper | Browser stopped
+2026-02-18 22:53:37 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-18 22:53:37 | INFO     | __main__ | Generating app report: from=None, to=None, basket=all, pdf=False, benchmark=ipc, view=executive, offline_assets=embed
+2026-02-18 23:12:16 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-18 23:12:16 | INFO     | __main__ | Generating app report: from=None, to=None, basket=all, pdf=False, benchmark=ipc, view=executive, offline_assets=embed
+2026-02-18 23:13:34 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-18 23:13:34 | INFO     | __main__ | Generating app report: from=None, to=None, basket=all, pdf=False, benchmark=ipc, view=executive, offline_assets=embed
+2026-02-18 23:32:42 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-18 23:32:42 | INFO     | __main__ | Starting scrape: basket=all, headless=True, backend=sqlite, limit=1
+2026-02-18 23:32:42 | INFO     | src.scraper | Scraper initialized (headless=True)
+2026-02-18 23:32:42 | INFO     | src.scraper | Starting browser...
+2026-02-18 23:32:43 | INFO     | src.scraper | Browser started successfully
+2026-02-18 23:32:43 | INFO     | src.scraper | Selecting branch...
+2026-02-18 23:32:43 | INFO     | src.scraper | Selecting branch attempt 0/3: USHUAIA 5 (CP: 9410)
+2026-02-18 23:32:43 | INFO     | src.scraper | Navigating to https://www.laanonima.com.ar/
+2026-02-18 23:32:50 | INFO     | src.scraper | Current branch: Neuquén (8300), need to change to USHUAIA 5
+2026-02-18 23:32:50 | INFO     | src.scraper | Clicking branch selector: a[data-toggle='codigo-postal']
+2026-02-18 23:32:50 | INFO     | src.scraper | Branch selector clicked
+2026-02-18 23:32:50 | INFO     | src.scraper | Filling postal code: 9410
+2026-02-18 23:32:52 | INFO     | src.scraper | Branch selection confirmed
+2026-02-18 23:32:54 | INFO     | src.scraper | Branch selection verified: Ushuaia (9410)
+2026-02-18 23:32:54 | INFO     | src.scraper | Limited to 1 random products
+2026-02-18 23:32:54 | INFO     | src.scraper | Scraping 1 products from basket 'all'
+2026-02-18 23:32:54 | INFO     | src.scraper | Processing: Choclo en lata (ext_choclo)
+2026-02-18 23:32:54 | INFO     | src.scraper | Searching for: choclo lata
+2026-02-18 23:32:57 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/choclo%20lata)
+2026-02-18 23:32:58 | INFO     | src.scraper | Found 12 products for 'choclo lata'
+2026-02-18 23:32:59 | ERROR    | src.scraper | Error processing Choclo en lata: No acceptable candidates for Choclo en lata
+2026-02-18 23:32:59 | INFO     | src.scraper | Stopping browser...
+2026-02-18 23:32:59 | INFO     | src.scraper | Browser stopped
+2026-02-18 23:33:48 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-18 23:33:48 | INFO     | __main__ | Starting scrape: basket=all, headless=True, backend=sqlite, limit=1
+2026-02-18 23:33:48 | INFO     | src.scraper | Scraper initialized (headless=True)
+2026-02-18 23:33:48 | INFO     | src.scraper | Starting browser...
+2026-02-18 23:33:50 | INFO     | src.scraper | Browser started successfully
+2026-02-18 23:33:50 | INFO     | src.scraper | Selecting branch...
+2026-02-18 23:33:50 | INFO     | src.scraper | Selecting branch attempt 0/3: USHUAIA 5 (CP: 9410)
+2026-02-18 23:33:50 | INFO     | src.scraper | Navigating to https://www.laanonima.com.ar/
+2026-02-18 23:33:54 | INFO     | src.scraper | Current branch: Neuquén (8300), need to change to USHUAIA 5
+2026-02-18 23:33:54 | INFO     | src.scraper | Clicking branch selector: a[data-toggle='codigo-postal']
+2026-02-18 23:33:54 | INFO     | src.scraper | Branch selector clicked
+2026-02-18 23:33:55 | INFO     | src.scraper | Filling postal code: 9410
+2026-02-18 23:33:56 | INFO     | src.scraper | Branch selection confirmed
+2026-02-18 23:33:59 | INFO     | src.scraper | Branch selection verified: Ushuaia (9410)
+2026-02-18 23:33:59 | INFO     | src.scraper | Limited to 1 random products
+2026-02-18 23:33:59 | INFO     | src.scraper | Scraping 1 products from basket 'all'
+2026-02-18 23:33:59 | INFO     | src.scraper | Processing: Puré de tomate (ext_pure_tomate)
+2026-02-18 23:33:59 | INFO     | src.scraper | Searching for: pure tomate
+2026-02-18 23:34:01 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/pure%20tomate)
+2026-02-18 23:34:02 | INFO     | src.scraper | Found 12 products for 'pure tomate'
+2026-02-18 23:34:03 | WARNING  | src.scraper | Puré de tomate: only 2 candidates found (target=3)
+2026-02-18 23:34:03 | ERROR    | src.scraper | Error processing Puré de tomate: No acceptable match for Puré de tomate (confidence=0.10)
+2026-02-18 23:34:03 | INFO     | src.scraper | Stopping browser...
+2026-02-18 23:34:03 | INFO     | src.scraper | Browser stopped
+2026-02-18 23:34:32 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-18 23:34:32 | INFO     | __main__ | Starting scrape: basket=all, headless=True, backend=sqlite, limit=1
+2026-02-18 23:34:32 | INFO     | src.scraper | Scraper initialized (headless=True)
+2026-02-18 23:34:32 | INFO     | src.scraper | Starting browser...
+2026-02-18 23:34:33 | INFO     | src.scraper | Browser started successfully
+2026-02-18 23:34:33 | INFO     | src.scraper | Selecting branch...
+2026-02-18 23:34:33 | INFO     | src.scraper | Selecting branch attempt 0/3: USHUAIA 5 (CP: 9410)
+2026-02-18 23:34:33 | INFO     | src.scraper | Navigating to https://www.laanonima.com.ar/
+2026-02-18 23:34:36 | INFO     | src.scraper | Current branch: Neuquén (8300), need to change to USHUAIA 5
+2026-02-18 23:34:36 | INFO     | src.scraper | Clicking branch selector: a[data-toggle='codigo-postal']
+2026-02-18 23:34:37 | INFO     | src.scraper | Branch selector clicked
+2026-02-18 23:34:37 | INFO     | src.scraper | Filling postal code: 9410
+2026-02-18 23:34:38 | INFO     | src.scraper | Branch selection confirmed
+2026-02-18 23:34:43 | INFO     | src.scraper | Branch selection verified: Ushuaia (9410)
+2026-02-18 23:34:43 | INFO     | src.scraper | Limited to 1 random products
+2026-02-18 23:34:43 | INFO     | src.scraper | Scraping 1 products from basket 'all'
+2026-02-18 23:34:43 | INFO     | src.scraper | Processing: Té en saquitos (cba_te)
+2026-02-18 23:34:43 | INFO     | src.scraper | Searching for: te saquitos
+2026-02-18 23:34:45 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/te%20saquitos)
+2026-02-18 23:34:46 | INFO     | src.scraper | Found 12 products for 'te saquitos'
+2026-02-18 23:34:47 | WARNING  | src.scraper | Té en saquitos: only 1 candidates found (target=3)
+2026-02-18 23:34:48 | INFO     | src.scraper | Stopping browser...
+2026-02-18 23:34:48 | INFO     | src.scraper | Browser stopped
+2026-02-18 23:35:45 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-18 23:35:45 | INFO     | __main__ | Starting scrape: basket=all, headless=True, backend=sqlite, limit=1
+2026-02-18 23:35:45 | INFO     | src.scraper | Scraper initialized (headless=True)
+2026-02-18 23:35:45 | INFO     | src.scraper | Starting browser...
+2026-02-18 23:35:47 | INFO     | src.scraper | Browser started successfully
+2026-02-18 23:35:47 | INFO     | src.scraper | Selecting branch...
+2026-02-18 23:35:47 | INFO     | src.scraper | Selecting branch attempt 0/3: USHUAIA 5 (CP: 9410)
+2026-02-18 23:35:47 | INFO     | src.scraper | Navigating to https://www.laanonima.com.ar/
+2026-02-18 23:35:51 | INFO     | src.scraper | Current branch: Neuquén (8300), need to change to USHUAIA 5
+2026-02-18 23:35:51 | INFO     | src.scraper | Clicking branch selector: a[data-toggle='codigo-postal']
+2026-02-18 23:35:51 | INFO     | src.scraper | Branch selector clicked
+2026-02-18 23:35:51 | INFO     | src.scraper | Filling postal code: 9410
+2026-02-18 23:35:53 | INFO     | src.scraper | Branch selection confirmed
+2026-02-18 23:35:56 | INFO     | src.scraper | Branch selection verified: Ushuaia (9410)
+2026-02-18 23:35:56 | INFO     | src.scraper | Limited to 1 random products
+2026-02-18 23:35:56 | INFO     | src.scraper | Scraping 1 products from basket 'all'
+2026-02-18 23:35:56 | INFO     | src.scraper | Processing: Yerba mate (cba_yerba)
+2026-02-18 23:35:56 | INFO     | src.scraper | Searching for: yerba mate
+2026-02-18 23:35:58 | INFO     | src.scraper | Search strategy used: direct_url (https://www.laanonima.com.ar/buscar/yerba%20mate)
+2026-02-18 23:35:59 | INFO     | src.scraper | Found 12 products for 'yerba mate'
+2026-02-18 23:36:01 | INFO     | src.scraper | Yerba mate: tiered candidates selected (low=1800.00, mid=2688.00, high=5200.00)
+2026-02-18 23:36:02 | INFO     | src.scraper | Stopping browser...
+2026-02-18 23:36:02 | INFO     | src.scraper | Browser stopped
+2026-02-18 23:36:11 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-18 23:36:11 | INFO     | __main__ | Generating app report: from=None, to=None, basket=all, pdf=False, benchmark=ipc, view=executive, offline_assets=embed
+2026-02-18 23:37:16 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-18 23:37:16 | INFO     | __main__ | Generating app report: from=None, to=None, basket=all, pdf=False, benchmark=ipc, view=executive, offline_assets=embed
+2026-02-19 00:25:42 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-19 00:25:52 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-19 00:25:52 | INFO     | __main__ | Starting scrape: basket=all, headless=True, backend=sqlite, limit=None, profile=balanced, budget_min=20, rotation_items=4, sample_random=False, dry_plan=True, candidate_storage=json, observation_policy=single+audit
+2026-02-19 00:26:09 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-19 00:26:09 | INFO     | __main__ | Starting scrape: basket=all, headless=True, backend=sqlite, limit=None, profile=balanced, budget_min=20, rotation_items=4, sample_random=False, dry_plan=True, candidate_storage=json, observation_policy=single+audit
+2026-02-19 00:39:57 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-19 00:40:08 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-19 00:40:08 | INFO     | __main__ | Generating app report: from=2025-09, to=2026-02, basket=all, pdf=False, benchmark=ipc, view=executive, offline_assets=embed
+2026-02-19 00:41:08 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-19 00:41:08 | INFO     | __main__ | Starting scrape: basket=all, headless=True, backend=sqlite, limit=None, profile=balanced, budget_min=20, rotation_items=4, sample_random=False, dry_plan=True, candidate_storage=db, observation_policy=single+audit
+2026-02-19 00:52:29 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-19 00:52:29 | INFO     | __main__ | Generating app report: from=2026-01, to=2026-02, basket=all, pdf=False, benchmark=ipc, view=executive, offline_assets=embed
+2026-02-19 00:53:21 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-19 00:53:21 | INFO     | __main__ | Generating app report: from=2026-01, to=2026-02, basket=all, pdf=False, benchmark=ipc, view=executive, offline_assets=embed
+2026-02-19 00:57:11 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-19 00:57:11 | INFO     | __main__ | Generating app report: from=2026-01, to=2026-02, basket=all, pdf=False, benchmark=ipc, view=executive, offline_assets=embed
+2026-02-19 00:57:48 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-19 00:57:48 | INFO     | __main__ | Generating app report: from=2026-01, to=2026-02, basket=all, pdf=False, benchmark=ipc, view=executive, offline_assets=embed
+2026-02-19 00:58:16 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-19 00:58:16 | INFO     | __main__ | Generating app report: from=2026-01, to=2026-02, basket=all, pdf=False, benchmark=ipc, view=executive, offline_assets=embed
+2026-02-19 01:09:22 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-19 01:09:22 | INFO     | __main__ | Generating app report: from=2026-01, to=2026-02, basket=all, pdf=False, benchmark=ipc, view=executive, offline_assets=embed
+2026-02-19 01:09:56 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-19 01:09:56 | INFO     | __main__ | Generating app report: from=2026-01, to=2026-02, basket=all, pdf=False, benchmark=ipc, view=executive, offline_assets=embed
+2026-02-19 01:15:17 | INFO     | __main__ | La AnÃ³nima Price Tracker initialized
+2026-02-19 01:15:17 | INFO     | __main__ | Generating app report: from=2026-01, to=2026-02, basket=all, pdf=False, benchmark=ipc, view=executive, offline_assets=embed

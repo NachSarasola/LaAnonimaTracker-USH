@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from src.models import CategoryIndex, IndexQualityAudit, Price, Product, ScrapeRun
+from src.models import CategoryIndex, IndexQualityAudit, Price, PriceCandidate, Product, ScrapeRun
 
 
 @dataclass
@@ -79,6 +79,63 @@ class SeriesRepository:
             end_date=end_date,
         )
         rows = query.order_by(Price.canonical_id.asc(), Price.scraped_at.asc()).all()
+        return [dict(row._mapping) for row in rows]
+
+    def get_report_rows(
+        self,
+        basket_type: str,
+        start_dt: datetime,
+        end_exclusive_dt: datetime,
+    ) -> List[Dict[str, Any]]:
+        """Return raw rows needed by interactive HTML report."""
+        query = (
+            self.session.query(
+                Price.canonical_id,
+                Price.product_name,
+                Price.basket_id,
+                Price.current_price,
+                Price.scraped_at,
+                Price.product_url,
+                Price.product_size,
+                Product.category,
+            )
+            .outerjoin(Product, Price.canonical_id == Product.canonical_id)
+            .filter(Price.scraped_at >= start_dt)
+            .filter(Price.scraped_at < end_exclusive_dt)
+        )
+        if basket_type != "all":
+            query = query.filter(Price.basket_id == basket_type)
+
+        rows = query.order_by(Price.canonical_id.asc(), Price.scraped_at.asc()).all()
+        return [dict(row._mapping) for row in rows]
+
+    def get_candidate_rows(
+        self,
+        basket_type: str,
+        start_dt: datetime,
+        end_exclusive_dt: datetime,
+    ) -> List[Dict[str, Any]]:
+        """Return candidate low/mid/high rows for interactive report overlays."""
+        query = (
+            self.session.query(
+                PriceCandidate.canonical_id,
+                PriceCandidate.basket_id,
+                PriceCandidate.product_name,
+                PriceCandidate.tier,
+                PriceCandidate.candidate_rank,
+                PriceCandidate.candidate_price,
+                PriceCandidate.confidence_score,
+                PriceCandidate.is_selected,
+                PriceCandidate.is_fallback,
+                PriceCandidate.scraped_at,
+            )
+            .filter(PriceCandidate.scraped_at >= start_dt)
+            .filter(PriceCandidate.scraped_at < end_exclusive_dt)
+        )
+        if basket_type != "all":
+            query = query.filter(PriceCandidate.basket_id == basket_type)
+
+        rows = query.order_by(PriceCandidate.canonical_id.asc(), PriceCandidate.scraped_at.asc()).all()
         return [dict(row._mapping) for row in rows]
 
     def get_category_series(

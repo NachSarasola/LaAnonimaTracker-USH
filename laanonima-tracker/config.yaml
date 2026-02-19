@@ -520,7 +520,46 @@ scraping:
   request_delay: 1000
   
   # Max products to check per search
-  max_results_per_search: 5
+  max_results_per_search: 12
+  # Minimo de candidatos por busqueda (barato/medio/caro)
+  min_candidates_per_product: 3
+  # Umbral minimo de confianza para guardar match representativo
+  min_match_confidence: 0.2
+  # Timeouts livianos para parseo/listado
+  quick_selector_timeout_ms: 250
+  search_settle_delay_ms: 700
+
+  # Candidate persistence strategy (prepara modo futuro de guardar 3)
+  candidates:
+    storage_mode: "db"     # json|db|off
+    min_candidates_per_product: 3
+
+  # Deterministic basket planning for efficient runs
+  planning:
+    profile_default: "balanced"          # balanced|full|cba_only
+    runtime_budget_minutes: 20
+    rotation_items_default: 4
+    lookback_runs: 10
+    overhead_seconds: 90
+    daily_core_ids:
+      - "ext_harina"
+      - "ext_pure_tomate"
+      - "ext_atun"
+      - "ext_gaseosa"
+      - "ext_shampoo"
+      - "ext_jabon"
+      - "ext_pasta_dental"
+      - "ext_papel_higienico"
+      - "ext_detergente"
+      - "ext_lavandina"
+    daily_rotation_ids:
+      - "ext_aceite_oliva"
+      - "ext_azucar_morena"
+      - "ext_galletas_dulces"
+      - "ext_jugo"
+      - "ext_arvejas"
+      - "ext_choclo"
+      - "ext_desodorante"
   
   # Browser settings
   browser:
@@ -537,12 +576,12 @@ scraping:
     branch_options: "#opcionesSucursal"
     branch_radio: "input[name='sucursalSuper']"
     confirm_button: "#btn_setSucursalSuper"
-    current_branch_label: ".sucursal-actual"
+    current_branch_label: ".sucursal"
     search_input: "#idBuscarProducto"
     search_button: ".btn-buscar"
-    product_list: ".producto"
-    product_name: ".nombre-producto"
-    product_price: ".precio-actual"
+    product_list: ".producto-item"
+    product_name: ".titulo"
+    product_price: ".precio"
     product_price_old: ".precio-anterior"
     product_unit_price: ".precio-unitario"
     product_url: "a[href*='producto'], a[href*='art_']"

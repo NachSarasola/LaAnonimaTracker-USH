@@ -11,6 +11,7 @@ from sqlalchemy import (
     Column,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
@@ -78,6 +79,10 @@ class Price(Base):
     """Price observations table (long format)."""
     
     __tablename__ = "prices"
+    __table_args__ = (
+        Index("ix_prices_canonical_scraped_at", "canonical_id", "scraped_at"),
+        Index("ix_prices_basket_scraped_at", "basket_id", "scraped_at"),
+    )
     
     id = Column(Integer, primary_key=True)
     
@@ -134,6 +139,44 @@ class Price(Base):
         return None
 
 
+class PriceCandidate(Base):
+    """Low/mid/high candidate prices captured during matching."""
+
+    __tablename__ = "price_candidates"
+    __table_args__ = (
+        Index("ix_price_candidates_run_canonical", "run_id", "canonical_id"),
+        Index("ix_price_candidates_canonical_scraped_at", "canonical_id", "scraped_at"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    run_id = Column(Integer, ForeignKey("scrape_runs.id"), nullable=False, index=True)
+
+    canonical_id = Column(String(50), nullable=False, index=True)
+    basket_id = Column(String(50), nullable=False, index=True)
+    product_id = Column(String(50), nullable=True, index=True)
+    product_name = Column(String(255), nullable=True)
+
+    tier = Column(String(10), nullable=False)  # low|mid|high|single
+    candidate_rank = Column(Integer, nullable=True)
+
+    candidate_price = Column(Numeric(12, 2), nullable=True)
+    candidate_name = Column(String(255), nullable=True)
+    candidate_url = Column(Text, nullable=True)
+    confidence_score = Column(Numeric(3, 2), nullable=True)
+
+    is_selected = Column(Boolean, default=False)
+    is_fallback = Column(Boolean, default=False)
+    scraped_at = Column(DateTime, default=func.now())
+
+    run = relationship("ScrapeRun", back_populates="price_candidates")
+
+    def __repr__(self):
+        return (
+            f"<PriceCandidate(canonical_id='{self.canonical_id}', tier='{self.tier}', "
+            f"price={self.candidate_price})>"
+        )
+
+
 class ScrapeRun(Base):
     """Scrape execution log table."""
     
@@ -170,6 +213,11 @@ class ScrapeRun(Base):
     
     # Relationships
     prices = relationship("Price", back_populates="run", cascade="all, delete-orphan")
+    price_candidates = relationship(
+        "PriceCandidate",
+        back_populates="run",
+        cascade="all, delete-orphan",
+    )
     errors = relationship("ScrapeError", back_populates="run", cascade="all, delete-orphan")
     
     def __repr__(self):
@@ -352,11 +400,17 @@ def init_db(engine):
     """Initialize database tables."""
     Base.metadata.create_all(engine)
     _ensure_category_columns(engine)
+    _ensure_runtime_indexes(engine)
 
 
 def get_session_factory(engine):
     """Get session factory for database operations."""
     return sessionmaker(bind=engine)
+
+
+def _sqlite_has_column(conn, table_name: str, column_name: str) -> bool:
+    rows = conn.execute(text(f"PRAGMA table_info({table_name})")).mappings().all()
+    return column_name in {row["name"] for row in rows}
 
 
 def _ensure_category_columns(engine):
@@ -365,16 +419,54 @@ def _ensure_category_columns(engine):
     dialect = engine.dialect.name
 
     with engine.begin() as conn:
+        if dialect == "sqlite":
+            if not _sqlite_has_column(conn, "products", "category_id"):
+                try:
+                    conn.execute(text("ALTER TABLE products ADD COLUMN category_id INTEGER"))
+                except Exception as exc:
+                    if "duplicate column name" not in str(exc).lower():
+                        raise
+            if not _sqlite_has_column(conn, "prices", "category_id"):
+                try:
+                    conn.execute(text("ALTER TABLE prices ADD COLUMN category_id INTEGER"))
+                except Exception as exc:
+                    if "duplicate column name" not in str(exc).lower():
+                        raise
+            return
+
         product_columns = {c["name"] for c in inspector.get_columns("products")}
-        if "category_id" not in product_columns:
-            if dialect == "sqlite":
-                conn.execute(text("ALTER TABLE products ADD COLUMN category_id INTEGER"))
-            elif dialect == "postgresql":
-                conn.execute(text("ALTER TABLE products ADD COLUMN IF NOT EXISTS category_id INTEGER"))
+        if "category_id" not in product_columns and dialect == "postgresql":
+            conn.execute(text("ALTER TABLE products ADD COLUMN IF NOT EXISTS category_id INTEGER"))
 
         price_columns = {c["name"] for c in inspector.get_columns("prices")}
-        if "category_id" not in price_columns:
-            if dialect == "sqlite":
-                conn.execute(text("ALTER TABLE prices ADD COLUMN category_id INTEGER"))
-            elif dialect == "postgresql":
-                conn.execute(text("ALTER TABLE prices ADD COLUMN IF NOT EXISTS category_id INTEGER"))
+        if "category_id" not in price_columns and dialect == "postgresql":
+            conn.execute(text("ALTER TABLE prices ADD COLUMN IF NOT EXISTS category_id INTEGER"))
+
+
+def _ensure_runtime_indexes(engine):
+    """Create performance indexes if they do not exist."""
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_prices_canonical_scraped_at "
+                "ON prices (canonical_id, scraped_at)"
+            )
+        )
+        conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_prices_basket_scraped_at "
+                "ON prices (basket_id, scraped_at)"
+            )
+        )
+        conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_price_candidates_run_canonical "
+                "ON price_candidates (run_id, canonical_id)"
+            )
+        )
+        conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_price_candidates_canonical_scraped_at "
+                "ON price_candidates (canonical_id, scraped_at)"
+            )
+        )
