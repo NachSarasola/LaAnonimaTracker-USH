@@ -150,6 +150,7 @@ class TestReportMonthlyRange(unittest.TestCase):
         self.assertIn("id=\"macro-region\"", html)
         self.assertIn("id=\"macro-category\"", html)
         self.assertIn("id=\"macro-status\"", html)
+        self.assertIn("id=\"macro-notice\"", html)
         self.assertIn("id=\"panel-bands\"", html)
         self.assertIn("id=\"band-product\"", html)
         self.assertIn("id=\"chart-bands\"", html)
@@ -196,6 +197,52 @@ class TestReportMonthlyRange(unittest.TestCase):
         self.assertAlmostEqual(by_category["lacteos"]["coverage_pct"], 100.0)
         self.assertEqual(by_category["carnes"]["expected_products"], 1)
         self.assertAlmostEqual(by_category["carnes"]["coverage_pct"], 100.0)
+
+    def test_ipc_comparison_series_uses_independent_base_when_no_overlap(self):
+        tracker_df = pd.DataFrame(
+            [
+                {"year_month": "2026-02", "index_value": 100.0, "mom_change": 5.0, "status": "provisional"},
+            ]
+        )
+        official_df = pd.DataFrame(
+            [
+                {"year_month": "2026-01", "cpi_index": 10554.0, "cpi_mom": 2.9, "status": "final", "source": "indec"},
+            ]
+        )
+
+        rows = self.generator._build_ipc_comparison_series(tracker_df, official_df)
+        by_month = {row["year_month"]: row for row in rows}
+
+        self.assertEqual(by_month["2026-01"]["plot_mode"], "independent_base")
+        self.assertFalse(by_month["2026-01"]["is_strictly_comparable"])
+        self.assertIsNone(by_month["2026-01"]["official_index_base100"])
+        self.assertEqual(by_month["2026-01"]["plot_official_base100"], 100.0)
+        self.assertEqual(by_month["2026-02"]["plot_tracker_base100"], 100.0)
+        self.assertIsNone(by_month["2026-02"]["gap_index_points"])
+
+    def test_publication_status_derives_when_region_has_no_publication_run(self):
+        tracker_df = pd.DataFrame(
+            [
+                {"year_month": "2026-01", "index_value": None, "status": "provisional_low_coverage"},
+                {"year_month": "2026-02", "index_value": 100.0, "status": "provisional_low_coverage"},
+            ]
+        )
+        official_df = pd.DataFrame(
+            [
+                {"year_month": "2026-01", "cpi_index": 10554.0, "status": "final"},
+            ]
+        )
+
+        status = self.generator._load_publication_status(
+            basket_type="all",
+            region="nacional",
+            tracker_df=tracker_df,
+            official_df=official_df,
+        )
+
+        self.assertEqual(status.get("status_origin"), "derived_from_series")
+        self.assertEqual(status.get("latest_tracker_month"), "2026-02")
+        self.assertEqual(status.get("latest_official_month"), "2026-01")
 
 
 

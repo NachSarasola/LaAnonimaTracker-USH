@@ -2,6 +2,12 @@
 
 on:
   workflow_dispatch:
+    inputs:
+      enforce_empty_db:
+        description: "Bootstrap guard: fail if DB already has test/history rows (use true for first real launch)"
+        required: false
+        default: false
+        type: boolean
   schedule:
     # 06:10 ART ~= 09:10 UTC
     - cron: "10 9 * * *"
@@ -13,6 +19,9 @@ jobs:
     env:
       PYTHONUNBUFFERED: "1"
       DB_URL: ${{ secrets.DB_URL }}
+      STORAGE_BACKEND: "postgresql"
+      PUBLIC_BASE_URL: "https://preciosushuaia.com"
+      PUBLIC_CONTACT_EMAIL: "hola@preciosushuaia.com"
 
     steps:
       - name: Checkout
@@ -48,19 +57,76 @@ jobs:
           cd laanonima-tracker
           playwright install chromium
 
+      - name: Preflight launch configuration
+        run: |
+          cd laanonima-tracker
+          python scripts/prelaunch_check.py --expected-base-url https://preciosushuaia.com
+
+      - name: Validate production DB connectivity and schema
+        run: |
+          cd laanonima-tracker
+          python scripts/check_db_state.py --backend postgresql --init-db
+
+      - name: Enforce empty DB for first real launch
+        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.enforce_empty_db == 'true' }}
+        run: |
+          cd laanonima-tracker
+          python scripts/check_db_state.py --backend postgresql --require-empty
+
       - name: Run data pipeline
         run: |
           cd laanonima-tracker
           python -m src.cli init
-          python -m src.cli scrape --basket all --candidate-storage db --observation-policy single+audit
+          python -m src.cli scrape --basket all --profile full --candidate-storage db --observation-policy single+audit
           python -m src.cli ipc-sync --region all
           python -m src.cli ipc-publish --basket all --region patagonia
+          python -m src.cli ipc-publish --basket all --region nacional
 
-      - name: Build report and static web
+      - name: Validate pipeline persisted real rows
         run: |
           cd laanonima-tracker
-          python -m src.cli app --basket all --view analyst --benchmark ipc --offline-assets external
-          python -m src.cli publish-web --basket all --view analyst --offline-assets external --skip-report
+          python scripts/check_db_state.py --backend postgresql --require-has-data
+
+      - name: Build and publish static web (single command)
+        run: |
+          cd laanonima-tracker
+          python -m src.cli publish-web --basket all --view analyst --benchmark ipc --offline-assets external
+
+      - name: Smoke check generated public site (gate)
+        run: |
+          cd laanonima-tracker
+          python - <<'PY'
+          import os
+          import sys
+          import threading
+          from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
+          from pathlib import Path
+          from scripts.smoke_public_site import run_smoke
+
+          root = Path("public").resolve()
+          os.chdir(root)
+
+          class Quiet(SimpleHTTPRequestHandler):
+              def log_message(self, format, *args):
+                  pass
+
+          server = ThreadingHTTPServer(("127.0.0.1", 8080), Quiet)
+          thread = threading.Thread(target=server.serve_forever, daemon=True)
+          thread.start()
+          try:
+              code = run_smoke(
+                  base_url="http://127.0.0.1:8080",
+                  timeout=10.0,
+                  expected_canonical_base="https://preciosushuaia.com",
+                  strict=True,
+              )
+          finally:
+              server.shutdown()
+              server.server_close()
+              thread.join(timeout=2)
+
+          sys.exit(code)
+          PY
 
       - name: Upload generated artifacts
         uses: actions/upload-artifact@v4

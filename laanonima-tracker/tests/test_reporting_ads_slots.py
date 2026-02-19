@@ -23,9 +23,16 @@ class TestReportingAdsSlots(unittest.TestCase):
             },
             "ads": {
                 "enabled": True,
-                "provider": "adsense_placeholder",
+                "provider": "adsense",
                 "slots": ["header", "inline", "footer"],
-                "client_id_placeholder": "ca-pub-test",
+                "client_id": "ca-pub-1234567890123456",
+            },
+            "analytics": {
+                "plausible": {
+                    "enabled": True,
+                    "domain": "tracker.example.com",
+                    "script_url": "https://plausible.io/js/script.js",
+                }
             },
             "premium_placeholders": {
                 "enabled": True,
@@ -34,6 +41,7 @@ class TestReportingAdsSlots(unittest.TestCase):
             "deployment": {
                 "fresh_max_hours": 36,
                 "schedule_utc": "09:10",
+                "public_base_url": "https://tracker.example.com",
             },
         }
 
@@ -58,13 +66,19 @@ class TestReportingAdsSlots(unittest.TestCase):
 
         self.assertIn("ads", payload)
         self.assertIn("premium_placeholders", payload)
+        self.assertIn("analytics", payload)
         self.assertTrue(payload["ads"]["enabled"])
+        self.assertEqual(payload["ads"]["provider"], "adsense")
         self.assertEqual(payload["ads"]["slots"], ["header", "inline", "footer"])
         self.assertTrue(payload["premium_placeholders"]["enabled"])
         self.assertEqual(payload["premium_placeholders"]["features"], ["Alertas", "CSV Pro"])
+        self.assertTrue(payload["analytics"]["enabled"])
+        self.assertEqual(payload["analytics"]["domain"], "tracker.example.com")
         self.assertIn("web_status", payload)
         self.assertIn("is_stale", payload)
         self.assertIn("next_update_eta", payload)
+        self.assertEqual(payload.get("publication_policy"), "publish_with_alert_on_partial")
+        self.assertEqual(payload.get("ui_defaults", {}).get("page_size"), 25)
 
     def test_render_includes_ads_and_premium_containers(self):
         df = self.generator._load_prices("2024-01", "2024-01", "all")
@@ -82,10 +96,17 @@ class TestReportingAdsSlots(unittest.TestCase):
         self.assertIn('id="onboarding-goto"', html)
         self.assertIn('id="onboarding-close"', html)
         self.assertIn('id="cookie-banner"', html)
+        self.assertIn('id="macro-notice"', html)
         self.assertIn("function initConsentBanner()", html)
         self.assertIn("function drawMonetization()", html)
         self.assertIn("function bindShortcuts()", html)
         self.assertIn("function initMobileOnboarding()", html)
+        self.assertIn("function trackEvent(", html)
+        self.assertIn("function ensureAdSenseScript(", html)
+        self.assertIn("data-domain=\"tracker.example.com\"", html)
+        self.assertIn('<link rel="canonical" href="https://tracker.example.com/tracker/"', html)
+        self.assertIn('<meta property="og:url" content="https://tracker.example.com/tracker/"', html)
+        self.assertIn('<meta property="og:image" content="https://tracker.example.com/assets/og-card.svg"', html)
 
 
 if __name__ == "__main__":

@@ -686,7 +686,8 @@ logging:
 deployment:
   mode: "static_first"              # static_first | api_first
   output_dir: "public"
-  public_base_url: "${PUBLIC_BASE_URL:https://example.com}"
+  public_base_url: "${PUBLIC_BASE_URL:https://preciosushuaia.com}"
+  contact_email: "${PUBLIC_CONTACT_EMAIL:hola@preciosushuaia.com}"
   default_region: "patagonia"
   keep_history_months: 24
   fresh_max_hours: 36
@@ -696,8 +697,10 @@ deployment:
 # Advertising placeholders
 # ------------------------
 ads:
-  enabled: false                    # true in production website
-  provider: "adsense_placeholder"
+  enabled: false                    # set true in production website
+  provider: "adsense"
+  client_id: "${ADSENSE_CLIENT_ID:ca-pub-xxxxxxxxxxxxxxxx}"
+  # Legacy compatibility key (still read by code paths).
   client_id_placeholder: "ca-pub-xxxxxxxxxxxxxxxx"
   slots:
     - "header"
@@ -705,10 +708,18 @@ ads:
     - "sidebar"
     - "footer"
 
+# Analytics (privacy-first by default)
+# ------------------------------------
+analytics:
+  plausible:
+    enabled: false
+    domain: "${PLAUSIBLE_DOMAIN:}"
+    script_url: "https://plausible.io/js/script.js"
+
 # Premium roadmap placeholders (no paywall yet)
 # ---------------------------------------------
 premium_placeholders:
-  enabled: true
+  enabled: false
   features:
     - "Alertas de precio personalizadas"
     - "Descarga avanzada CSV/API"

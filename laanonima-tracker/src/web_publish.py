@@ -8,12 +8,16 @@ import shutil
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
+from urllib.parse import urlparse
 
 from src.config_loader import load_config
 from src.reporting import run_report
 
 _REPORT_METADATA_RE = re.compile(r"report_interactive_(\d{6})_to_(\d{6})_(\d{8}_\d{6})\.metadata\.json$")
+_MONTH_RE = re.compile(r"^\d{4}-\d{2}$")
+_PUBLICATION_POLICY = "publish_with_alert_on_partial"
+_PUBLICATION_POLICY_SUMMARY = "Se publica con alerta si falta cobertura o IPC."
 
 
 @dataclass
@@ -43,11 +47,23 @@ class PublishWebResult:
 class StaticWebPublisher:
     """Build public static website artifacts from interactive reports."""
 
+    @staticmethod
+    def _is_placeholder_adsense_client(client_id: str) -> bool:
+        value = str(client_id or "").strip().lower()
+        if not value:
+            return True
+        return "xxxxxxxx" in value or value in {"ca-pub-test", "ca-pub-0000000000000000"}
+
     def __init__(self, config: Dict[str, Any]):
         self.config = config
         deployment = config.get("deployment", {}) if isinstance(config.get("deployment"), dict) else {}
         self.output_dir = Path(str(deployment.get("output_dir", "public")))
-        self.public_base_url = str(deployment.get("public_base_url", "https://example.com")).rstrip("/")
+        self.public_base_url = str(deployment.get("public_base_url", "https://preciosushuaia.com")).rstrip("/")
+        self.contact_email = str(deployment.get("contact_email", "hola@preciosushuaia.com")).strip()
+        if not self.public_base_url:
+            self.public_base_url = "https://preciosushuaia.com"
+        if not self.contact_email:
+            self.contact_email = "hola@preciosushuaia.com"
         self.keep_history_months = max(1, int(deployment.get("keep_history_months", 24)))
         self.fresh_max_hours = float(deployment.get("fresh_max_hours", 36))
         self.schedule_utc = str(deployment.get("schedule_utc", "09:10"))
@@ -56,9 +72,23 @@ class StaticWebPublisher:
 
         ads_cfg = config.get("ads", {}) if isinstance(config.get("ads"), dict) else {}
         self.ads_enabled = bool(ads_cfg.get("enabled", False))
-        self.ads_provider = str(ads_cfg.get("provider", "adsense_placeholder"))
+        self.ads_provider = str(ads_cfg.get("provider", "adsense"))
         self.ads_slots = [str(v) for v in (ads_cfg.get("slots") or ["header", "inline", "sidebar", "footer"]) if str(v).strip()]
-        self.ads_client_id = str(ads_cfg.get("client_id_placeholder", "ca-pub-xxxxxxxxxxxxxxxx"))
+        self.ads_client_id = str(
+            ads_cfg.get("client_id")
+            or ads_cfg.get("client_id_placeholder")
+            or "ca-pub-xxxxxxxxxxxxxxxx"
+        )
+        if self.ads_provider.lower() == "adsense" and self._is_placeholder_adsense_client(self.ads_client_id):
+            self.ads_enabled = False
+
+        analytics_cfg = config.get("analytics", {}) if isinstance(config.get("analytics"), dict) else {}
+        plausible_cfg = analytics_cfg.get("plausible", {}) if isinstance(analytics_cfg.get("plausible"), dict) else {}
+        self.analytics_enabled = bool(plausible_cfg.get("enabled", False))
+        self.analytics_domain = str(plausible_cfg.get("domain", "")).strip()
+        self.analytics_script_url = str(
+            plausible_cfg.get("script_url", "https://plausible.io/js/script.js")
+        ).strip()
 
         premium_cfg = config.get("premium_placeholders", {}) if isinstance(config.get("premium_placeholders"), dict) else {}
         self.premium_enabled = bool(premium_cfg.get("enabled", True))
@@ -85,8 +115,12 @@ class StaticWebPublisher:
             "if(v==='accepted'||v==='rejected'){b.style.display='none';return;}"
             "var ok=document.getElementById('cookie-accept');"
             "var no=document.getElementById('cookie-reject');"
-            "if(ok){ok.addEventListener('click',function(){localStorage.setItem(k,'accepted');b.style.display='none';});}"
-            "if(no){no.addEventListener('click',function(){localStorage.setItem(k,'rejected');b.style.display='none';});}"
+            "if(ok){ok.addEventListener('click',function(){localStorage.setItem(k,'accepted');b.style.display='none';"
+            "if(typeof window.__laTrackerOnConsentChanged==='function'){window.__laTrackerOnConsentChanged('accepted');}"
+            "});}"
+            "if(no){no.addEventListener('click',function(){localStorage.setItem(k,'rejected');b.style.display='none';"
+            "if(typeof window.__laTrackerOnConsentChanged==='function'){window.__laTrackerOnConsentChanged('rejected');}"
+            "});}"
             "})();"
             "</script>"
         )
@@ -107,6 +141,15 @@ class StaticWebPublisher:
     @staticmethod
     def _read_json(path: Path) -> Dict[str, Any]:
         return json.loads(path.read_text(encoding="utf-8"))
+
+    def _analytics_head_script(self) -> str:
+        if not self.analytics_enabled or not self.analytics_domain:
+            return ""
+        script_url = self.analytics_script_url or "https://plausible.io/js/script.js"
+        return (
+            f"<script defer data-domain='{self.analytics_domain}' "
+            f"src='{script_url}'></script>"
+        )
 
     @staticmethod
     def _parse_generated_at(value: Any) -> datetime:
@@ -145,6 +188,17 @@ class StaticWebPublisher:
 
         generated = StaticWebPublisher._parse_generated_at(meta.get("generated_at"))
         return generated.strftime("%Y-%m")
+
+    @staticmethod
+    def _range_from_metadata(meta: Dict[str, Any]) -> Tuple[Optional[str], Optional[str]]:
+        range_block = meta.get("range") if isinstance(meta.get("range"), dict) else {}
+        from_month = str(range_block.get("from") or "").strip()
+        to_month = str(range_block.get("to") or "").strip()
+        if not _MONTH_RE.match(from_month):
+            from_month = None
+        if not _MONTH_RE.match(to_month):
+            to_month = None
+        return from_month, to_month
 
     def _iter_report_entries(self) -> List[ReportEntry]:
         if not self.report_dir.exists():
@@ -190,7 +244,13 @@ class StaticWebPublisher:
         entries.sort(key=lambda item: item.generated_at, reverse=True)
         return entries
 
-    def collect_latest_report(self, preferred_html: Optional[str] = None, preferred_metadata: Optional[str] = None) -> ReportEntry:
+    def collect_latest_report(
+        self,
+        preferred_html: Optional[str] = None,
+        preferred_metadata: Optional[str] = None,
+        preferred_from_month: Optional[str] = None,
+        preferred_to_month: Optional[str] = None,
+    ) -> ReportEntry:
         if preferred_html and preferred_metadata:
             html_path = Path(preferred_html)
             metadata_path = Path(preferred_metadata)
@@ -207,6 +267,28 @@ class StaticWebPublisher:
         entries = self._iter_report_entries()
         if not entries:
             raise FileNotFoundError("No se encontro ningun reporte interactivo en data/analysis/reports")
+
+        if bool(preferred_from_month) ^ bool(preferred_to_month):
+            raise ValueError("Si se define rango preferido, deben enviarse ambos meses from/to.")
+
+        if preferred_from_month and preferred_to_month:
+            if not _MONTH_RE.match(preferred_from_month) or not _MONTH_RE.match(preferred_to_month):
+                raise ValueError("Los meses preferidos deben usar formato YYYY-MM.")
+            matched = []
+            for entry in entries:
+                from_month, to_month = self._range_from_metadata(entry.metadata)
+                if from_month == preferred_from_month and to_month == preferred_to_month:
+                    matched.append(entry)
+            if matched:
+                return matched[0]
+            raise FileNotFoundError(
+                "No se encontro reporte interactivo para rango "
+                f"{preferred_from_month} -> {preferred_to_month} en {self.report_dir}."
+            )
+
+        with_data = [entry for entry in entries if bool(entry.metadata.get("has_data", False))]
+        if with_data:
+            return with_data[0]
         return entries[0]
 
     def _collect_history(self) -> List[ReportEntry]:
@@ -339,7 +421,7 @@ class StaticWebPublisher:
     def _shell_css() -> str:
         return """
 :root{
-  --bg:#f3f7fb;
+  --bg:#f2f5fb;
   --panel:#ffffff;
   --line:#d8e3f0;
   --line-strong:#c3d4e7;
@@ -349,12 +431,14 @@ class StaticWebPublisher:
   --primary-strong:#084b61;
   --accent:#0b8b85;
   --shadow:0 2px 8px rgba(14,34,57,.08), 0 18px 34px rgba(14,34,57,.07);
+  --font-display:"Iowan Old Style","Book Antiqua","Palatino Linotype",serif;
+  --font-body:"Aptos","Segoe UI Variable","Trebuchet MS",sans-serif;
 }
 *{box-sizing:border-box}
 body{
   margin:0;
   color:var(--text);
-  font-family:"Aptos","Segoe UI Variable","Trebuchet MS",sans-serif;
+  font-family:var(--font-body);
   background:
     radial-gradient(1000px 360px at -8% -4%, rgba(11,96,122,.12) 0%, rgba(11,96,122,0) 60%),
     radial-gradient(950px 320px at 106% -3%, rgba(11,139,133,.10) 0%, rgba(11,139,133,0) 56%),
@@ -417,6 +501,7 @@ main.shell{
 h1,h2{
   margin:0 0 8px 0;
   letter-spacing:.01em;
+  font-family:var(--font-display);
 }
 h1{font-size:1.55rem}
 h2{font-size:1.08rem}
@@ -437,6 +522,40 @@ h2{font-size:1.08rem}
   display:flex;
   flex-wrap:wrap;
   gap:9px;
+}
+.hero-grid{
+  display:grid;
+  gap:14px;
+  grid-template-columns:minmax(0,1.35fr) minmax(240px,.9fr);
+  align-items:start;
+}
+.hero-stack{
+  display:grid;
+  gap:10px;
+}
+.metric-strip{
+  display:grid;
+  gap:10px;
+  grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
+}
+.metric-tile{
+  border:1px solid #d3deec;
+  border-radius:12px;
+  padding:10px 11px;
+  background:#f8fbff;
+  display:grid;
+  gap:5px;
+}
+.metric-tile strong{
+  font-size:.76rem;
+  color:#48607a;
+  text-transform:uppercase;
+  letter-spacing:.03em;
+}
+.metric-tile span{
+  font-size:1rem;
+  color:#1f3652;
+  font-weight:800;
 }
 .btn{
   display:inline-flex;
@@ -494,23 +613,55 @@ h2{font-size:1.08rem}
   padding:8px 10px;
 }
 .history-list{
-  border:1px solid var(--line);
-  border-radius:11px;
-  overflow:hidden;
+  display:grid;
+  gap:10px;
 }
 .history-list a{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
+  display:grid;
   gap:10px;
-  padding:11px 12px;
-  border-bottom:1px solid #e6edf6;
+  padding:12px;
+  border:1px solid #d5e1ef;
+  border-radius:12px;
   text-decoration:none;
   color:#244566;
-  background:#fff;
+  background:linear-gradient(180deg,#ffffff,#f9fcff);
 }
-.history-list a:last-child{border-bottom:none}
 .history-list a:hover{background:#f3f9ff}
+.history-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:8px;
+}
+.history-sub{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  font-size:.8rem;
+  color:#5f6d81;
+}
+.badge-mini{
+  display:inline-flex;
+  align-items:center;
+  min-height:24px;
+  padding:3px 9px;
+  border-radius:999px;
+  border:1px solid #cad8e7;
+  background:#f2f8ff;
+  color:#2a4b6c;
+  font-size:.75rem;
+  font-weight:700;
+}
+.badge-mini.partial{
+  border-color:#e5c77e;
+  background:#fff6df;
+  color:#7a5a12;
+}
+.badge-mini.stale{
+  border-color:#e2a8a8;
+  background:#fff0f0;
+  color:#8b2d2d;
+}
 .meta-line{
   font-size:.82rem;
   color:#5f6d81;
@@ -538,6 +689,7 @@ ul.clean{
 ul.clean li{margin:6px 0}
 @media (max-width:900px){
   main.shell{padding:12px}
+  .hero-grid{grid-template-columns:1fr}
   .grid-2{grid-template-columns:1fr}
 }
 @media (max-width:620px){
@@ -609,19 +761,55 @@ ul.clean li{margin:6px 0}
                     "report_path": f"/historico/{entry.month}/",
                     "metadata_path": f"/data/history/{entry.month}.metadata.json",
                     "generated_at": entry.generated_at.strftime("%Y-%m-%d %H:%M:%S UTC"),
+                    "has_data": bool(entry.metadata.get("has_data", False)),
+                    "coverage_total_pct": (
+                        entry.metadata.get("coverage", {}).get("coverage_total_pct")
+                        if isinstance(entry.metadata.get("coverage"), dict)
+                        else None
+                    ),
+                    "is_partial": bool(
+                        entry.metadata.get("data_quality", {}).get("quality_flags", {}).get("is_partial", False)
+                        if isinstance(entry.metadata.get("data_quality"), dict)
+                        else False
+                    ),
+                    "quality_badge": (
+                        entry.metadata.get("data_quality", {}).get("quality_flags", {}).get("badge")
+                        if isinstance(entry.metadata.get("data_quality"), dict)
+                        else None
+                    ),
                 }
             )
 
         list_rows = []
         for item in rows:
+            state = "partial" if item.get("is_partial") else "fresh"
+            state_label = "Parcial" if item.get("is_partial") else "Completo"
+            badge_classes = f"badge-mini {state}"
+            coverage = item.get("coverage_total_pct")
+            coverage_label = "N/D" if coverage is None else f"{float(coverage):.1f}%"
+            quality_badge = str(item.get("quality_badge") or "").strip() or "Sin badge"
+            data_label = "Con datos" if item.get("has_data") else "Sin datos"
             list_rows.append(
                 "<a href='{path}' data-month='{month}'>"
+                "<div class='history-head'>"
                 "<strong>{month}</strong>"
-                "<span class='meta-line'>{generated}</span>"
+                "<span class='{badge_classes}'>{state_label}</span>"
+                "</div>"
+                "<div class='history-sub'>"
+                "<span>Generado: {generated}</span>"
+                "<span>Cobertura: {coverage_label}</span>"
+                "<span>{data_label}</span>"
+                "<span>{quality_badge}</span>"
+                "</div>"
                 "</a>".format(
                     path=item["report_path"],
                     month=item["month"],
                     generated=item["generated_at"],
+                    badge_classes=badge_classes,
+                    state_label=state_label,
+                    coverage_label=coverage_label,
+                    data_label=data_label,
+                    quality_badge=quality_badge,
                 )
             )
         list_html = "".join(list_rows) if list_rows else "<p class='muted'>Sin reportes historicos disponibles.</p>"
@@ -630,6 +818,7 @@ ul.clean li{margin:6px 0}
 <html lang='es'>
 <head>
 {self._meta_head('Historico | La Anonima Tracker', 'Historico mensual de reportes publicados del tracker.', '/historico/')}
+{self._analytics_head_script()}
 <style>{self._shell_css()}</style>
 </head>
 <body>
@@ -637,7 +826,7 @@ ul.clean li{margin:6px 0}
   {self._top_nav(active='historico')}
   <section class='card'>
     <h1>Historico de reportes</h1>
-    <p class='muted'>Acceso por periodo publicado para comparar cambios en el tiempo.</p>
+    <p class='muted'>Revisa meses publicados, cobertura y estado de calidad.</p>
     <div class='list-tools'>
       <input id='history-search' type='search' placeholder='Filtrar por mes (YYYY-MM)'/>
       <div class='status-chip'><span id='history-count'>{len(rows)}</span> periodos</div>
@@ -678,6 +867,7 @@ ul.clean li{margin:6px 0}
 
     def build_manifest(self, latest: ReportEntry, history_rows: List[Dict[str, Any]]) -> Dict[str, Any]:
         web_status, is_stale = self._status_from_metadata(latest)
+        from_month, to_month = self._range_from_metadata(latest.metadata)
 
         coverage = latest.metadata.get("coverage", {}) if isinstance(latest.metadata.get("coverage"), dict) else {}
         publication = (
@@ -688,7 +878,7 @@ ul.clean li{margin:6px 0}
         official_validation_status = (
             publication.get("validation_status")
             or publication.get("metrics", {}).get("official_validation_status")
-            or "unknown"
+            or "not_available"
         )
 
         manifest = {
@@ -697,18 +887,31 @@ ul.clean li{margin:6px 0}
             "status": web_status,
             "latest_report_path": "/tracker/",
             "latest_metadata_path": "/data/latest.metadata.json",
+            "latest": {
+                "from_month": from_month,
+                "to_month": to_month,
+                "generated_at": str(latest.metadata.get("generated_at") or ""),
+                "has_data": bool(latest.metadata.get("has_data", False)),
+                "web_status": web_status,
+            },
             "history": history_rows,
             "quality": {
                 "coverage_total_pct": coverage.get("coverage_total_pct"),
                 "publication_status": publication.get("status") if isinstance(publication, dict) else None,
                 "official_validation_status": official_validation_status,
             },
+            "publication_policy": _PUBLICATION_POLICY,
+            "publication_policy_summary": _PUBLICATION_POLICY_SUMMARY,
             "next_update_eta": self._next_update_eta().strftime("%Y-%m-%d %H:%M:%S UTC"),
             "is_stale": bool(is_stale),
             "ads": {
                 "enabled": self.ads_enabled,
                 "provider": self.ads_provider,
                 "slots": self.ads_slots,
+            },
+            "analytics": {
+                "enabled": self.analytics_enabled,
+                "domain": self.analytics_domain,
             },
             "premium_placeholders": {
                 "enabled": self.premium_enabled,
@@ -722,6 +925,19 @@ ul.clean li{margin:6px 0}
         manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
         return manifest
 
+    @staticmethod
+    def _format_kpi_label(value: Any, unit: str) -> str:
+        if value is None:
+            return "N/D"
+        if isinstance(value, bool):
+            return str(value)
+        if isinstance(value, (int, float)):
+            if unit == "productos":
+                return f"{int(round(float(value)))} {unit}"
+            suffix = f" {unit}" if unit else ""
+            return f"{float(value):.2f}{suffix}"
+        return str(value)
+
     def _kpi_cards_from_metadata(self, meta: Dict[str, Any]) -> str:
         kpis = meta.get("kpis") if isinstance(meta.get("kpis"), dict) else {}
         rows = [
@@ -733,56 +949,97 @@ ul.clean li{margin:6px 0}
 
         cards = []
         for title, value, unit in rows:
-            if value is None:
-                label = "N/D"
-            else:
-                label = f"{value:.2f}{unit}" if isinstance(value, (int, float)) else str(value)
+            label = self._format_kpi_label(value, unit)
             cards.append(f"<div class='kpi'><strong>{title}</strong><span>{label}</span></div>")
         return "".join(cards)
 
     def build_home_page(self, manifest: Dict[str, Any], latest: ReportEntry) -> None:
-        range_block = latest.metadata.get("range") if isinstance(latest.metadata.get("range"), dict) else {}
-        from_month = range_block.get("from") or "N/D"
-        to_month = range_block.get("to") or "N/D"
+        latest_block = manifest.get("latest") if isinstance(manifest.get("latest"), dict) else {}
+        from_month = str(latest_block.get("from_month") or "N/D")
+        to_month = str(latest_block.get("to_month") or "N/D")
+        latest_generated = str(latest_block.get("generated_at") or latest.metadata.get("generated_at") or "N/D")
+        latest_status = str(latest_block.get("web_status") or manifest.get("status") or "partial").upper()
+        quality_flags = (
+            latest.metadata.get("data_quality", {}).get("quality_flags", {})
+            if isinstance(latest.metadata.get("data_quality"), dict)
+            else {}
+        )
+        quality_warnings = quality_flags.get("warnings", []) if isinstance(quality_flags, dict) else []
+        warnings_html = ""
+        if quality_warnings:
+            items = "".join(f"<li>{str(item)}</li>" for item in quality_warnings)
+            warnings_html = (
+                "<section class='card'>"
+                "<h2>Avisos del dia</h2>"
+                "<ul class='clean muted'>"
+                f"{items}"
+                "</ul>"
+                "</section>"
+            )
 
         premium_html = ""
         if self.premium_enabled and self.premium_features:
             premium_items = "".join(f"<li>{f}</li>" for f in self.premium_features)
             premium_html = (
-                "<section class='card'><h2>Proximamente (Premium)</h2>"
-                "<p class='muted'>Bloques listos para activacion futura sin rehacer la arquitectura.</p>"
+                "<section class='card'><h2>Hoja de ruta</h2>"
+                "<p class='muted'>Mejoras opcionales previstas para una etapa posterior.</p>"
                 f"<ul class='clean muted'>{premium_items}</ul></section>"
             )
 
         ads_html = ""
         if self.ads_enabled and self.ads_slots:
             slot_blocks = "".join(
-                f"<div class='ad-slot' data-slot='{slot}'>Espacio publicitario: {slot}</div>" for slot in self.ads_slots
+                f"<div class='ad-slot' data-slot='{slot}'>Slot publicitario: {slot}</div>" for slot in self.ads_slots
             )
             ads_html = (
-                "<section class='card'><h2>Publicidad</h2>"
-                "<p class='muted'>Slots preparados para monetizacion.</p>"
-                f"<div class='ads-grid'>{slot_blocks}</div></section>"
+                "<section class='card' id='home-ads-panel'><h2>Publicidad</h2>"
+                "<p class='muted' id='home-ads-meta'>Acepta cookies para cargar anuncios relevantes.</p>"
+                f"<div class='ads-grid' id='home-ads-grid'>{slot_blocks}</div></section>"
             )
 
-        status_chip = str(manifest.get("status", "unknown")).upper()
+        ads_config = {
+            "enabled": self.ads_enabled,
+            "provider": self.ads_provider,
+            "client_id": self.ads_client_id,
+            "slots": self.ads_slots,
+        }
+        ads_config_json = json.dumps(ads_config, ensure_ascii=False).replace("</", "<\\/")
+        quality_block = manifest.get("quality") if isinstance(manifest.get("quality"), dict) else {}
+        coverage_total = quality_block.get("coverage_total_pct")
+        coverage_label = "N/D" if coverage_total is None else f"{float(coverage_total):.1f}%"
+        publication_status = str(quality_block.get("publication_status") or "N/D")
+        validation_status = str(quality_block.get("official_validation_status") or "N/D")
+        policy_summary = str(manifest.get("publication_policy_summary") or _PUBLICATION_POLICY_SUMMARY)
+        has_data = bool(latest_block.get("has_data", latest.metadata.get("has_data", False)))
+        data_label = "Con datos recientes" if has_data else "Sin datos recientes"
         html = f"""<!doctype html>
 <html lang='es'>
 <head>
 {self._meta_head('La Anonima Tracker', 'Tracker publico de precios historicos e inflacion comparada.', '/')}
+{self._analytics_head_script()}
 <style>{self._shell_css()}</style>
 </head>
 <body>
 <main class='shell'>
   {self._top_nav(active='home')}
   <section class='card'>
-    <h1>Monitor publico de precios historicos</h1>
-    <div class='status-chip'>Estado del sitio: {status_chip}</div>
-    <p class='muted'>Rango activo: {from_month} a {to_month}</p>
-    <p class='muted'>Ultima actualizacion: {latest.metadata.get('generated_at','N/D')} | Proxima corrida estimada: {manifest.get('next_update_eta')}</p>
-    <div class='cta-row'>
-      <a href='/tracker/' class='btn btn-primary'>Abrir tracker</a>
-      <a href='/historico/' class='btn btn-secondary'>Explorar historico</a>
+    <div class='hero-grid'>
+      <div class='hero-stack'>
+        <h1>Estado de hoy: precios en seguimiento diario</h1>
+        <div class='status-chip'>Estado del sitio: {latest_status}</div>
+        <p class='muted'>Rango activo: {from_month} a {to_month}</p>
+        <p class='muted'>Ultima actualizacion: {latest_generated} | Proxima corrida estimada: {manifest.get('next_update_eta')}</p>
+        <p class='muted'>Macro oficial: {publication_status} | validacion: {validation_status} | cobertura: {coverage_label}</p>
+        <div class='cta-row'>
+          <a id='cta-open-tracker' href='/tracker/' class='btn btn-primary'>Abrir tracker</a>
+          <a href='/historico/' class='btn btn-secondary'>Explorar historico</a>
+        </div>
+      </div>
+      <div class='metric-strip'>
+        <div class='metric-tile'><strong>Estado datos</strong><span>{data_label}</span></div>
+        <div class='metric-tile'><strong>Cobertura</strong><span>{coverage_label}</span></div>
+        <div class='metric-tile'><strong>Publicacion</strong><span>{policy_summary}</span></div>
+      </div>
     </div>
   </section>
 
@@ -793,34 +1050,105 @@ ul.clean li{margin:6px 0}
 
   <section class='grid-2'>
     <article class='card'>
-      <h2>Valor publico</h2>
+      <h2>Como leer en 30 segundos</h2>
       <ul class='clean muted'>
-        <li>Comparacion mensual de canasta propia contra referencia oficial.</li>
-        <li>Reportes navegables por periodo y trazabilidad de publicacion.</li>
-        <li>Estructura preparada para monetizacion y evolucion premium.</li>
+        <li>Revisa el bloque macro para contexto general.</li>
+        <li>Filtra por categoria y compara variacion nominal y real.</li>
+        <li>Si el estado es parcial, usa los avisos para interpretar limites.</li>
       </ul>
     </article>
     <article class='card'>
-      <h2>Hoja de ruta preparada</h2>
+      <h2>Transparencia</h2>
       <ul class='clean muted'>
-        <li>Base actual: static-first de bajo costo.</li>
-        <li>Escala natural: API publica, cache y rate-limit por etapas.</li>
-        <li>Futuro: features premium reales sin rehacer frontend.</li>
+        <li>Frecuencia objetivo diaria con estado fresh/partial/stale.</li>
+        <li>Si falta IPC oficial, se publica con alerta visible.</li>
+        <li>Cada periodo queda trazable en Historico.</li>
       </ul>
     </article>
   </section>
 
+  {warnings_html}
   {ads_html}
   {premium_html}
 
   <section class='card muted'>
     <strong>Legales:</strong>
     <a href='/legal/privacy.html'>Privacidad</a> |
-    <a href='/legal/terms.html'>Terminos</a>
+    <a href='/legal/terms.html'>Terminos</a> |
+    <a href='/legal/cookies.html'>Cookies</a> |
+    <a href='/legal/ads.html'>Publicidad</a>
   </section>
 </main>
 {self._consent_banner_html()}
 {self._consent_script()}
+<script>
+(function(){{
+  const ADS={ads_config_json};
+  const CONSENT_KEY='laanonima_tracker_cookie_consent_v1';
+  function track(eventName, props){{
+    if(typeof window.plausible==='function'){{
+      try{{ window.plausible(eventName, {{ props: props || {{}} }}); }}catch(_e){{}}
+    }}
+  }}
+  function ensureAdSense(clientId){{
+    if(!clientId || document.getElementById('adsense-script')) return;
+    const script=document.createElement('script');
+    script.id='adsense-script';
+    script.async=true;
+    script.src='https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client='+encodeURIComponent(clientId);
+    script.crossOrigin='anonymous';
+    document.head.appendChild(script);
+  }}
+  function renderAds(consent){{
+    const panel=document.getElementById('home-ads-panel');
+    const grid=document.getElementById('home-ads-grid');
+    const meta=document.getElementById('home-ads-meta');
+    if(!panel || !grid) return;
+    if(!ADS.enabled){{
+      panel.style.display='none';
+      return;
+    }}
+    panel.style.display='';
+    if(consent!=='accepted'){{
+      if(meta) meta.textContent='Acepta cookies para habilitar anuncios.';
+      return;
+    }}
+    if((ADS.provider||'').toLowerCase()!=='adsense'){{
+      if(meta) meta.textContent='Proveedor de anuncios no soportado en Home.';
+      return;
+    }}
+    ensureAdSense(ADS.client_id);
+    if(meta) meta.textContent='Anuncios activos (AdSense).';
+    const slots=Array.isArray(ADS.slots)?ADS.slots:[];
+    grid.innerHTML='';
+    slots.forEach((slotId)=>{{
+      const wrap=document.createElement('div');
+      wrap.className='ad-slot';
+      const ins=document.createElement('ins');
+      ins.className='adsbygoogle';
+      ins.style.display='block';
+      ins.setAttribute('data-ad-client', ADS.client_id || '');
+      ins.setAttribute('data-ad-slot', String(slotId||'').replace(/[^0-9]/g,'') || '0000000000');
+      ins.setAttribute('data-ad-format', 'auto');
+      ins.setAttribute('data-full-width-responsive', 'true');
+      wrap.appendChild(ins);
+      grid.appendChild(wrap);
+      try{{ (window.adsbygoogle = window.adsbygoogle || []).push({{}}); }}catch(_e){{}}
+    }});
+  }}
+  window.__laTrackerOnConsentChanged=function(state){{
+    renderAds(state);
+  }};
+  let current='rejected';
+  try{{ current=localStorage.getItem(CONSENT_KEY)||'rejected'; }}catch(_e){{}}
+  renderAds(current);
+  const cta=document.getElementById('cta-open-tracker');
+  if(cta){{
+    cta.addEventListener('click', ()=>track('open_tracker_click', {{origin:'home'}}));
+  }}
+  track('home_view', {{status:'{latest_status.lower()}' }});
+}})();
+</script>
 </body>
 </html>
 """
@@ -833,7 +1161,7 @@ ul.clean li{margin:6px 0}
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: geolocation=(), microphone=(), camera=()
   Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
-  Content-Security-Policy: default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' https://cdn.plot.ly https://pagead2.googlesyndication.com https://www.googletagmanager.com; connect-src 'self' https:;
+  Content-Security-Policy: default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' https://cdn.plot.ly https://pagead2.googlesyndication.com https://www.googletagmanager.com https://plausible.io; connect-src 'self' https://plausible.io https:; frame-src 'self' https://googleads.g.doubleclick.net https://tpc.googlesyndication.com;
 
 /data/*
   Cache-Control: public, max-age=300
@@ -856,11 +1184,28 @@ ul.clean li{margin:6px 0}
 /ads.txt
   Cache-Control: public, max-age=86400
 """
-        redirects = """/tracker /tracker/ 301
-/historico /historico/ 301
-/metodologia /metodologia/ 301
-/contacto /contacto/ 301
-"""
+        redirects_lines = []
+        parsed = urlparse(self.public_base_url)
+        scheme = parsed.scheme or "https"
+        canonical_host = str(parsed.hostname or "").strip().lower()
+        if canonical_host:
+            if canonical_host.startswith("www."):
+                from_host = canonical_host[4:]
+                to_host = canonical_host
+            else:
+                from_host = f"www.{canonical_host}"
+                to_host = canonical_host
+            redirects_lines.append(f"{scheme}://{from_host}/* {scheme}://{to_host}/:splat 301!")
+
+        redirects_lines.extend(
+            [
+                "/tracker /tracker/ 301",
+                "/historico /historico/ 301",
+                "/metodologia /metodologia/ 301",
+                "/contacto /contacto/ 301",
+            ]
+        )
+        redirects = "\n".join(redirects_lines) + "\n"
         not_found = (
             "<!doctype html><html lang='es'><head>"
             + self._meta_head("404 | La Anonima Tracker", "Pagina no encontrada.", "/404.html")
@@ -882,6 +1227,7 @@ ul.clean li{margin:6px 0}
             return (
                 "<!doctype html><html lang='es'><head>"
                 + self._meta_head(title, description, path)
+                + self._analytics_head_script()
                 + f"<style>{self._shell_css()}</style></head><body>"
                 "<main class='shell'>"
                 f"{self._top_nav(active=active)}"
@@ -898,10 +1244,11 @@ ul.clean li{margin:6px 0}
             "Politica de privacidad",
             "home",
             (
-                "<p class='muted'>Este sitio publica series agregadas de precios e indicadores. "
-                "Podemos almacenar preferencias locales (filtros y consentimiento) para mejorar la experiencia.</p>"
-                "<p class='muted'>Cuando la publicidad este activa, se aplicaran politicas y consentimientos correspondientes.</p>"
-                "<p class='muted'>Contacto: <a href='/contacto/'>/contacto/</a></p>"
+                "<p class='muted'>Este sitio publica series agregadas de precios e indicadores para fines informativos.</p>"
+                "<p class='muted'>Almacenamos preferencias locales (filtros, estado de interfaz y consentimiento) para mejorar la experiencia.</p>"
+                "<p class='muted'>Si aceptas anuncios, se habilita carga de proveedores publicitarios (por ejemplo AdSense) segun su propia politica de datos.</p>"
+                "<p class='muted'>La analitica agregada (cuando esta activa) se usa para medir uso de funcionalidades y mejorar contenido editorial.</p>"
+                f"<p class='muted'>Contacto: <a href='mailto:{self.contact_email}'>{self.contact_email}</a></p>"
             ),
             "/legal/privacy.html",
             "Politica de privacidad y uso de cookies del tracker.",
@@ -912,9 +1259,33 @@ ul.clean li{margin:6px 0}
             (
                 "<p class='muted'>La informacion se publica con fines informativos. Los precios pueden variar por sucursal, fecha y disponibilidad.</p>"
                 "<p class='muted'>No se garantiza disponibilidad continua ni exactitud absoluta en cada observacion individual.</p>"
+                "<p class='muted'>El estado del sitio puede figurar como fresh, partial o stale segun cobertura y disponibilidad de fuentes oficiales.</p>"
+                f"<p class='muted'>Politica de publicacion vigente: <code>{_PUBLICATION_POLICY}</code> ({_PUBLICATION_POLICY_SUMMARY.lower()})</p>"
             ),
             "/legal/terms.html",
             "Terminos de uso del tracker publico de precios.",
+        )
+        cookies = render_shell_page(
+            "Politica de cookies",
+            "home",
+            (
+                "<p class='muted'>Este sitio usa almacenamiento local para recordar filtros, vista de analisis y consentimiento.</p>"
+                "<p class='muted'>Si aceptas publicidad, se habilitan recursos de terceros para mostrar anuncios.</p>"
+                "<p class='muted'>Puedes cambiar tu preferencia de cookies limpiando almacenamiento local del navegador.</p>"
+            ),
+            "/legal/cookies.html",
+            "Politica de cookies y preferencias locales del tracker.",
+        )
+        ads_policy = render_shell_page(
+            "Politica de publicidad",
+            "home",
+            (
+                "<p class='muted'>Los anuncios se cargan solo con consentimiento explicito.</p>"
+                "<p class='muted'>Proveedor previsto: Google AdSense (puede cambiar segun configuracion operativa).</p>"
+                "<p class='muted'>Si rechazas cookies de publicidad, los slots no se activan y se mantiene la experiencia sin anuncios personalizados.</p>"
+            ),
+            "/legal/ads.html",
+            "Politica de anuncios y consentimiento publicitario.",
         )
         metodologia = render_shell_page(
             "Metodologia",
@@ -922,6 +1293,7 @@ ul.clean li{margin:6px 0}
             (
                 "<p class='muted'>El tracker calcula variaciones con observaciones reales de precios y compara con IPC oficial INDEC cuando hay solape temporal.</p>"
                 "<p class='muted'>Se informan estados de calidad (fresh/stale/partial) y cobertura para interpretar correctamente los resultados.</p>"
+                f"<p class='muted'>Regla de publicacion: <code>{_PUBLICATION_POLICY}</code> ({_PUBLICATION_POLICY_SUMMARY.lower()})</p>"
             ),
             "/metodologia/",
             "Metodologia del tracker: recoleccion, calculo y comparativa de series.",
@@ -931,7 +1303,7 @@ ul.clean li{margin:6px 0}
             "contacto",
             (
                 "<p class='muted'>Consultas editoriales, colaboraciones o propuestas comerciales.</p>"
-                "<p class='muted'>Correo sugerido: contacto@tu-dominio.com (reemplazar en produccion).</p>"
+                f"<p class='muted'>Correo: <a href='mailto:{self.contact_email}'>{self.contact_email}</a></p>"
             ),
             "/contacto/",
             "Canales de contacto para consultas y propuestas comerciales.",
@@ -939,12 +1311,17 @@ ul.clean li{margin:6px 0}
 
         (legal_dir / "privacy.html").write_text(privacy, encoding="utf-8")
         (legal_dir / "terms.html").write_text(terms, encoding="utf-8")
+        (legal_dir / "cookies.html").write_text(cookies, encoding="utf-8")
+        (legal_dir / "ads.html").write_text(ads_policy, encoding="utf-8")
         (self.output_dir / "metodologia" / "index.html").parent.mkdir(parents=True, exist_ok=True)
         (self.output_dir / "metodologia" / "index.html").write_text(metodologia, encoding="utf-8")
         (self.output_dir / "contacto" / "index.html").parent.mkdir(parents=True, exist_ok=True)
         (self.output_dir / "contacto" / "index.html").write_text(contacto, encoding="utf-8")
 
-        ads_txt = f"google.com, {self.ads_client_id}, DIRECT, f08c47fec0942fa0\n"
+        if self.ads_enabled and self.ads_provider.lower() == "adsense" and not self._is_placeholder_adsense_client(self.ads_client_id):
+            ads_txt = f"google.com, {self.ads_client_id}, DIRECT, f08c47fec0942fa0\n"
+        else:
+            ads_txt = "# ads disabled or not configured\n"
         (self.output_dir / "ads.txt").write_text(ads_txt, encoding="utf-8")
         (self.output_dir / "robots.txt").write_text("User-agent: *\nAllow: /\nSitemap: /sitemap.xml\n", encoding="utf-8")
 
@@ -956,6 +1333,8 @@ ul.clean li{margin:6px 0}
             "/contacto/",
             "/legal/privacy.html",
             "/legal/terms.html",
+            "/legal/cookies.html",
+            "/legal/ads.html",
             "/favicon.svg",
             "/site.webmanifest",
             "/assets/og-card.svg",
@@ -974,11 +1353,22 @@ ul.clean li{margin:6px 0}
         (self.output_dir / "sitemap.xml").write_text("\n".join(sitemap_lines), encoding="utf-8")
         self._write_platform_support_files()
 
-    def publish(self, preferred_html: Optional[str] = None, preferred_metadata: Optional[str] = None) -> PublishWebResult:
+    def publish(
+        self,
+        preferred_html: Optional[str] = None,
+        preferred_metadata: Optional[str] = None,
+        preferred_from_month: Optional[str] = None,
+        preferred_to_month: Optional[str] = None,
+    ) -> PublishWebResult:
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self._write_brand_assets()
 
-        latest = self.collect_latest_report(preferred_html=preferred_html, preferred_metadata=preferred_metadata)
+        latest = self.collect_latest_report(
+            preferred_html=preferred_html,
+            preferred_metadata=preferred_metadata,
+            preferred_from_month=preferred_from_month,
+            preferred_to_month=preferred_to_month,
+        )
         copied = self._copy_latest_artifacts(latest)
         history_rows = self.build_history_index()
         manifest = self.build_manifest(latest, history_rows)
@@ -986,11 +1376,39 @@ ul.clean li{margin:6px 0}
         # Enrich latest metadata with website publication fields.
         latest_meta_path = Path(copied["latest_metadata_path"])
         latest_meta = self._read_json(latest_meta_path)
-        latest_meta["web_status"] = manifest.get("status")
+        quality_flags = (
+            latest_meta.get("data_quality", {}).get("quality_flags", {})
+            if isinstance(latest_meta.get("data_quality"), dict)
+            else {}
+        )
+        from_month, to_month = self._range_from_metadata(latest_meta)
+        latest_manifest = manifest.get("latest", {}) if isinstance(manifest.get("latest"), dict) else {}
+        latest_generated_at = str(
+            latest_manifest.get("generated_at")
+            or latest_meta.get("generated_at")
+            or latest.metadata.get("generated_at")
+            or ""
+        )
         latest_meta["is_stale"] = bool(manifest.get("is_stale", False))
         latest_meta["next_update_eta"] = manifest.get("next_update_eta")
         latest_meta["ad_slots_enabled"] = bool(self.ads_enabled)
         latest_meta["premium_placeholders_enabled"] = bool(self.premium_enabled)
+        latest_meta["from_month"] = from_month
+        latest_meta["to_month"] = to_month
+        latest_meta["generated_at"] = latest_generated_at
+        latest_meta["has_data"] = bool(latest_manifest.get("has_data", latest_meta.get("has_data", False)))
+        latest_meta["web_status"] = str(
+            latest_manifest.get("web_status")
+            or manifest.get("status")
+            or latest_meta.get("web_status")
+            or "partial"
+        )
+        latest_meta["latest_range_label"] = (
+            f"{from_month} a {to_month}" if from_month and to_month else "N/D"
+        )
+        latest_meta["quality_warnings"] = quality_flags.get("warnings", []) if isinstance(quality_flags, dict) else []
+        latest_meta["publication_policy"] = _PUBLICATION_POLICY
+        latest_meta["publication_policy_summary"] = _PUBLICATION_POLICY_SUMMARY
         latest_meta_path.write_text(json.dumps(latest_meta, ensure_ascii=False, indent=2), encoding="utf-8")
 
         self.build_home_page(manifest, latest)
@@ -1021,7 +1439,11 @@ def run_web_publish(
     offline_assets: str = "external",
     build_report: bool = True,
 ) -> Dict[str, Any]:
-    """Generate public static website artifacts from latest interactive report."""
+    """Generate public static website artifacts from interactive reports.
+
+    When build_report is False and from/to are provided, publication enforces an exact
+    report-range match; otherwise it fails fast.
+    """
     config = load_config(config_path)
 
     preferred_html = None
@@ -1044,6 +1466,8 @@ def run_web_publish(
     result = publisher.publish(
         preferred_html=preferred_html if preferred_html else None,
         preferred_metadata=preferred_metadata if preferred_metadata else None,
+        preferred_from_month=from_month if not build_report else None,
+        preferred_to_month=to_month if not build_report else None,
     )
     return {
         "status": result.status,

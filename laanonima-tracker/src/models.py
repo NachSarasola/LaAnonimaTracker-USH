@@ -540,6 +540,9 @@ class IPCPublicationRun(Base):
 
 def get_engine(config: dict, backend: Optional[str] = None):
     """Create database engine based on configuration."""
+    env_backend = str(os.getenv("STORAGE_BACKEND") or "").strip().lower()
+    if backend is None and env_backend in {"sqlite", "postgresql"}:
+        backend = env_backend
     backend = backend or config.get("storage", {}).get("default_backend", "sqlite")
     
     if backend == "sqlite":

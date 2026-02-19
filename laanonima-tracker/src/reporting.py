@@ -6,6 +6,7 @@ import json
 import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from html import escape
 from pathlib import Path
 from time import perf_counter
 from typing import Any, Dict, List, Optional, Tuple
@@ -23,6 +24,9 @@ class ReportArtifacts:
     html_path: str
     metadata_path: str
     pdf_path: Optional[str] = None
+
+
+PUBLICATION_POLICY = "publish_with_alert_on_partial"
 
 
 class ReportGenerator:
@@ -323,6 +327,9 @@ class ReportGenerator:
                 "source": "official_source",
             }
         )
+        for col in ("official_index", "official_mom", "official_yoy", "official_status", "official_source"):
+            if col not in official.columns:
+                official[col] = pd.NA
         if "official_status" not in official.columns:
             official["official_status"] = "final"
         if "official_source" not in official.columns:
@@ -345,19 +352,55 @@ class ReportGenerator:
         ).sort_values("year_month")
 
         overlap = merged.dropna(subset=["tracker_index", "official_index"])
-        tracker_base = self._safe_float(overlap.iloc[0]["tracker_index"]) if not overlap.empty else None
-        official_base = self._safe_float(overlap.iloc[0]["official_index"]) if not overlap.empty else None
+        strict_comparable = not overlap.empty
+        tracker_base_strict = self._safe_float(overlap.iloc[0]["tracker_index"]) if strict_comparable else None
+        official_base_strict = self._safe_float(overlap.iloc[0]["official_index"]) if strict_comparable else None
+
+        tracker_first = merged[merged["tracker_index"].notna()].head(1)
+        official_first = merged[merged["official_index"].notna()].head(1)
+        tracker_base_independent = (
+            self._safe_float(tracker_first.iloc[0]["tracker_index"]) if not tracker_first.empty else None
+        )
+        official_base_independent = (
+            self._safe_float(official_first.iloc[0]["official_index"]) if not official_first.empty else None
+        )
+        tracker_base_month_independent = (
+            str(tracker_first.iloc[0]["year_month"]) if not tracker_first.empty else None
+        )
+        official_base_month_independent = (
+            str(official_first.iloc[0]["year_month"]) if not official_first.empty else None
+        )
+
+        tracker_base_month_strict = str(overlap.iloc[0]["year_month"]) if strict_comparable else None
+        official_base_month_strict = str(overlap.iloc[0]["year_month"]) if strict_comparable else None
+
+        plot_mode = "strict_overlap" if strict_comparable else "independent_base"
 
         out: List[Dict[str, Any]] = []
         for _, row in merged.iterrows():
             tracker_idx = self._safe_float(row.get("tracker_index"))
             official_idx = self._safe_float(row.get("official_index"))
-            tracker_base100 = None
-            official_base100 = None
-            if tracker_idx is not None and tracker_base and tracker_base > 0:
-                tracker_base100 = (tracker_idx / tracker_base) * 100.0
-            if official_idx is not None and official_base and official_base > 0:
-                official_base100 = (official_idx / official_base) * 100.0
+            tracker_base100_strict = None
+            official_base100_strict = None
+            if tracker_idx is not None and tracker_base_strict and tracker_base_strict > 0:
+                tracker_base100_strict = (tracker_idx / tracker_base_strict) * 100.0
+            if official_idx is not None and official_base_strict and official_base_strict > 0:
+                official_base100_strict = (official_idx / official_base_strict) * 100.0
+
+            if strict_comparable:
+                plot_tracker_base100 = tracker_base100_strict
+                plot_official_base100 = official_base100_strict
+            else:
+                plot_tracker_base100 = (
+                    (tracker_idx / tracker_base_independent) * 100.0
+                    if tracker_idx is not None and tracker_base_independent and tracker_base_independent > 0
+                    else None
+                )
+                plot_official_base100 = (
+                    (official_idx / official_base_independent) * 100.0
+                    if official_idx is not None and official_base_independent and official_base_independent > 0
+                    else None
+                )
             out.append(
                 {
                     "year_month": str(row["year_month"]),
@@ -368,11 +411,17 @@ class ReportGenerator:
                     "tracker_status": row.get("tracker_status"),
                     "official_status": row.get("official_status"),
                     "official_source": row.get("official_source"),
-                    "tracker_index_base100": tracker_base100,
-                    "official_index_base100": official_base100,
+                    "tracker_index_base100": tracker_base100_strict,
+                    "official_index_base100": official_base100_strict,
+                    "plot_tracker_base100": plot_tracker_base100,
+                    "plot_official_base100": plot_official_base100,
+                    "plot_mode": plot_mode,
+                    "tracker_base_month": tracker_base_month_strict if strict_comparable else tracker_base_month_independent,
+                    "official_base_month": official_base_month_strict if strict_comparable else official_base_month_independent,
+                    "is_strictly_comparable": bool(strict_comparable),
                     "gap_index_points": (
-                        tracker_base100 - official_base100
-                        if tracker_base100 is not None and official_base100 is not None
+                        tracker_base100_strict - official_base100_strict
+                        if tracker_base100_strict is not None and official_base100_strict is not None
                         else None
                     ),
                     "gap_mom_pp": (
@@ -586,6 +635,13 @@ class ReportGenerator:
             "total_expected_products": total_expected,
         }
 
+    @staticmethod
+    def _is_placeholder_adsense_client(client_id: str) -> bool:
+        value = str(client_id or "").strip().lower()
+        if not value:
+            return True
+        return "xxxxxxxx" in value or value in {"ca-pub-test", "ca-pub-0000000000000000"}
+
     def _ads_payload(self) -> Dict[str, Any]:
         cfg = self.config.get("ads", {})
         if not isinstance(cfg, dict):
@@ -594,12 +650,38 @@ class ReportGenerator:
         slots = [str(slot).strip().lower() for slot in slots_raw if str(slot).strip()]
         if not slots:
             slots = ["header", "inline", "sidebar", "footer"]
+        provider = str(cfg.get("provider", "adsense"))
+        client_id = str(cfg.get("client_id") or cfg.get("client_id_placeholder") or "ca-pub-xxxxxxxxxxxxxxxx")
+        enabled = bool(cfg.get("enabled", False))
+        if provider.lower() == "adsense" and self._is_placeholder_adsense_client(client_id):
+            enabled = False
         return {
-            "enabled": bool(cfg.get("enabled", False)),
-            "provider": str(cfg.get("provider", "adsense_placeholder")),
-            "client_id_placeholder": str(cfg.get("client_id_placeholder", "ca-pub-xxxxxxxxxxxxxxxx")),
+            "enabled": enabled,
+            "provider": provider,
+            "client_id": client_id,
+            "client_id_placeholder": client_id,
             "slots": slots,
         }
+
+    def _analytics_payload(self) -> Dict[str, Any]:
+        analytics_cfg = self.config.get("analytics", {})
+        if not isinstance(analytics_cfg, dict):
+            analytics_cfg = {}
+        plausible_cfg = analytics_cfg.get("plausible", {})
+        if not isinstance(plausible_cfg, dict):
+            plausible_cfg = {}
+        return {
+            "enabled": bool(plausible_cfg.get("enabled", False)),
+            "domain": str(plausible_cfg.get("domain", "")).strip(),
+            "script_url": str(plausible_cfg.get("script_url", "https://plausible.io/js/script.js")).strip(),
+        }
+
+    def _public_base_url(self) -> str:
+        deployment_cfg = self.config.get("deployment", {})
+        if not isinstance(deployment_cfg, dict):
+            deployment_cfg = {}
+        base_url = str(deployment_cfg.get("public_base_url", "https://preciosushuaia.com")).strip().rstrip("/")
+        return base_url or "https://preciosushuaia.com"
 
     def _premium_placeholders_payload(self) -> Dict[str, Any]:
         cfg = self.config.get("premium_placeholders", {})
@@ -668,23 +750,68 @@ class ReportGenerator:
             "next_update_eta": self._next_update_eta(),
         }
 
-    def _load_publication_status(self, basket_type: str, region: str) -> Dict[str, Any]:
+    @staticmethod
+    def _latest_month_row(df: pd.DataFrame, value_col: str, status_col: str) -> Tuple[Optional[str], Optional[str]]:
+        if df.empty or "year_month" not in df.columns:
+            return None, None
+        working = df.copy()
+        working["year_month"] = working["year_month"].astype(str)
+        if value_col in working.columns:
+            non_null = working[working[value_col].notna()].sort_values("year_month")
+            if not non_null.empty:
+                row = non_null.iloc[-1]
+                return str(row.get("year_month")), (None if status_col not in non_null.columns else row.get(status_col))
+        row = working.sort_values("year_month").iloc[-1]
+        return str(row.get("year_month")), (None if status_col not in working.columns else row.get(status_col))
+
+    def _load_publication_status(
+        self,
+        basket_type: str,
+        region: str,
+        tracker_df: Optional[pd.DataFrame] = None,
+        official_df: Optional[pd.DataFrame] = None,
+    ) -> Dict[str, Any]:
+        tracker_df = tracker_df if isinstance(tracker_df, pd.DataFrame) else pd.DataFrame()
+        official_df = official_df if isinstance(official_df, pd.DataFrame) else pd.DataFrame()
+        latest_tracker_month, latest_tracker_status = self._latest_month_row(
+            tracker_df,
+            value_col="index_value",
+            status_col="status",
+        )
+        latest_official_month, latest_official_status = self._latest_month_row(
+            official_df,
+            value_col="cpi_index",
+            status_col="status",
+        )
+
         repository = SeriesRepository(self.session)
         try:
             latest = repository.get_latest_ipc_publication_status(basket_type=basket_type, region=region)
         except Exception:
             latest = None
         if not latest:
+            if latest_tracker_month or latest_official_month:
+                if latest_tracker_month and latest_official_month:
+                    derived_status = "derived_no_publication_run"
+                elif latest_tracker_month:
+                    derived_status = "derived_official_missing"
+                else:
+                    derived_status = "derived_tracker_missing"
+            else:
+                derived_status = "derived_no_series"
             return {
                 "has_publication": False,
-                "status": "unknown",
+                "status": derived_status,
+                "status_origin": "derived_from_series",
                 "region": region,
-                "latest_tracker_month": None,
-                "latest_tracker_status": None,
+                "latest_tracker_month": latest_tracker_month,
+                "latest_tracker_status": latest_tracker_status,
+                "latest_official_month": latest_official_month,
+                "latest_official_status": latest_official_status,
                 "warnings": [],
                 "metrics": {},
                 "official_source_effective": None,
-                "validation_status": "unknown",
+                "validation_status": "not_available",
                 "source_document_url": None,
             }
         warnings_raw = latest.get("warnings_json")
@@ -717,8 +844,13 @@ class ReportGenerator:
             "started_at": str(latest.get("started_at")) if latest.get("started_at") is not None else None,
             "completed_at": str(latest.get("completed_at")) if latest.get("completed_at") is not None else None,
             "official_source_effective": metrics.get("official_source_effective") or latest.get("official_source"),
-            "validation_status": metrics.get("official_validation_status", "unknown"),
+            "validation_status": metrics.get("official_validation_status", "not_available"),
             "source_document_url": metrics.get("official_source_document_url"),
+            "status_origin": "publication_run",
+            "latest_tracker_month": latest_tracker_month,
+            "latest_tracker_status": latest_tracker_status,
+            "latest_official_month": latest_official_month,
+            "latest_official_status": latest_official_status,
         }
 
     def _expected_catalog(self, basket_type: str) -> Tuple[Dict[str, int], Dict[str, str], set[str]]:
@@ -1289,7 +1421,12 @@ class ReportGenerator:
             }
         )
         publication_status_by_region = {
-            region: self._load_publication_status(basket_type, region)
+            region: self._load_publication_status(
+                basket_type,
+                region,
+                tracker_df=tracker_ipc_df,
+                official_df=ipc_by_region.get(region, pd.DataFrame()),
+            )
             for region in regions
         }
         publication_status = publication_status_by_region.get(default_region, {})
@@ -1302,6 +1439,7 @@ class ReportGenerator:
             candidate_band_summary=candidate_band_summary,
         )
         ads_payload = self._ads_payload()
+        analytics_payload = self._analytics_payload()
         premium_payload = self._premium_placeholders_payload()
 
         if df.empty:
@@ -1421,7 +1559,9 @@ class ReportGenerator:
                 "candidate_bands": candidate_bands,
                 "candidate_band_summary": candidate_band_summary,
                 "ads": ads_payload,
+                "analytics": analytics_payload,
                 "premium_placeholders": premium_payload,
+                "publication_policy": PUBLICATION_POLICY,
                 "web_status": web_payload["web_status"],
                 "is_stale": web_payload["is_stale"],
                 "data_age_hours": web_payload["data_age_hours"],
@@ -1441,7 +1581,7 @@ class ReportGenerator:
                     "macro_category": macro_categories[0] if macro_categories else "",
                     "view": analysis_depth,
                     "band_product": "",
-                    "page_size": 50,
+                    "page_size": 25,
                     "current_page": 1,
                 },
                 "filters_available": {
@@ -1675,7 +1815,9 @@ class ReportGenerator:
             "candidate_bands": candidate_bands,
             "candidate_band_summary": candidate_band_summary,
             "ads": ads_payload,
+            "analytics": analytics_payload,
             "premium_placeholders": premium_payload,
+            "publication_policy": PUBLICATION_POLICY,
             "web_status": web_payload["web_status"],
             "is_stale": web_payload["is_stale"],
             "data_age_hours": web_payload["data_age_hours"],
@@ -1695,7 +1837,7 @@ class ReportGenerator:
                 "macro_category": macro_categories[0] if macro_categories else "",
                 "view": analysis_depth,
                 "band_product": "",
-                "page_size": 50,
+                "page_size": 25,
                 "current_page": 1,
             },
             "filters_available": {
@@ -1722,6 +1864,19 @@ class ReportGenerator:
         external_script = ""
         if offline_assets == "external":
             external_script = '<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>'
+        analytics_script = ""
+        analytics_payload = payload.get("analytics", {}) if isinstance(payload.get("analytics"), dict) else {}
+        analytics_enabled = bool(analytics_payload.get("enabled", False))
+        analytics_domain = str(analytics_payload.get("domain", "")).strip()
+        analytics_src = str(
+            analytics_payload.get("script_url", "https://plausible.io/js/script.js")
+        ).strip()
+        if analytics_enabled and analytics_domain:
+            analytics_script = (
+                f"<script defer data-domain=\"{analytics_domain}\" src=\"{analytics_src}\"></script>"
+            )
+        tracker_url = f"{self._public_base_url()}/tracker/"
+        og_image_url = f"{self._public_base_url()}/assets/og-card.svg"
 
         template = r"""<!doctype html>
 <html lang="es">
@@ -1731,15 +1886,20 @@ class ReportGenerator:
 <title>La Anonima: rastreador de precios - Ushuaia</title>
 <meta name="description" content="Panel profesional para seguimiento de precios historicos, variacion nominal/real y comparativa de IPC."/>
 <meta name="theme-color" content="#0b607a"/>
+<link rel="canonical" href="__TRACKER_URL__"/>
 <meta property="og:type" content="website"/>
 <meta property="og:title" content="La Anonima Tracker"/>
 <meta property="og:description" content="Seguimiento historico de precios y comparativa macro IPC."/>
-<meta property="og:image" content="/assets/og-card.svg"/>
-<meta property="og:url" content="/tracker/"/>
+<meta property="og:image" content="__OG_IMAGE_URL__"/>
+<meta property="og:url" content="__TRACKER_URL__"/>
 <meta name="twitter:card" content="summary_large_image"/>
+<meta name="twitter:title" content="La Anonima Tracker"/>
+<meta name="twitter:description" content="Seguimiento historico de precios y comparativa macro IPC."/>
+<meta name="twitter:image" content="__OG_IMAGE_URL__"/>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
 <link rel="manifest" href="/site.webmanifest"/>
 __EXTERNAL_SCRIPT__
+__ANALYTICS_SCRIPT__
 <style>
 :root{
   --bg:#f3f6fa;
@@ -1763,13 +1923,16 @@ __EXTERNAL_SCRIPT__
   --shadow-lg:0 8px 16px rgba(21,34,54,.08), 0 24px 46px rgba(21,34,54,.09);
   --radius:16px;
   --radius-sm:11px;
+  --font-display:"Iowan Old Style","Book Antiqua","Palatino Linotype",serif;
+  --font-body:"Aptos","Segoe UI Variable","Trebuchet MS",sans-serif;
 }
 *{box-sizing:border-box}
 html,body{
   margin:0;
   padding:0;
   color:var(--text);
-  font-family:"Aptos","Segoe UI Variable","Trebuchet MS",sans-serif;
+  font-family:var(--font-body);
+  font-size:16px;
   line-height:1.38;
 }
 html{scroll-behavior:smooth}
@@ -1779,7 +1942,7 @@ body{
     radial-gradient(1050px 420px at 100% -6%, rgba(11,139,133,.1) 0%, rgba(11,139,133,0) 56%),
     linear-gradient(180deg, var(--bg-soft) 0%, var(--bg) 36%, var(--bg) 100%);
 }
-.card,.kpi,.guide-step,.ad-slot,.pill,button,input,select,.head-links a{
+.card,.kpi,.ad-slot,.pill,button,input,select,.head-links a{
   transition:box-shadow .2s ease, border-color .2s ease, background-color .2s ease, transform .2s ease, color .2s ease;
 }
 @media (hover:hover){
@@ -1804,6 +1967,7 @@ body{
   overflow:hidden;
 }
 .card h2{margin:0 0 10px 0;font-size:1.03rem;letter-spacing:.01em}
+.card h2{font-family:var(--font-display)}
 .header{
   background:
     radial-gradient(900px 280px at 0% 0%, rgba(11,96,122,.08) 0%, rgba(11,96,122,0) 62%),
@@ -1843,6 +2007,7 @@ body{
   font-size:1.56rem;
   line-height:1.16;
   letter-spacing:.01em;
+  font-family:var(--font-display);
 }
 .meta{color:var(--muted);font-size:.92rem;margin:0 0 3px 0}
 .badge{
@@ -1868,32 +2033,6 @@ body{
   background:linear-gradient(180deg,#ffffff 0%,#f9fcfe 100%);
 }
 .guide-title{font-weight:800;font-size:1rem}
-.guide-list{
-  display:grid;
-  gap:8px;
-  grid-template-columns:repeat(auto-fit,minmax(210px,1fr));
-}
-.guide-step{
-  border:1px solid var(--line);
-  background:var(--panel-soft);
-  border-radius:12px;
-  padding:9px 10px;
-  font-size:.84rem;
-  color:#334155;
-}
-.guide-step .num{
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  width:19px;
-  height:19px;
-  border-radius:999px;
-  margin-right:7px;
-  font-size:.72rem;
-  font-weight:800;
-  color:#fff;
-  background:linear-gradient(180deg,var(--primary),var(--primary-strong));
-}
 .pills{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .pill{
   display:inline-flex;
@@ -2065,11 +2204,11 @@ button.soft:hover{background:#edf5fd}
 .workspace-grid{
   display:grid;
   gap:14px;
-  grid-template-columns:minmax(0,1.7fr) minmax(320px,1fr);
+  grid-template-columns:minmax(0,1.45fr) minmax(320px,.95fr);
   align-items:start;
 }
 .workspace-main,.workspace-side{display:grid;gap:14px}
-.chart-card h2{text-align:center}
+.chart-card h2{text-align:left}
 .chart{
   border:1px solid var(--line);
   border-radius:13px;
@@ -2137,6 +2276,16 @@ button.soft:hover{background:#edf5fd}
 .dot{width:10px;height:10px;border-radius:999px;display:inline-block}
 .band-toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
 .band-select-wrap{min-width:260px;flex:1}
+.macro-note{
+  border:1px solid #edcf95;
+  background:#fff8e9;
+  color:#6f4e11;
+  border-radius:10px;
+  padding:8px 10px;
+  font-size:.8rem;
+  line-height:1.35;
+  margin-bottom:8px;
+}
 .quality{
   display:grid;
   gap:8px;
@@ -2362,36 +2511,31 @@ td:first-child a{
         <a href="/metodologia/">Metodologia</a>
         <a href="/contacto/">Contacto</a>
       </nav>
-      <h1 class="title">La Anonima Tracker: Monitor Economico de Precios</h1>
+      <h1 class="title">La Anonima Tracker: precios para decidir mejor</h1>
       <p class="meta">Generado: __GEN__ | Rango: __FROM__ a __TO__ | Canasta: __BASKET__</p>
       <p class="meta" id="freshness-meta">Estado web: pendiente | Proxima corrida estimada: N/D</p>
-      <p class="method">Metodologia: representativo (single) + terna low/mid/high auditada; variacion nominal y real deflactada por IPC INDEC (si disponible).</p>
+      <p class="method">Primero revisa el bloque macro. Luego filtra productos para ver variaciones nominales y reales.</p>
     </div>
     <div>
       <span id="quality-badge" class="badge">Datos completos</span>
-      <div class="method ui-version">UI v2 (__VIEW__)</div>
+      <div class="method ui-version">Version publica</div>
     </div>
   </section>
 
   <section class="card helper" id="quick-guide">
-    <div class="guide-title">Lectura rapida del reporte</div>
-    <div class="guide-list">
-      <div class="guide-step"><span class="num">1</span>Valida señal macro en KPIs.</div>
-      <div class="guide-step"><span class="num">2</span>Ajusta filtros y selecciona productos clave.</div>
-      <div class="guide-step"><span class="num">3</span>Compara nominal vs real en los graficos.</div>
-      <div class="guide-step"><span class="num">4</span>Profundiza con tabla paginada y exportacion.</div>
-    </div>
+    <div class="guide-title">Resumen de vista</div>
+    <p class="method">Aplicá filtros y compartí esta misma vista con "Copiar vista".</p>
     <div id="active-filters" class="pills"></div>
   </section>
 
-  <section class="card ad-panel" id="ad-panel">
+  <section class="card ad-panel" id="ad-panel" style="display:none">
     <h2>Publicidad</h2>
     <div id="ad-slots" class="ad-grid"></div>
   </section>
 
-  <section class="card premium-panel" id="premium-panel">
-    <h2>Funciones premium (proximamente)</h2>
-    <p class="muted">Bloques preparados para activacion futura sin rehacer el frontend.</p>
+  <section class="card premium-panel" id="premium-panel" style="display:none">
+    <h2>Funciones opcionales</h2>
+    <p class="muted">Modulos disponibles para una futura version Pro.</p>
     <ul id="premium-features" class="premium-list"></ul>
   </section>
 
@@ -2404,13 +2548,38 @@ td:first-child a{
   <div id="app" class="stack">
     <section class="kpis" id="kpi-grid"></section>
 
+    <article class="card chart-card" id="panel-secondary">
+      <h2>IPC Propio vs IPC Oficial (indice base 100)</h2>
+      <div class="band-toolbar">
+        <div class="band-select-wrap">
+          <label for="macro-scope">Vista macro</label>
+          <select id="macro-scope">
+            <option value="general">General</option>
+            <option value="rubros">Rubros</option>
+          </select>
+        </div>
+        <div class="band-select-wrap">
+          <label for="macro-region">Region oficial</label>
+          <select id="macro-region"></select>
+        </div>
+        <div class="band-select-wrap">
+          <label for="macro-category">Rubro</label>
+          <select id="macro-category"></select>
+        </div>
+        <div id="macro-status" class="muted"></div>
+      </div>
+      <div id="macro-notice" class="macro-note" hidden></div>
+      <div id="chart-secondary" class="chart small"><div class="chart-empty">Sin comparativa IPC</div></div>
+      <div id="legend-secondary" class="legend"></div>
+    </article>
+
     <details class="filters" id="filters-panel" open>
       <summary>Filtros y seleccion de productos</summary>
       <div class="filters-grid">
         <div class="filter-field span-4">
           <label for="q">Buscar producto</label>
           <div class="search-wrap">
-            <input id="q" placeholder="nombre o canonical_id" />
+            <input id="q" placeholder="nombre del producto" />
             <button id="clear-search" type="button" class="soft">Limpiar</button>
           </div>
           <div class="field-meta">Tip rapido: presiona <strong>/</strong> para enfocar la busqueda.</div>
@@ -2517,30 +2686,6 @@ td:first-child a{
       </div>
 
       <aside class="workspace-side">
-        <article class="card chart-card" id="panel-secondary">
-          <h2>IPC Propio vs IPC Oficial (indice base 100)</h2>
-          <div class="band-toolbar">
-            <div class="band-select-wrap">
-              <label for="macro-scope">Vista macro</label>
-              <select id="macro-scope">
-                <option value="general">General</option>
-                <option value="rubros">Rubros</option>
-              </select>
-            </div>
-            <div class="band-select-wrap">
-              <label for="macro-region">Region oficial</label>
-              <select id="macro-region"></select>
-            </div>
-            <div class="band-select-wrap">
-              <label for="macro-category">Rubro</label>
-              <select id="macro-category"></select>
-            </div>
-            <div id="macro-status" class="muted"></div>
-          </div>
-          <div id="chart-secondary" class="chart small"><div class="chart-empty">Sin comparativa IPC</div></div>
-          <div id="legend-secondary" class="legend"></div>
-        </article>
-
         <section class="card chart-card" id="panel-bands">
           <h2>Dispersión intra-producto (low/mid/high)</h2>
           <div class="band-toolbar">
@@ -2570,8 +2715,8 @@ td:first-child a{
 </div>
 
 <div id="mobile-onboarding" class="onboarding-mobile" hidden role="dialog" aria-live="polite">
-  <div class="onboarding-title">Guia movil rapida</div>
-  <div>Abre filtros, busca con <strong>/</strong> y usa "Copiar vista" para compartir tu analisis.</div>
+  <div class="onboarding-title">Guia movil</div>
+  <div>Abrí filtros, buscá con <strong>/</strong> y compartí con "Copiar vista".</div>
   <div class="onboarding-actions">
     <button id="onboarding-goto" type="button" class="primary">Ir a filtros</button>
     <button id="onboarding-close" type="button">Entendido</button>
@@ -2609,7 +2754,7 @@ const st={
   macro_category:defaults.macro_category||"",
   view:defaults.view||"executive",
   band_product:defaults.band_product||"",
-  page_size:Number(defaults.page_size||50),
+  page_size:Number(defaults.page_size||25),
   current_page:Number(defaults.current_page||1)
 };
 
@@ -2661,6 +2806,7 @@ const el={
   macroRegion:document.getElementById("macro-region"),
   macroCategory:document.getElementById("macro-category"),
   macroStatus:document.getElementById("macro-status"),
+  macroNotice:document.getElementById("macro-notice"),
   chartSecondary:document.getElementById("chart-secondary"),
   legendSecondary:document.getElementById("legend-secondary"),
   panelBands:document.getElementById("panel-bands"),
@@ -2678,6 +2824,33 @@ const el={
   activeFilters:document.getElementById("active-filters"),
   freshnessMeta:document.getElementById("freshness-meta")
 };
+
+const ADSENSE_SCRIPT_ID="laanonima-tracker-adsense";
+
+function trackEvent(name,props){
+  if(typeof window.plausible!=="function") return;
+  try{
+    window.plausible(name,{props:props||{}});
+  }catch(_e){}
+}
+
+function consentState(){
+  try{
+    return window.localStorage?.getItem?.(COOKIE_KEY)||"";
+  }catch(_e){
+    return "";
+  }
+}
+
+function ensureAdSenseScript(clientId){
+  if(!clientId || document.getElementById(ADSENSE_SCRIPT_ID)) return;
+  const script=document.createElement("script");
+  script.id=ADSENSE_SCRIPT_ID;
+  script.async=true;
+  script.crossOrigin="anonymous";
+  script.src=`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${encodeURIComponent(clientId)}`;
+  document.head.appendChild(script);
+}
 
 // Keep unicode range escaped to avoid encoding issues in generated standalone HTML.
 const norm=v=>String(v||"").toLowerCase().normalize("NFD").replace(/[\\u0300-\\u036f]/g,"");
@@ -2796,7 +2969,7 @@ function encodeHash(){
   q.set("bp",st.band_product||"");
   q.set("real",st.show_real_column?"1":"0");
   q.set("sel",(st.selected_products||[]).join(","));
-  q.set("ps",String(st.page_size||50));
+  q.set("ps",String(st.page_size||25));
   q.set("pg",String(st.current_page||1));
   return q.toString();
 }
@@ -2819,7 +2992,7 @@ function applyHashState(){
     st.show_real_column=(q.get("real")||"0")==="1";
     const sel=q.get("sel");
     if(sel)st.selected_products=sel.split(",").filter(Boolean);
-    st.page_size=Number(q.get("ps")||st.page_size||50);
+    st.page_size=Number(q.get("ps")||st.page_size||25);
     st.current_page=Number(q.get("pg")||st.current_page||1);
     return true;
   }catch(_e){return false;}
@@ -2877,6 +3050,7 @@ async function copyCurrentViewLink(){
     if(navigator.clipboard && navigator.clipboard.writeText){
       await navigator.clipboard.writeText(link);
       setCopyStatus("Link copiado.");
+      trackEvent("copy_view_link",{method:"clipboard"});
       return;
     }
   }catch(_e){}
@@ -2892,10 +3066,12 @@ async function copyCurrentViewLink(){
     document.body.removeChild(ta);
     if(ok){
       setCopyStatus("Link copiado.");
+      trackEvent("copy_view_link",{method:"execCommand"});
       return;
     }
   }catch(_e){}
   setCopyStatus("No se pudo copiar. Copialo manualmente desde la barra.",true);
+  trackEvent("copy_view_link_failed",{});
 }
 
 const refsNom={};
@@ -2920,6 +3096,11 @@ let _rowsCacheKey="";
 let _rowsCacheValue=[];
 let _lastMainChartKey="";
 let _lastSecondaryChartKey="";
+const lazyPanels={
+  bands_ready:false,
+  quality_ready:false,
+  observer:null
+};
 
 function calcVar(current,base){
   if(base==null||Number(base)<=0||current==null)return null;
@@ -2992,7 +3173,7 @@ function syncSelection(rows){
 
 function paginatedRows(rows){
   const total=Math.max(0, rows.length);
-  const pageSize=Math.max(1, Number(st.page_size||50));
+  const pageSize=Math.max(1, Number(st.page_size||25));
   const totalPages=Math.max(1, Math.ceil(total/pageSize));
   st.current_page=Math.min(Math.max(1, Number(st.current_page||1)), totalPages);
   const start=(st.current_page-1)*pageSize;
@@ -3079,6 +3260,7 @@ function exportFilteredCsv(rows){
   document.body.appendChild(a);
   a.click();
   setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},0);
+  trackEvent("export_csv",{rows:rows.length||0,from:p.from_month,to:p.to_month});
 }
 
 function toSeriesForMainChart(rows){
@@ -3395,6 +3577,29 @@ function drawMainChart(rows,force=false){
   drawCanvasChart(el.chartMain,el.legendMain,series,yLabel);
 }
 
+function safeText(value,fallback="N/D"){
+  if(value===null || value===undefined) return fallback;
+  if(typeof value==="number" && Number.isNaN(value)) return fallback;
+  const txt=String(value).trim();
+  if(!txt) return fallback;
+  const normalized=txt.toLowerCase();
+  if(normalized==="nan" || normalized==="none" || normalized==="null") return fallback;
+  return txt;
+}
+
+function computeIndependentBase100(rows,indexKey){
+  const baseRow=rows.find(r=>r[indexKey]!=null);
+  const base=baseRow?Number(baseRow[indexKey]):null;
+  if(base==null || !Number.isFinite(base) || base<=0){
+    return rows.map(()=>null);
+  }
+  return rows.map(r=>{
+    const value=Number(r[indexKey]);
+    if(!Number.isFinite(value)) return null;
+    return (value/base)*100;
+  });
+}
+
 function drawSecondaryChart(force=false){
   const region=st.macro_region||p.macro_default_region||"patagonia";
   const regionLabel=region==="nacional"?"Nacional":"Patagonia";
@@ -3478,15 +3683,50 @@ function drawSecondaryChart(force=false){
       year_month:x.year_month,
       tracker_index_base100:x.basket_index_base100,
       official_index_base100:x.ipc_index_base100,
+      plot_tracker_base100:x.basket_index_base100,
+      plot_official_base100:x.ipc_index_base100,
+      plot_mode:"strict_overlap",
+      tracker_base_month:null,
+      official_base_month:null,
+      is_strictly_comparable:true,
       gap_index_points:x.gap_points,
       tracker_status:null,
       official_status:null
     }));
   }
 
-  const tracker=src.map(x=>({x:new Date(`${x.year_month}-01T00:00:00`),y:x.tracker_index_base100})).filter(x=>x.y!=null);
-  const official=src.map(x=>({x:new Date(`${x.year_month}-01T00:00:00`),y:x.official_index_base100})).filter(x=>x.y!=null);
-  const gap=src.map(x=>({x:new Date(`${x.year_month}-01T00:00:00`),y:x.gap_index_points})).filter(x=>x.y!=null);
+  const trackerPlotRaw=src.map(x=>(x.plot_tracker_base100 ?? x.tracker_index_base100 ?? null));
+  const officialPlotRaw=src.map(x=>(x.plot_official_base100 ?? x.official_index_base100 ?? null));
+  let trackerPlot=trackerPlotRaw;
+  let officialPlot=officialPlotRaw;
+  let plotMode=src.some(x=>x.plot_mode==="independent_base") ? "independent_base" : "strict_overlap";
+  if(!trackerPlot.some(v=>v!=null)){
+    const rebuilt=computeIndependentBase100(src,"tracker_index");
+    if(rebuilt.some(v=>v!=null)){
+      trackerPlot=rebuilt;
+      plotMode="independent_base";
+    }
+  }
+  if(!officialPlot.some(v=>v!=null)){
+    const rebuilt=computeIndependentBase100(src,"official_index");
+    if(rebuilt.some(v=>v!=null)){
+      officialPlot=rebuilt;
+      plotMode="independent_base";
+    }
+  }
+  const strictComparable=src.some(
+    x=>((x.is_strictly_comparable===true) || (x.is_strictly_comparable===undefined && x.gap_index_points!=null))
+      && x.gap_index_points!=null
+  );
+  const tracker=src
+    .map((row,idx)=>({x:new Date(`${row.year_month}-01T00:00:00`),y:trackerPlot[idx]}))
+    .filter(x=>x.y!=null);
+  const official=src
+    .map((row,idx)=>({x:new Date(`${row.year_month}-01T00:00:00`),y:officialPlot[idx]}))
+    .filter(x=>x.y!=null);
+  const gap=(strictComparable ? src : [])
+    .map(x=>({x:new Date(`${x.year_month}-01T00:00:00`),y:x.gap_index_points}))
+    .filter(x=>x.y!=null);
   const series=[
     {name:"IPC propio base 100",points:tracker,color:"#005f73"},
     {name:`IPC ${regionLabel} base 100`,points:official,color:"#ca6702"},
@@ -3494,16 +3734,40 @@ function drawSecondaryChart(force=false){
   ].filter(s=>s.points.length>0);
   drawCanvasChart(el.chartSecondary,el.legendSecondary,series,"Indice base 100 / brecha");
 
+  if(el.macroNotice){
+    const latestTrackerMonth=safeText((p.publication_status_by_region?.[region]||{}).latest_tracker_month, null)
+      || safeText(([...src].reverse().find(x=>x.tracker_index!=null)||{}).year_month, "N/D");
+    const latestOfficialMonth=safeText((p.publication_status_by_region?.[region]||{}).latest_official_month, null)
+      || safeText(([...src].reverse().find(x=>x.official_index!=null)||{}).year_month, "N/D");
+    if((tracker.length>0 || official.length>0) && (plotMode==="independent_base" || !strictComparable)){
+      el.macroNotice.hidden=false;
+      el.macroNotice.textContent=
+        `Comparacion parcial: IPC oficial disponible hasta ${latestOfficialMonth} e IPC propio hasta ${latestTrackerMonth}. `
+        + "La brecha en puntos solo aparece cuando ambos tienen meses estrictamente comparables.";
+    }else{
+      el.macroNotice.hidden=true;
+      el.macroNotice.textContent="";
+    }
+  }
+
   if(el.macroStatus){
     const latest=[...src].reverse().find(x=>x.year_month)||null;
+    const latestTracker=[...src].reverse().find(x=>x.tracker_index!=null)||null;
+    const latestOfficial=[...src].reverse().find(x=>x.official_index!=null)||null;
     const pub=(p.publication_status_by_region?.[region]||p.publication_status||{});
-    const trackerStatus=latest?.tracker_status||"N/D";
-    const officialStatus=latest?.official_status||"N/D";
-    const pubStatus=pub.status||"sin_publicacion";
-    const latestMonth=latest?.year_month||"N/D";
+    const trackerStatus=safeText(pub.latest_tracker_status ?? latestTracker?.tracker_status, latestTracker ? "disponible" : "N/D");
+    const officialStatus=safeText(pub.latest_official_status ?? latestOfficial?.official_status, latestOfficial ? "disponible" : "N/D");
+    const trackerMonth=safeText(pub.latest_tracker_month ?? latestTracker?.year_month, "N/D");
+    const officialMonth=safeText(pub.latest_official_month ?? latestOfficial?.year_month, "N/D");
+    const pubStatus=safeText(pub.status, "sin_publicacion");
+    const statusOrigin=safeText(pub.status_origin, "publication_run");
+    const latestMonth=safeText(latest?.year_month, "N/D");
+    const comparability=strictComparable ? "estricta" : "parcial";
+    const derivedNote=statusOrigin==="derived_from_series" ? " (derivado de series)" : "";
     el.macroStatus.textContent=
-      `${macroLabel} | region: ${regionLabel} | ultimo mes: ${latestMonth} | `
-      + `tracker: ${trackerStatus} | oficial: ${officialStatus} | publicacion: ${pubStatus}`;
+      `${macroLabel} | region: ${regionLabel} | ultimo mes con dato: ${latestMonth} | `
+      + `IPC propio: ${trackerMonth} (${trackerStatus}) | IPC oficial: ${officialMonth} (${officialStatus}) | `
+      + `comparacion ${comparability} | publicacion: ${pubStatus}${derivedNote}`;
   }
 }
 
@@ -3637,43 +3901,40 @@ function drawQuality(){
   const pub=(p.publication_status_by_region?.[region]||p.publication_status||{});
   const trackerSeries=p.tracker_ipc_series||[];
   const officialSeries=(p.official_series_by_region?.[region]||p.official_patagonia_series||[]);
-  const latestTracker=trackerSeries.length?trackerSeries[trackerSeries.length-1]:{};
-  const latestOfficial=officialSeries.length?officialSeries[officialSeries.length-1]:{};
+  const latestTracker=( [...trackerSeries].reverse().find(x=>x.index_value!=null) || trackerSeries[trackerSeries.length-1] || {} );
+  const latestOfficial=( [...officialSeries].reverse().find(x=>x.cpi_index!=null) || officialSeries[officialSeries.length-1] || {} );
   const cba=sq.cba||{};
   const core=sq.daily_core||{};
   const rot=sq.daily_rotation||{};
-  const mapMeta=p.category_mapping_meta||{};
-  const unmapped=(mapMeta.unmapped_categories||[]);
+  const missingMonths=(qf.missing_cpi_months||[]);
   el.qualityBadge.textContent=qf.badge||"Datos parciales";
   el.qualityBadge.className=`badge${qf.is_partial?" warn":""}`;
   el.qualityCoverage.textContent=
-    `Cobertura total: ${fmtNum(cov.coverage_total_pct)}% | Esperados: ${cov.expected_products ?? "N/D"} | `
-    + `Observados canasta: ${cov.observed_products_total ?? "N/D"} | `
-    + `Fuera canasta: ${cov.unexpected_observed_products ?? 0}`;
-  el.qualityPanelSize.textContent=`Panel balanceado: ${qf.balanced_panel_n ?? "N/D"} productos`;
+    `Cobertura canasta: ${fmtNum(cov.coverage_total_pct)}% `
+    + `(${cov.observed_products_total ?? "N/D"} de ${cov.expected_products ?? "N/D"} productos esperados).`;
+  el.qualityPanelSize.textContent=`Panel util para lectura: ${qf.balanced_panel_n ?? "N/D"} productos.`;
   if(el.qualityMacro){
     el.qualityMacro.textContent=
-      `Macro tracker: inicio ${(trackerSeries[0]?.year_month)||"N/D"} | ultimo ${(latestTracker?.year_month)||"N/D"} `
-      + `| estado ultimo ${(latestTracker?.status)||"N/D"} | region oficial ${regionLabel}`;
+      `IPC propio: inicio ${(trackerSeries[0]?.year_month)||"N/D"} | ultimo ${(latestTracker?.year_month)||"N/D"} `
+      + `| estado ${(safeText(latestTracker?.status) || "N/D")}.`;
   }
   el.qualityIpc.textContent=
     `IPC oficial (${regionLabel}): ultimo ${(latestOfficial?.year_month)||"N/D"} | `
     + `fuente ${(pub.official_source_effective)||pub.official_source||"N/D"} | `
-    + `validacion ${(pub.validation_status)||"unknown"} | `
-    + `publicacion ${(pub.status)||"sin_publicacion"} | `
-    + `meses sin IPC: ${(qf.missing_cpi_months||[]).length? qf.missing_cpi_months.join(", ") : "ninguno"}`;
+    + `estado publicacion ${(pub.status)||"sin_publicacion"}`
+    + `${safeText(pub.status_origin,"publication_run")==="derived_from_series" ? " (derivado de series)." : "."}`
+    + ` Meses sin IPC: ${missingMonths.length? missingMonths.join(", ") : "ninguno"}.`;
   if(el.qualitySegments){
     el.qualitySegments.textContent=
-      `Cobertura segmentos -> CBA: ${cba.observed ?? 0}/${cba.expected ?? 0} (${fmtNum(cba.coverage_pct)}%), `
-      + `Nucleo diario: ${core.observed ?? 0}/${core.expected ?? 0} (${fmtNum(core.coverage_pct)}%), `
-      + `Rotacion: ${rot.observed ?? 0}/${rot.expected ?? 0} (${fmtNum(rot.coverage_pct)}%)`;
+      `Segmentos del dia -> CBA: ${cba.observed ?? 0}/${cba.expected ?? 0} (${fmtNum(cba.coverage_pct)}%), `
+      + `Nucleo: ${core.observed ?? 0}/${core.expected ?? 0} (${fmtNum(core.coverage_pct)}%), `
+      + `Rotacion: ${rot.observed ?? 0}/${rot.expected ?? 0} (${fmtNum(rot.coverage_pct)}%).`;
   }
   if(el.qualityPolicy){
     el.qualityPolicy.textContent=
-      `Politica: ${sq.observation_policy || "single"} | Candidate storage: ${sq.candidate_storage_mode || "off"} | `
-      + `Regla de terna objetivo: >=${sq.tier_rule_target ?? 3} | `
-      + `Cumplimiento terna: ${pct(sq.terna_compliance_pct)} (${sq.products_with_full_terna ?? 0}/${sq.products_with_bands ?? 0}) | `
-      + `Mapping oficial: ${pct(mapMeta.mapped_coverage_pct)}${unmapped.length?` | excluidos: ${unmapped.join(", ")}`:""}`;
+      `Regla de publicacion: ${p.publication_policy || "N/D"}. `
+      + `Se mantiene terna low/mid/high auditada con cumplimiento ${pct(sq.terna_compliance_pct)} `
+      + `(${sq.products_with_full_terna ?? 0}/${sq.products_with_bands ?? 0}).`;
   }
   el.warnings.innerHTML="";
   for(const w of (qf.warnings||[])){
@@ -3692,30 +3953,59 @@ function drawQuality(){
     el.qualityPanel.style.display="";
   }
   if(el.freshnessMeta){
-    const status=p.web_status||"unknown";
-    const stale=p.is_stale?"si":"no";
+    const status=p.web_status||"partial";
     const nextRun=p.next_update_eta||"N/D";
     const lastData=p.last_data_timestamp?fmtDate(p.last_data_timestamp):"N/D";
-    el.freshnessMeta.textContent=`Estado web: ${status} | stale: ${stale} | ultimo dato: ${lastData} | proxima corrida estimada: ${nextRun}`;
+    el.freshnessMeta.textContent=`Estado web: ${status} | ultimo dato: ${lastData} | proxima corrida estimada: ${nextRun}`;
   }
 }
 
 function drawMonetization(){
   const ads=p.ads||{};
   if(el.adPanel && el.adSlots){
-    if(ads.enabled){
+    if(!ads.enabled){
+      el.adPanel.style.display="none";
+    }else{
       const slots=(ads.slots||["header","inline","sidebar","footer"]).map(v=>String(v||"").trim()).filter(Boolean);
+      const provider=String(ads.provider||"").toLowerCase();
+      const consent=consentState();
+      const clientId=String(ads.client_id||ads.client_id_placeholder||"").trim();
+      el.adPanel.style.display="";
       el.adSlots.innerHTML="";
-      slots.forEach(slot=>{
+
+      if(provider!=="adsense"){
+        slots.forEach(slot=>{
+          const div=document.createElement("div");
+          div.className="ad-slot";
+          div.setAttribute("data-slot",slot);
+          div.textContent=`Espacio publicitario (${provider || "proveedor"}): ${slot}`;
+          el.adSlots.appendChild(div);
+        });
+      }else if(consent!=="accepted"){
         const div=document.createElement("div");
         div.className="ad-slot";
-        div.setAttribute("data-slot",slot);
-        div.textContent=`Espacio publicitario: ${slot}`;
+        div.textContent=consent==="rejected"
+          ? "Publicidad desactivada por preferencia de cookies."
+          : "Acepta cookies para habilitar anuncios.";
         el.adSlots.appendChild(div);
-      });
-      el.adPanel.style.display="";
-    }else{
-      el.adPanel.style.display="none";
+      }else{
+        ensureAdSenseScript(clientId);
+        slots.forEach(slot=>{
+          const div=document.createElement("div");
+          div.className="ad-slot";
+          div.setAttribute("data-slot",slot);
+          const ins=document.createElement("ins");
+          ins.className="adsbygoogle";
+          ins.style.display="block";
+          ins.setAttribute("data-ad-client", clientId);
+          ins.setAttribute("data-ad-slot", String(slot||"").replace(/[^0-9]/g,"") || "0000000000");
+          ins.setAttribute("data-ad-format", "auto");
+          ins.setAttribute("data-full-width-responsive", "true");
+          div.appendChild(ins);
+          el.adSlots.appendChild(div);
+          try{ (window.adsbygoogle = window.adsbygoogle || []).push({}); }catch(_e){}
+        });
+      }
     }
   }
 
@@ -3738,9 +4028,10 @@ function drawMonetization(){
 
 function initConsentBanner(){
   if(!el.cookieBanner) return;
-  const saved=window.localStorage?.getItem?.(COOKIE_KEY)||"";
+  const saved=consentState();
   if(saved==="accepted" || saved==="rejected"){
     el.cookieBanner.style.display="none";
+    drawMonetization();
     return;
   }
   el.cookieBanner.style.display="";
@@ -3748,12 +4039,16 @@ function initConsentBanner(){
     el.cookieAccept.addEventListener("click",()=>{
       try{window.localStorage?.setItem?.(COOKIE_KEY,"accepted");}catch(_e){}
       el.cookieBanner.style.display="none";
+      drawMonetization();
+      trackEvent("cookie_consent_updated",{state:"accepted"});
     });
   }
   if(el.cookieReject){
     el.cookieReject.addEventListener("click",()=>{
       try{window.localStorage?.setItem?.(COOKIE_KEY,"rejected");}catch(_e){}
       el.cookieBanner.style.display="none";
+      drawMonetization();
+      trackEvent("cookie_consent_updated",{state:"rejected"});
     });
   }
 }
@@ -3896,12 +4191,66 @@ function applyStateToControls(){
   if(el.pageSize){
     const validSizes=Array.from(el.pageSize.options).map(o=>Number(o.value));
     if(!validSizes.includes(Number(st.page_size))){
-      st.page_size=validSizes.includes(50)?50:validSizes[0];
+      st.page_size=validSizes.includes(25)?25:validSizes[0];
     }
     el.pageSize.value=String(st.page_size);
   }
   st.current_page=Math.max(1, Number(st.current_page||1));
   setButtonsState();
+}
+
+function maybeDrawBandPanel(rows, force=false){
+  if(force || lazyPanels.bands_ready){
+    drawBandChart(rows);
+  }
+}
+
+function maybeDrawQualityPanel(force=false){
+  if(force || lazyPanels.quality_ready){
+    drawQuality();
+  }
+}
+
+function initLazyPanels(){
+  const hasBandPanel=!!(el.panelBands && el.chartBands && el.legendBands);
+  const hasQualityPanel=!!el.qualityPanel;
+
+  if(!hasBandPanel && !hasQualityPanel){
+    lazyPanels.bands_ready=true;
+    lazyPanels.quality_ready=true;
+    return;
+  }
+
+  if(typeof window.IntersectionObserver!=="function"){
+    lazyPanels.bands_ready=hasBandPanel;
+    lazyPanels.quality_ready=hasQualityPanel;
+    return;
+  }
+
+  const observer=new window.IntersectionObserver((entries)=>{
+    entries.forEach((entry)=>{
+      if(!entry.isIntersecting) return;
+
+      if(hasBandPanel && entry.target===el.panelBands && !lazyPanels.bands_ready){
+        lazyPanels.bands_ready=true;
+        maybeDrawBandPanel(filteredRows(), true);
+        observer.unobserve(entry.target);
+      }
+      if(hasQualityPanel && entry.target===el.qualityPanel && !lazyPanels.quality_ready){
+        lazyPanels.quality_ready=true;
+        maybeDrawQualityPanel(true);
+        observer.unobserve(entry.target);
+      }
+    });
+  },{
+    root:null,
+    rootMargin:"260px 0px 260px 0px",
+    threshold:0.01
+  });
+
+  lazyPanels.observer=observer;
+  if(hasBandPanel) observer.observe(el.panelBands);
+  if(hasQualityPanel) observer.observe(el.qualityPanel);
 }
 
 function render(){
@@ -3913,10 +4262,10 @@ function render(){
   drawTable(rows);
   drawMainChart(rows);
   drawSecondaryChart();
-  drawBandChart(rows);
+  maybeDrawBandPanel(rows);
   drawKpis();
   drawActiveFilters(rows.length);
-  drawQuality();
+  maybeDrawQualityPanel();
   saveState();
 }
 
@@ -3934,7 +4283,7 @@ function resetState(){
   st.macro_category=defaults.macro_category||"";
   st.view=defaults.view||"executive";
   st.band_product=defaults.band_product||"";
-  st.page_size=Number(defaults.page_size||50);
+  st.page_size=Number(defaults.page_size||25);
   st.current_page=Number(defaults.current_page||1);
   _rowsCacheKey="";
   _rowsCacheValue=[];
@@ -4067,7 +4416,7 @@ function bindEvents(){
       st.macro_region=e.target.value||p.macro_default_region||"patagonia";
       _lastSecondaryChartKey="";
       drawSecondaryChart(true);
-      drawQuality();
+      maybeDrawQualityPanel();
       drawActiveFilters(filteredRows().length);
       saveState();
     });
@@ -4082,14 +4431,14 @@ function bindEvents(){
     });
   }
   if(el.bandProduct){
-    el.bandProduct.addEventListener("change",(e)=>{st.band_product=e.target.value||"";drawBandChart(filteredRows());saveState();});
+    el.bandProduct.addEventListener("change",(e)=>{st.band_product=e.target.value||"";maybeDrawBandPanel(filteredRows(), true);saveState();});
   }
   el.quickUp.addEventListener("click",()=>quickPick("up"));
   el.quickDown.addEventListener("click",()=>quickPick("down"));
   el.quickFlat.addEventListener("click",()=>quickPick("flat"));
   if(el.pageSize){
     el.pageSize.addEventListener("change",(e)=>{
-      st.page_size=Number(e.target.value||50);
+      st.page_size=Number(e.target.value||25);
       st.current_page=1;
       render();
     });
@@ -4121,19 +4470,25 @@ function bindEvents(){
     });
   }
   el.reset.addEventListener("click",resetState);
-  window.addEventListener("resize",debounce(()=>{const rows=filteredRows();drawMainChart(rows,true);drawSecondaryChart(true);drawBandChart(rows);},150));
+  window.addEventListener("resize",debounce(()=>{
+    const rows=filteredRows();
+    drawMainChart(rows,true);
+    drawSecondaryChart(true);
+    maybeDrawBandPanel(rows);
+  },150));
 }
 
 function init(){
   initConsentBanner();
   initMobileOnboarding();
   drawMonetization();
+  trackEvent("tracker_view",{status:p.web_status||"partial",has_data:p.has_data?"1":"0"});
   if(!p.has_data){
     document.getElementById("empty").style.display="";
     document.getElementById("app").style.display="none";
     if(el.quickGuide) el.quickGuide.style.display="none";
     dismissMobileOnboarding(false);
-    drawQuality();
+    maybeDrawQualityPanel(true);
     return;
   }
   if(window.innerWidth<900){
@@ -4145,6 +4500,7 @@ function init(){
   applyStateToControls();
   bindShortcuts();
   bindEvents();
+  initLazyPanels();
   render();
 }
 init();
@@ -4155,6 +4511,9 @@ init();
         return (
             template.replace("__PAYLOAD__", payload_json)
             .replace("__EXTERNAL_SCRIPT__", external_script)
+            .replace("__ANALYTICS_SCRIPT__", analytics_script)
+            .replace("__TRACKER_URL__", escape(tracker_url, quote=True))
+            .replace("__OG_IMAGE_URL__", escape(og_image_url, quote=True))
             .replace("__GEN__", generated_at)
             .replace("__FROM__", payload["from_month"])
             .replace("__TO__", payload["to_month"])
@@ -4220,7 +4579,7 @@ init();
         quality_flags = payload.get("quality_flags", {})
         scrape_quality = payload.get("scrape_quality", {})
         candidate_band_summary = payload.get("candidate_band_summary", {})
-        web_status = str(payload.get("web_status", "unknown"))
+        web_status = str(payload.get("web_status", "partial"))
         is_stale = bool(payload.get("is_stale", False))
         next_update_eta = payload.get("next_update_eta")
         ad_slots_enabled = bool(payload.get("ads", {}).get("enabled", False))
@@ -4260,6 +4619,8 @@ init();
             "observation_policy": scrape_quality.get("observation_policy", "single"),
             "candidate_storage_mode": scrape_quality.get("candidate_storage_mode", "off"),
             "price_candidates_ready": bool(scrape_quality.get("price_candidates_ready", False)),
+            "publication_policy": payload.get("publication_policy", PUBLICATION_POLICY),
+            "analytics": payload.get("analytics", {}),
             "web_status": web_status,
             "is_stale": is_stale,
             "next_update_eta": next_update_eta,
@@ -4281,6 +4642,7 @@ init();
             "data_quality": metadata["data_quality"],
             "observation_policy": metadata["observation_policy"],
             "candidate_storage_mode": metadata["candidate_storage_mode"],
+            "publication_policy": metadata["publication_policy"],
             "candidate_band_summary": candidate_band_summary,
             "performance": metadata["performance"],
             "artifacts": ReportArtifacts(str(html_path), str(metadata_path), pdf_path).__dict__,

@@ -145,7 +145,53 @@ Automatizacion diaria:
 - Workflow incluido: `.github/workflows/publish-web.yml`
 - Deploy target: Cloudflare Pages
 - En corridas programadas, `DB_URL` es obligatorio para mantener historico
+- El workflow fuerza backend `postgresql` en CI (`STORAGE_BACKEND=postgresql`)
+- Incluye smoke gate antes de deploy (endpoints + consistencia manifest/latest.metadata)
 - Ver runbook operativo: `docs/runbook_publish_web.md`
+
+Primer lanzamiento real (DB nueva, sin datos de prueba):
+
+```bash
+cd laanonima-tracker
+set DB_URL=postgresql://USER:PASSWORD@HOST:5432/DBNAME
+set STORAGE_BACKEND=postgresql
+python scripts/check_db_state.py --backend postgresql --init-db --require-empty
+```
+
+Plantilla de entorno productivo:
+- `.env.production.example`
+
+Bootstrap del primer run real (en DB nueva):
+
+```bash
+cd laanonima-tracker
+set DB_URL=postgresql://USER:PASSWORD@HOST:5432/DBNAME
+python scripts/bootstrap_first_real_run.py
+```
+
+Preflight de lanzamiento (dominio/config/DB):
+
+```bash
+cd laanonima-tracker
+set DB_URL=postgresql://USER:PASSWORD@HOST:5432/DBNAME
+set STORAGE_BACKEND=postgresql
+python scripts/prelaunch_check.py --expected-base-url https://preciosushuaia.com
+```
+
+Operacion diaria real (una corrida por dia, serie historica por producto):
+
+```bash
+cd laanonima-tracker
+set DB_URL=postgresql://USER:PASSWORD@HOST:5432/DBNAME
+python scripts/daily_real_run.py
+```
+
+Ese flujo diario:
+- scrapea precios reales (`profile full`, 51 productos esperados),
+- actualiza/valida IPC oficial,
+- publica `patagonia` y `nacional`,
+- reconstruye web publica (`public/`),
+- verifica persistencia de datos y smoke HTTP local en modo estricto.
 
 Metodologia resumida:
 - `nominal`: variacion directa de precios observados.
