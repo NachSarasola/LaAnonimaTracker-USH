@@ -50,12 +50,17 @@ Recommended daily pipeline (production parity):
 
 ```bash
 python -m src.cli scrape --basket all --backend postgresql --profile full --candidate-storage db --observation-policy single+audit
-python -m src.cli ipc-sync --region all
-python -m src.cli ipc-publish --basket all --region patagonia
-python -m src.cli ipc-publish --basket all --region nacional
+python -m src.cli ipc-sync --region all --from 2026-01 --to 2026-03
+python -m src.cli ipc-build --basket all --from 2026-01 --to 2026-03
+python -m src.cli ipc-publish --basket all --region patagonia --from 2026-01 --to 2026-03 --skip-sync --skip-build
+python -m src.cli ipc-publish --basket all --region nacional --from 2026-01 --to 2026-03 --skip-sync --skip-build
 python -m src.cli publish-web --basket all --view analyst --benchmark ipc --offline-assets external
 python scripts/check_db_state.py --backend postgresql --require-has-data
 ```
+
+Nota de performance:
+- Evitar `ipc-publish` completo dos veces seguidas (duplica sync/build).
+- Recomendado: `ipc-sync` + `ipc-build` una vez, luego `ipc-publish` por region con `--skip-sync --skip-build`.
 
 Daily one-command runner (recommended for operación diaria):
 
@@ -152,9 +157,10 @@ Optional:
 - Confirm whether official IPC for latest month exists in `official_cpi_monthly`.
 - If official month is missing (normal publication lag), keep site online with alert.
 - If official month exists but not shown, run:
-  - `python -m src.cli ipc-sync --region all`
-  - `python -m src.cli ipc-publish --basket all --region patagonia`
-  - `python -m src.cli ipc-publish --basket all --region nacional`
+  - `python -m src.cli ipc-sync --region all --from YYYY-MM --to YYYY-MM`
+  - `python -m src.cli ipc-build --basket all --from YYYY-MM --to YYYY-MM`
+  - `python -m src.cli ipc-publish --basket all --region patagonia --from YYYY-MM --to YYYY-MM --skip-sync --skip-build`
+  - `python -m src.cli ipc-publish --basket all --region nacional --from YYYY-MM --to YYYY-MM --skip-sync --skip-build`
   - then rebuild `publish-web`.
 
 3. Cloudflare deploy fails:

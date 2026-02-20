@@ -188,10 +188,15 @@ python scripts/daily_real_run.py
 
 Ese flujo diario:
 - scrapea precios reales (`profile full`, 51 productos esperados),
-- actualiza/valida IPC oficial,
-- publica `patagonia` y `nacional`,
+- actualiza/valida IPC oficial en ventana incremental,
+- construye IPC tracker una sola vez por corrida,
+- publica `patagonia` y `nacional` reutilizando build (`--skip-sync --skip-build`),
 - reconstruye web publica (`public/`),
 - verifica persistencia de datos y smoke HTTP local en modo estricto.
+
+Ventana IPC incremental por defecto en `daily_real_run.py`:
+- desde hace 2 meses hasta mes actual (`--ipc-lookback-months 2`).
+- override opcional: `--ipc-from YYYY-MM --ipc-to YYYY-MM`.
 
 Metodologia resumida:
 - `nominal`: variacion directa de precios observados.

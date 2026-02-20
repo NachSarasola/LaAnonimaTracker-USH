@@ -10,6 +10,7 @@ from typing import Any, Dict, Optional
 
 import pandas as pd
 from loguru import logger
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from src.config_loader import load_config
@@ -18,6 +19,7 @@ from src.ipc_tracker import TrackerIPCBuilder
 from src.models import (
     IPCPublicationRun,
     OfficialCPIMonthly,
+    TrackerIPCCategoryMonthly,
     TrackerIPCMonthly,
     get_engine,
     get_session_factory,
@@ -131,6 +133,65 @@ def _compute_comparison_metrics(
     }
 
 
+def _count_existing_official_rows(
+    session: Session,
+    source_code: str,
+    region: str,
+    from_month: Optional[str],
+    to_month: Optional[str],
+) -> int:
+    query = (
+        session.query(func.count(OfficialCPIMonthly.id))
+        .filter(OfficialCPIMonthly.source == source_code)
+        .filter(OfficialCPIMonthly.region == region)
+        .filter(OfficialCPIMonthly.metric_code == "general")
+    )
+    if from_month:
+        query = query.filter(OfficialCPIMonthly.year_month >= from_month)
+    if to_month:
+        query = query.filter(OfficialCPIMonthly.year_month <= to_month)
+    return int(query.scalar() or 0)
+
+
+def _summarize_existing_tracker_rows(
+    session: Session,
+    basket_type: str,
+    method_version: str,
+    from_month: Optional[str],
+    to_month: Optional[str],
+) -> Dict[str, Optional[Any]]:
+    base_query = (
+        session.query(TrackerIPCMonthly)
+        .filter(TrackerIPCMonthly.basket_type == basket_type)
+        .filter(TrackerIPCMonthly.method_version == method_version)
+    )
+    if from_month:
+        base_query = base_query.filter(TrackerIPCMonthly.year_month >= from_month)
+    if to_month:
+        base_query = base_query.filter(TrackerIPCMonthly.year_month <= to_month)
+
+    general_rows = int(base_query.count())
+    min_month = base_query.with_entities(func.min(TrackerIPCMonthly.year_month)).scalar()
+    max_month = base_query.with_entities(func.max(TrackerIPCMonthly.year_month)).scalar()
+
+    category_query = (
+        session.query(func.count(TrackerIPCCategoryMonthly.id))
+        .filter(TrackerIPCCategoryMonthly.basket_type == basket_type)
+        .filter(TrackerIPCCategoryMonthly.method_version == method_version)
+    )
+    if from_month:
+        category_query = category_query.filter(TrackerIPCCategoryMonthly.year_month >= from_month)
+    if to_month:
+        category_query = category_query.filter(TrackerIPCCategoryMonthly.year_month <= to_month)
+
+    return {
+        "general_rows": general_rows,
+        "category_rows": int(category_query.scalar() or 0),
+        "from_month": str(min_month) if min_month is not None else from_month,
+        "to_month": str(max_month) if max_month is not None else to_month,
+    }
+
+
 def publish_ipc(
     config: Dict[str, Any],
     session: Session,
@@ -138,14 +199,18 @@ def publish_ipc(
     from_month: Optional[str] = None,
     to_month: Optional[str] = None,
     region: Optional[str] = None,
+    skip_sync: bool = False,
+    skip_build: bool = False,
 ) -> PublicationSummary:
-    """Execute full monthly publication pipeline and audit the run."""
+    """Execute monthly publication pipeline and audit the run."""
     ipc_official_cfg = config.get("analysis", {}).get("ipc_official", {})
     region_name = str(region or ipc_official_cfg.get("region_default", "patagonia"))
     source_code = str(ipc_official_cfg.get("source_code", "indec_patagonia"))
 
     run_uuid = str(uuid.uuid4())
-    method_version = str(config.get("analysis", {}).get("ipc_tracker", {}).get("method_version", "v1_fixed_weight_robust_monthly"))
+    method_version = str(
+        config.get("analysis", {}).get("ipc_tracker", {}).get("method_version", "v1_fixed_weight_robust_monthly")
+    )
     run = IPCPublicationRun(
         run_uuid=run_uuid,
         basket_type=basket_type,
@@ -165,49 +230,90 @@ def publish_ipc(
     tracker_rows = 0
     tracker_category_rows = 0
     metrics: Dict[str, Any] = {}
+    tracker_method_version = method_version
+    tracker_from_month = from_month
+    tracker_to_month = to_month
+    official_source_effective = "not_run"
+    official_validation_status = "not_run"
+    official_source_document_url: Optional[str] = None
+    official_regions_synced: list[str] = [region_name]
+    official_snapshot_paths: list[str] = []
 
     try:
-        official_result = sync_official_cpi(
-            config=config,
-            session=session,
-            from_month=from_month,
-            to_month=to_month,
-            region="all",
-        )
-        official_rows = official_result.upserted_rows
-        warnings.extend(official_result.warnings)
-
-        tracker_builder = TrackerIPCBuilder(config=config, session=session)
-        try:
-            tracker_result = tracker_builder.build(
-                basket_type=basket_type,
+        if skip_sync:
+            official_rows = _count_existing_official_rows(
+                session=session,
+                source_code=source_code,
+                region=region_name,
                 from_month=from_month,
                 to_month=to_month,
             )
-        finally:
-            tracker_builder.close()
-        tracker_rows = tracker_result.general_rows
-        tracker_category_rows = tracker_result.category_rows
-        warnings.extend(tracker_result.warnings)
+            official_source_effective = "existing_rows"
+        else:
+            official_result = sync_official_cpi(
+                config=config,
+                session=session,
+                from_month=from_month,
+                to_month=to_month,
+                region="all",
+            )
+            official_rows = int(official_result.upserted_rows)
+            warnings.extend(official_result.warnings)
+            official_source_effective = official_result.official_source
+            official_validation_status = official_result.validation_status
+            official_source_document_url = official_result.source_document_url
+            official_regions_synced = official_result.regions
+            official_snapshot_paths = official_result.snapshot_paths
+
+        if skip_build:
+            tracker_summary = _summarize_existing_tracker_rows(
+                session=session,
+                basket_type=basket_type,
+                method_version=method_version,
+                from_month=from_month,
+                to_month=to_month,
+            )
+            tracker_rows = int(tracker_summary.get("general_rows") or 0)
+            tracker_category_rows = int(tracker_summary.get("category_rows") or 0)
+            tracker_from_month = tracker_summary.get("from_month") or from_month
+            tracker_to_month = tracker_summary.get("to_month") or to_month
+        else:
+            tracker_builder = TrackerIPCBuilder(config=config, session=session)
+            try:
+                tracker_result = tracker_builder.build(
+                    basket_type=basket_type,
+                    from_month=from_month,
+                    to_month=to_month,
+                )
+            finally:
+                tracker_builder.close()
+            tracker_rows = tracker_result.general_rows
+            tracker_category_rows = tracker_result.category_rows
+            warnings.extend(tracker_result.warnings)
+            tracker_method_version = tracker_result.method_version
+            tracker_from_month = tracker_result.from_month
+            tracker_to_month = tracker_result.to_month
 
         metrics = _compute_comparison_metrics(
             session=session,
             source_code=source_code,
             region=region_name,
             basket_type=basket_type,
-            method_version=tracker_result.method_version,
+            method_version=tracker_method_version,
             from_month=from_month,
             to_month=to_month,
         )
-        metrics["official_source_effective"] = official_result.official_source
-        metrics["official_validation_status"] = official_result.validation_status
-        metrics["official_source_document_url"] = official_result.source_document_url
-        metrics["official_regions_synced"] = official_result.regions
-        metrics["official_snapshot_paths"] = official_result.snapshot_paths
+        metrics["official_source_effective"] = official_source_effective
+        metrics["official_validation_status"] = official_validation_status
+        metrics["official_source_document_url"] = official_source_document_url
+        metrics["official_regions_synced"] = official_regions_synced
+        metrics["official_snapshot_paths"] = official_snapshot_paths
+        metrics["official_sync_mode"] = "skipped" if skip_sync else "executed"
+        metrics["tracker_build_mode"] = "skipped" if skip_build else "executed"
 
         if official_rows == 0 and tracker_rows > 0:
             status = "completed_official_missing"
-            warnings.append("IPC oficial ausente: se publicó IPC propio sin comparativa oficial.")
+            warnings.append("IPC oficial ausente: se publico IPC propio sin comparativa oficial.")
         elif int(metrics.get("overlap_months") or 0) == 0 and tracker_rows > 0:
             status = "completed_official_missing"
             warnings.append(f"Sin superposicion oficial para region={region_name}.")
@@ -218,7 +324,7 @@ def publish_ipc(
             status = "completed_with_warnings"
 
         run.status = status
-        run.official_source = official_result.official_source
+        run.official_source = official_source_effective
         run.official_rows = int(official_rows)
         run.tracker_rows = int(tracker_rows)
         run.tracker_category_rows = int(tracker_category_rows)
@@ -233,9 +339,9 @@ def publish_ipc(
             status=status,
             basket_type=basket_type,
             region=region_name,
-            method_version=tracker_result.method_version,
-            from_month=tracker_result.from_month,
-            to_month=tracker_result.to_month,
+            method_version=tracker_method_version,
+            from_month=tracker_from_month,
+            to_month=tracker_to_month,
             official_rows=official_rows,
             tracker_rows=tracker_rows,
             tracker_category_rows=tracker_category_rows,
@@ -261,8 +367,10 @@ def run_ipc_publish(
     from_month: Optional[str] = None,
     to_month: Optional[str] = None,
     region: Optional[str] = None,
+    skip_sync: bool = False,
+    skip_build: bool = False,
 ) -> Dict[str, Any]:
-    """CLI helper to execute and report the full IPC publish pipeline."""
+    """CLI helper to execute and report the IPC publish pipeline."""
     config = load_config(config_path)
     engine = get_engine(config)
     init_db(engine)
@@ -276,6 +384,8 @@ def run_ipc_publish(
             from_month=from_month,
             to_month=to_month,
             region=region,
+            skip_sync=skip_sync,
+            skip_build=skip_build,
         )
         payload = asdict(summary)
         payload["status"] = summary.status

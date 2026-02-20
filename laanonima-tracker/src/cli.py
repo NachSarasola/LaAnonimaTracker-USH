@@ -977,6 +977,18 @@ def ipc_build(ctx, basket_type: str, from_month: Optional[str], to_month: Option
 @click.option("--from", "from_month", required=False, type=MONTH_TYPE, help="Mes inicial opcional (YYYY-MM)")
 @click.option("--to", "to_month", required=False, type=MONTH_TYPE, help="Mes final opcional (YYYY-MM)")
 @click.option("--region", default="patagonia", show_default=True, help="Region oficial para comparacion")
+@click.option(
+    "--skip-sync",
+    is_flag=True,
+    default=False,
+    help="Omitir sync oficial y reutilizar filas existentes en DB",
+)
+@click.option(
+    "--skip-build",
+    is_flag=True,
+    default=False,
+    help="Omitir build IPC tracker y reutilizar filas existentes en DB",
+)
 @click.pass_context
 def ipc_publish(
     ctx,
@@ -984,6 +996,8 @@ def ipc_publish(
     from_month: Optional[str],
     to_month: Optional[str],
     region: str,
+    skip_sync: bool,
+    skip_build: bool,
 ):
     """Run full monthly IPC publish pipeline: sync -> build -> compare -> audit."""
     config_path = ctx.obj["config_path"]
@@ -999,6 +1013,8 @@ def ipc_publish(
             from_month=from_month,
             to_month=to_month,
             region=region,
+            skip_sync=skip_sync,
+            skip_build=skip_build,
         )
         click.echo(f"\n{'='*72}")
         click.echo("IPC PUBLISH PIPELINE")

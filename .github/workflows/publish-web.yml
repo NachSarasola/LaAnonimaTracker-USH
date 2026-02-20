@@ -56,7 +56,17 @@ jobs:
           cd laanonima-tracker
           pip install -r requirements.txt
 
+      - name: Cache Playwright browsers
+        id: cache-playwright
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-chromium-${{ hashFiles('laanonima-tracker/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-chromium-
+
       - name: Install Playwright Chromium
+        if: ${{ steps.cache-playwright.outputs.cache-hit != 'true' }}
         run: |
           cd laanonima-tracker
           playwright install chromium
@@ -77,14 +87,23 @@ jobs:
           cd laanonima-tracker
           python scripts/check_db_state.py --backend postgresql --require-empty
 
+      - name: Compute incremental IPC window
+        run: |
+          IPC_TO=$(date -u +%Y-%m)
+          IPC_FROM=$(date -u -d "$(date -u +%Y-%m-01) -2 months" +%Y-%m)
+          echo "IPC_FROM=${IPC_FROM}" >> "$GITHUB_ENV"
+          echo "IPC_TO=${IPC_TO}" >> "$GITHUB_ENV"
+          echo "IPC incremental window: ${IPC_FROM} -> ${IPC_TO}"
+
       - name: Run data pipeline
         run: |
           cd laanonima-tracker
           python -m src.cli init
           python -m src.cli scrape --basket all --backend postgresql --profile full --candidate-storage db --observation-policy single+audit
-          python -m src.cli ipc-sync --region all
-          python -m src.cli ipc-publish --basket all --region patagonia
-          python -m src.cli ipc-publish --basket all --region nacional
+          python -m src.cli ipc-sync --region all --from "${IPC_FROM}" --to "${IPC_TO}"
+          python -m src.cli ipc-build --basket all --from "${IPC_FROM}" --to "${IPC_TO}"
+          python -m src.cli ipc-publish --basket all --region patagonia --from "${IPC_FROM}" --to "${IPC_TO}" --skip-sync --skip-build
+          python -m src.cli ipc-publish --basket all --region nacional --from "${IPC_FROM}" --to "${IPC_TO}" --skip-sync --skip-build
 
       - name: Validate pipeline persisted real rows
         run: |
