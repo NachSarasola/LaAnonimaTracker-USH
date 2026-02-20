@@ -37,6 +37,42 @@ class TestCliIPCCommands(unittest.TestCase):
         kwargs = mock_sync.call_args.kwargs
         self.assertEqual(kwargs["from_month"], "2024-01")
         self.assertEqual(kwargs["to_month"], "2024-02")
+        self.assertIsNone(kwargs["pdf_policy"])
+        self.assertFalse(kwargs["force_pdf_validation"])
+
+    @patch("src.cli.setup_logging")
+    @patch("src.cli.ensure_directories")
+    @patch("src.cli.load_config", return_value={"logging": {}})
+    @patch("src.cli.run_ipc_sync")
+    def test_ipc_sync_passes_pdf_policy_overrides(self, mock_sync, *_mocks):
+        mock_sync.return_value = {
+            "status": "completed",
+            "source_mode": "xls_pdf_hybrid",
+            "source": "indec_patagonia",
+            "region": "all",
+            "used_fallback": False,
+            "fetched_rows": 10,
+            "upserted_rows": 10,
+            "warnings": [],
+            "snapshot_path": None,
+        }
+        result = self.runner.invoke(
+            cli,
+            [
+                "ipc-sync",
+                "--from",
+                "2024-01",
+                "--to",
+                "2024-02",
+                "--pdf-policy",
+                "on_new_month",
+                "--force-pdf-validation",
+            ],
+        )
+        self.assertEqual(result.exit_code, 0)
+        kwargs = mock_sync.call_args.kwargs
+        self.assertEqual(kwargs["pdf_policy"], "on_new_month")
+        self.assertTrue(kwargs["force_pdf_validation"])
 
     @patch("src.cli.setup_logging")
     @patch("src.cli.ensure_directories")

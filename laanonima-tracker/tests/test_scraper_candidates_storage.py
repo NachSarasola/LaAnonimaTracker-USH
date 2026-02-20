@@ -74,6 +74,38 @@ class FakeScraper:
         return True
 
 
+class FakeFailingScraper:
+    """Scraper fake that never finds products, to trigger fail-fast."""
+
+    def __init__(self, _config, headless=True):
+        self.headless = headless
+        self.min_candidates_per_product = 3
+        self.min_match_confidence = 0.2
+        self._branch_attempt = 0
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        return False
+
+    def select_branch(self):
+        return True
+
+    def search_product(self, _keywords):
+        return []
+
+    def select_tiered_candidates(self, _search_results, _item, min_candidates=None):
+        _ = min_candidates
+        return [], None
+
+    def _canonical_product_url(self, url):
+        return url or ""
+
+    def _is_valid_product_url(self, _url):
+        return True
+
+
 class TestScraperCandidateStorage(unittest.TestCase):
     def setUp(self):
         self.tmpdir = tempfile.TemporaryDirectory()
@@ -167,6 +199,8 @@ class TestScraperCandidateStorage(unittest.TestCase):
 
         self.assertEqual(result["status"], "completed")
         self.assertIsNotNone(result.get("candidates_audit_path"))
+        self.assertIn("performance", result)
+        self.assertEqual(result["performance"]["commit_batch_size"], 12)
         audit_path = Path(result["candidates_audit_path"])
         self.assertTrue(audit_path.exists())
         payload = json.loads(audit_path.read_text(encoding="utf-8"))
@@ -197,6 +231,55 @@ class TestScraperCandidateStorage(unittest.TestCase):
         counts = self._count_rows()
         self.assertEqual(counts["prices"], 1)
         self.assertEqual(counts["price_candidates"], 3)
+
+    @patch("src.scraper.LaAnonimaScraper", FakeFailingScraper)
+    @patch("src.scraper.build_scrape_plan")
+    @patch("src.scraper.load_config")
+    def test_fail_fast_triggers_when_no_scraped_rows(self, mock_load_config, mock_build_plan):
+        fail_plan = ScrapePlan(
+            planned_items=[
+                {
+                    "id": f"cba_fail_{idx}",
+                    "name": f"Fail {idx}",
+                    "keywords": ["fail"],
+                    "category": "legumbres",
+                    "matching": "loose",
+                    "unit": "kg",
+                    "quantity": 1,
+                    "basket_type": "cba",
+                    "_plan_segment": "cba",
+                }
+                for idx in range(3)
+            ],
+            mandatory_ids={"cba_fail_0", "cba_fail_1", "cba_fail_2"},
+            plan_summary={
+                "profile": "full",
+                "segments": {"cba": 3},
+                "mandatory_count": 3,
+                "rotation_applied": 0,
+                "estimated_duration_seconds": 30,
+            },
+            budget={
+                "runtime_budget_minutes": 20,
+                "target_seconds": 1200,
+                "estimated_seconds": 30,
+                "estimated_within_target": True,
+            },
+        )
+        mock_load_config.return_value = self.config
+        mock_build_plan.return_value = fail_plan
+
+        with self.assertRaises(RuntimeError):
+            run_scrape(
+                config_path="ignored.yaml",
+                basket_type="all",
+                output_format="sqlite",
+                candidate_storage="off",
+                observation_policy="single",
+                base_request_delay_ms=0,
+                fail_fast_min_attempts=1,
+                fail_fast_fail_ratio=0.5,
+            )
 
 
 if __name__ == "__main__":

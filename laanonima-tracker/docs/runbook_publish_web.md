@@ -1,4 +1,4 @@
-﻿# Runbook: Public Static Website
+# Runbook: Public Static Website
 
 ## Publication Policy
 
@@ -49,25 +49,19 @@ python scripts/bootstrap_first_real_run.py
 Recommended daily pipeline (production parity):
 
 ```bash
-python -m src.cli scrape --basket all --backend postgresql --profile full --candidate-storage db --observation-policy single+audit
-python -m src.cli ipc-sync --region all --from 2026-01 --to 2026-03
-python -m src.cli ipc-build --basket all --from 2026-01 --to 2026-03
-python -m src.cli ipc-publish --basket all --region patagonia --from 2026-01 --to 2026-03 --skip-sync --skip-build
-python -m src.cli ipc-publish --basket all --region nacional --from 2026-01 --to 2026-03 --skip-sync --skip-build
-python -m src.cli publish-web --basket all --view analyst --benchmark ipc --offline-assets external
-python scripts/check_db_state.py --backend postgresql --require-has-data
+python scripts/run_data_pipeline.py --basket all --view analyst --benchmark ipc --offline-assets external --pdf-policy on_new_month
 ```
 
-Nota de performance:
-- Evitar `ipc-publish` completo dos veces seguidas (duplica sync/build).
-- Recomendado: `ipc-sync` + `ipc-build` una vez, luego `ipc-publish` por region con `--skip-sync --skip-build`.
+Runner output clave:
+- `data/analysis/pipeline_timing_latest.json` con tiempos por etapa.
+- GitHub Job Summary con tabla de etapas/segundos (en CI).
 
 Daily one-command runner (recommended for operación diaria):
 
 ```bash
 cd laanonima-tracker
 set DB_URL=postgresql://USER:PASSWORD@HOST:5432/DBNAME
-python scripts/daily_real_run.py
+python scripts/daily_real_run.py --pdf-policy on_new_month
 ```
 
 Range-locked rebuild (for audits):
@@ -117,6 +111,11 @@ Production domain default in this repo: `https://preciosushuaia.com`.
 - `plot_mode=strict_overlap`: tracker/oficial and brecha strictly comparable.
 - `plot_mode=independent_base`: each series uses own base month; brecha disabled until overlap exists.
 
+5. IPC sync policy states:
+- `validation_status=ok|warning`: XLS/PDF compared.
+- `validation_status=skipped_no_new_month`: XLS processed, PDF omitted (no nuevo mes oficial).
+- `validation_status=skipped_policy_never`: PDF intentionally disabled by policy.
+
 Optional automated smoke:
 
 ```bash
@@ -157,7 +156,7 @@ Optional:
 - Confirm whether official IPC for latest month exists in `official_cpi_monthly`.
 - If official month is missing (normal publication lag), keep site online with alert.
 - If official month exists but not shown, run:
-  - `python -m src.cli ipc-sync --region all --from YYYY-MM --to YYYY-MM`
+  - `python -m src.cli ipc-sync --region all --from YYYY-MM --to YYYY-MM --pdf-policy always --force-pdf-validation`
   - `python -m src.cli ipc-build --basket all --from YYYY-MM --to YYYY-MM`
   - `python -m src.cli ipc-publish --basket all --region patagonia --from YYYY-MM --to YYYY-MM --skip-sync --skip-build`
   - `python -m src.cli ipc-publish --basket all --region nacional --from YYYY-MM --to YYYY-MM --skip-sync --skip-build`

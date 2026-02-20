@@ -1,4 +1,4 @@
-"""Command-line interface for La AnÃ³nima Price Tracker."""
+"""Command-line interface for La Anonima Price Tracker."""
 
 import sys
 import re
@@ -43,7 +43,7 @@ class MonthParamType(click.ParamType):
 
         if not MONTH_PATTERN.match(value):
             self.fail(
-                "Formato invÃ¡lido. UsÃ¡ YYYY-MM (ejemplo vÃ¡lido: 2026-02).",
+                "Formato invalido. Usa YYYY-MM (ejemplo valido: 2026-02).",
                 param,
                 ctx,
             )
@@ -83,7 +83,7 @@ def setup_logging(config: dict):
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
 @click.pass_context
 def cli(ctx, config: Optional[str], verbose: bool):
-    """La AnÃ³nima Price Tracker - Supermarket price tracking for Argentina."""
+    """La Anonima Price Tracker - Supermarket price tracking for Argentina."""
     # Ensure context object exists
     ctx.ensure_object(dict)
     
@@ -102,7 +102,7 @@ def cli(ctx, config: Optional[str], verbose: bool):
         if verbose:
             logger.level("DEBUG")
         
-        logger.info("La AnÃ³nima Price Tracker initialized")
+        logger.info("La Anonima Price Tracker initialized")
         
     except Exception as e:
         click.echo(f"Error loading configuration: {e}", err=True)
@@ -156,6 +156,30 @@ def cli(ctx, config: Optional[str], verbose: bool):
     show_default=True,
     help="Representative observation policy for price history",
 )
+@click.option(
+    "--commit-batch-size",
+    type=int,
+    default=None,
+    help="Rows to persist per transaction batch (optional override)",
+)
+@click.option(
+    "--base-request-delay-ms",
+    type=int,
+    default=None,
+    help="Base delay between products in milliseconds (optional override)",
+)
+@click.option(
+    "--fail-fast-min-attempts",
+    type=int,
+    default=None,
+    help="Minimum processed items before applying fail-fast guard",
+)
+@click.option(
+    "--fail-fast-fail-ratio",
+    type=float,
+    default=None,
+    help="Fail ratio threshold for fail-fast guard (0-1)",
+)
 @click.pass_context
 def scrape(
     ctx,
@@ -170,6 +194,10 @@ def scrape(
     dry_plan: bool,
     candidate_storage: str,
     observation_policy: str,
+    commit_batch_size: Optional[int],
+    base_request_delay_ms: Optional[int],
+    fail_fast_min_attempts: Optional[int],
+    fail_fast_fail_ratio: Optional[float],
 ):
     """Run price scraping for the configured basket."""
     config = ctx.obj["config"]
@@ -177,7 +205,8 @@ def scrape(
 
     logger.info(
         "Starting scrape: basket={}, headless={}, backend={}, limit={}, profile={}, budget_min={}, "
-        "rotation_items={}, sample_random={}, dry_plan={}, candidate_storage={}, observation_policy={}",
+        "rotation_items={}, sample_random={}, dry_plan={}, candidate_storage={}, observation_policy={}, "
+        "commit_batch_size={}, base_request_delay_ms={}, fail_fast_min_attempts={}, fail_fast_fail_ratio={}",
         basket,
         headless,
         backend,
@@ -189,6 +218,10 @@ def scrape(
         dry_plan,
         candidate_storage,
         observation_policy,
+        commit_batch_size,
+        base_request_delay_ms,
+        fail_fast_min_attempts,
+        fail_fast_fail_ratio,
     )
 
     try:
@@ -205,6 +238,10 @@ def scrape(
             dry_plan=dry_plan,
             candidate_storage=candidate_storage,
             observation_policy=observation_policy,
+            commit_batch_size=commit_batch_size,
+            base_request_delay_ms=base_request_delay_ms,
+            fail_fast_min_attempts=fail_fast_min_attempts,
+            fail_fast_fail_ratio=fail_fast_fail_ratio,
         )
 
         click.echo(f"\n{'='*70}")
@@ -871,8 +908,28 @@ def backfill_categories(ctx, backend: str):
 @click.option("--from", "from_month", required=False, type=MONTH_TYPE, help="Mes inicial opcional (YYYY-MM)")
 @click.option("--to", "to_month", required=False, type=MONTH_TYPE, help="Mes final opcional (YYYY-MM)")
 @click.option("--region", default="all", show_default=True, help="Region oficial: patagonia | nacional | all")
+@click.option(
+    "--pdf-policy",
+    "pdf_policy",
+    type=click.Choice(["always", "on_new_month", "never"], case_sensitive=False),
+    default=None,
+    help="Politica de validacion PDF oficial (optional override)",
+)
+@click.option(
+    "--force-pdf-validation",
+    is_flag=True,
+    default=False,
+    help="Forzar descarga/parseo PDF aunque la politica lo omita",
+)
 @click.pass_context
-def ipc_sync(ctx, from_month: Optional[str], to_month: Optional[str], region: str):
+def ipc_sync(
+    ctx,
+    from_month: Optional[str],
+    to_month: Optional[str],
+    region: str,
+    pdf_policy: Optional[str],
+    force_pdf_validation: bool,
+):
     """Sync IPC oficial INDEC (Nacional/Patagonia) (auto + fallback) a base local."""
     config_path = ctx.obj["config_path"]
 
@@ -886,6 +943,8 @@ def ipc_sync(ctx, from_month: Optional[str], to_month: Optional[str], region: st
             from_month=from_month,
             to_month=to_month,
             region=region,
+            pdf_policy=pdf_policy,
+            force_pdf_validation=force_pdf_validation,
         )
         click.echo(f"\n{'='*68}")
         click.echo("IPC OFFICIAL SYNC")

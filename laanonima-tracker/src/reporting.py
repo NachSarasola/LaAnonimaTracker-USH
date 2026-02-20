@@ -1,4 +1,4 @@
-﻿"""Economic interactive report generation for La Anonima Tracker."""
+"""Economic interactive report generation for La Anonima Tracker."""
 
 from __future__ import annotations
 
@@ -12,6 +12,7 @@ from time import perf_counter
 from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
+from loguru import logger
 from sqlalchemy import func
 
 from src.config_loader import get_basket_items, load_config, resolve_canonical_category
@@ -27,6 +28,7 @@ class ReportArtifacts:
 
 
 PUBLICATION_POLICY = "publish_with_alert_on_partial"
+_LEGACY_MAPPING_WARNED = False
 
 
 class ReportGenerator:
@@ -608,6 +610,7 @@ class ReportGenerator:
         return regions[0] if regions else "patagonia"
 
     def _app_to_indec_mapping(self) -> Dict[str, Optional[str]]:
+        global _LEGACY_MAPPING_WARNED
         mapping_cfg = self.config.get("analysis", {}).get("ipc_category_mapping", {})
         if not isinstance(mapping_cfg, dict):
             return {}
@@ -616,6 +619,12 @@ class ReportGenerator:
             return {str(k).strip().lower(): (str(v).strip().lower() if v else None) for k, v in explicit.items()}
         legacy = mapping_cfg.get("map")
         if isinstance(legacy, dict):
+            if not _LEGACY_MAPPING_WARNED:
+                logger.warning(
+                    "Deprecated config path in use: analysis.ipc_category_mapping.map. "
+                    "Use analysis.ipc_category_mapping.app_to_indec_division."
+                )
+                _LEGACY_MAPPING_WARNED = True
             return {str(k).strip().lower(): (str(v).strip().lower() if v else None) for k, v in legacy.items()}
         return {}
 

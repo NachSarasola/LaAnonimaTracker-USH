@@ -37,6 +37,7 @@ SPANISH_MONTHS = {
 }
 
 GENERAL_CATEGORY_SENTINEL = "__general__"
+_LEGACY_MAPPING_WARNED = False
 
 
 @dataclass
@@ -81,6 +82,17 @@ class INDECPatagoniaProvider(OfficialCPIProvider):
         self.config = config
         self.ipc_cfg = config.get("analysis", {}).get("ipc_official", {})
         self.mapping_cfg = config.get("analysis", {}).get("ipc_category_mapping", {})
+
+    @staticmethod
+    def _warn_legacy_mapping_once() -> None:
+        global _LEGACY_MAPPING_WARNED
+        if _LEGACY_MAPPING_WARNED:
+            return
+        logger.warning(
+            "Deprecated config path in use: analysis.ipc_category_mapping.map. "
+            "Use analysis.ipc_category_mapping.app_to_indec_division."
+        )
+        _LEGACY_MAPPING_WARNED = True
 
     @staticmethod
     def _normalize_text(value: Any) -> str:
@@ -189,6 +201,7 @@ class INDECPatagoniaProvider(OfficialCPIProvider):
             }
         legacy = self.mapping_cfg.get("map")
         if isinstance(legacy, dict):
+            self._warn_legacy_mapping_once()
             mapped: Dict[str, Optional[str]] = {}
             for k, v in legacy.items():
                 key = str(k).strip().lower()
@@ -894,6 +907,24 @@ def _resolve_regions(ipc_cfg: Dict[str, Any], region: Optional[str]) -> List[str
     return [requested]
 
 
+def _latest_official_general_month(
+    session: Session,
+    source_code: str,
+    regions: List[str],
+) -> Optional[str]:
+    query = (
+        session.query(OfficialCPIMonthly.year_month)
+        .filter(OfficialCPIMonthly.source == source_code)
+        .filter(OfficialCPIMonthly.metric_code == "general")
+    )
+    if regions:
+        query = query.filter(OfficialCPIMonthly.region.in_(regions))
+    latest = query.order_by(OfficialCPIMonthly.year_month.desc()).first()
+    if not latest:
+        return None
+    return str(latest[0])
+
+
 def _hydrate_pdf_with_index(
     session: Session,
     source_code: str,
@@ -942,6 +973,8 @@ def sync_official_cpi(
     from_month: Optional[str] = None,
     to_month: Optional[str] = None,
     region: Optional[str] = None,
+    pdf_policy: Optional[str] = None,
+    force_pdf_validation: bool = False,
 ) -> OfficialSyncResult:
     """Sync official monthly CPI data into DB with hybrid xls/pdf/fallback strategy."""
     ipc_cfg = config.get("analysis", {}).get("ipc_official", {})
@@ -955,6 +988,10 @@ def sync_official_cpi(
     fallback_file = str(ipc_cfg.get("fallback_file", "data/cpi/ipc_indec_patagonia.csv"))
     validation_cfg = ipc_cfg.get("validation", {}) if isinstance(ipc_cfg.get("validation"), dict) else {}
     max_abs_diff_pp = float(validation_cfg.get("max_abs_diff_pp", 0.10))
+    pdf_policy_effective = str(pdf_policy or ipc_cfg.get("pdf_validation_policy", "on_new_month")).strip().lower()
+    valid_pdf_policies = {"always", "on_new_month", "never"}
+    if pdf_policy_effective not in valid_pdf_policies:
+        pdf_policy_effective = "on_new_month"
 
     provider = INDECPatagoniaProvider(config)
     warnings: List[str] = []
@@ -981,6 +1018,9 @@ def sync_official_cpi(
 
         xls_url = assets.get("xls_url")
         pdf_url = assets.get("pdf_url")
+        source_assets["pdf_validation_policy"] = pdf_policy_effective
+        if force_pdf_validation:
+            source_assets["pdf_validation_forced"] = "true"
 
         if xls_url:
             try:
@@ -1000,7 +1040,59 @@ def sync_official_cpi(
         else:
             warnings.append("No se encontro URL XLS en discovery INDEC.")
 
-        if pdf_url:
+        should_fetch_pdf = False
+        pdf_decision = "skip_not_evaluated"
+        latest_xls_month: Optional[str] = None
+        latest_db_month: Optional[str] = None
+
+        if source_mode == "pdf":
+            should_fetch_pdf = True
+            pdf_decision = "fetch_source_mode_pdf"
+        elif source_mode == "xls":
+            should_fetch_pdf = False
+            pdf_decision = "skip_source_mode_xls"
+            validation_status = "skipped_source_mode_xls"
+        elif force_pdf_validation:
+            should_fetch_pdf = True
+            pdf_decision = "fetch_forced"
+        elif pdf_policy_effective == "always":
+            should_fetch_pdf = True
+            pdf_decision = "fetch_policy_always"
+        elif pdf_policy_effective == "never":
+            should_fetch_pdf = False
+            pdf_decision = "skip_policy_never"
+            validation_status = "skipped_policy_never"
+        else:
+            # on_new_month policy:
+            if xls_df.empty:
+                should_fetch_pdf = True
+                pdf_decision = "fetch_no_xls_fallback"
+            else:
+                latest_xls_month = str(xls_df["year_month"].max())
+                latest_db_month = _latest_official_general_month(
+                    session=session,
+                    source_code=source_code,
+                    regions=target_regions,
+                )
+                if latest_db_month is None or latest_xls_month > latest_db_month:
+                    should_fetch_pdf = True
+                    pdf_decision = "fetch_new_month_detected"
+                else:
+                    should_fetch_pdf = False
+                    pdf_decision = "skip_no_new_month"
+                    validation_status = "skipped_no_new_month"
+                    warnings.append(
+                        "Validacion XLS/PDF omitida: sin nuevo mes oficial "
+                        f"(XLS={latest_xls_month}, DB={latest_db_month})."
+                    )
+
+        source_assets["pdf_validation_decision"] = pdf_decision
+        if latest_xls_month:
+            source_assets["latest_xls_month"] = latest_xls_month
+        if latest_db_month:
+            source_assets["latest_db_month"] = latest_db_month
+
+        if should_fetch_pdf and pdf_url:
             try:
                 pdf_resp = requests.get(pdf_url, timeout=40)
                 pdf_resp.raise_for_status()
@@ -1013,8 +1105,10 @@ def sync_official_cpi(
             except Exception as exc:
                 warnings.append(f"PDF oficial fallo: {exc}")
                 logger.warning("Official IPC PDF parse failed: {}", exc)
-        else:
+        elif should_fetch_pdf and not pdf_url:
             warnings.append("No se encontro URL PDF en discovery INDEC.")
+        elif pdf_url:
+            source_assets["pdf_url"] = pdf_url
 
         if not xls_df.empty and not pdf_df.empty:
             validation = _reconcile_xls_vs_pdf(xls_df, pdf_df, max_abs_diff_pp=max_abs_diff_pp)
@@ -1032,10 +1126,10 @@ def sync_official_cpi(
                     f"mes {validation.get('checked_month')} | "
                     f"max_abs_diff_pp={validation.get('max_abs_diff_pp')}"
                 )
-        elif not pdf_df.empty:
+        elif should_fetch_pdf:
+            validation_status = "not_available" if not pdf_df.empty else "failed"
+        elif validation_status == "not_run":
             validation_status = "not_available"
-        else:
-            validation_status = "failed"
 
         if not xls_df.empty:
             df = xls_df
@@ -1149,6 +1243,8 @@ def run_ipc_sync(
     from_month: Optional[str] = None,
     to_month: Optional[str] = None,
     region: Optional[str] = None,
+    pdf_policy: Optional[str] = None,
+    force_pdf_validation: bool = False,
 ) -> Dict[str, Any]:
     """CLI helper for official IPC sync."""
     config = load_config(config_path)
@@ -1163,6 +1259,8 @@ def run_ipc_sync(
             from_month=from_month,
             to_month=to_month,
             region=region,
+            pdf_policy=pdf_policy,
+            force_pdf_validation=force_pdf_validation,
         )
         return {
             "status": "completed",
@@ -1181,6 +1279,8 @@ def run_ipc_sync(
             "source_document_url": result.source_document_url,
             "source_assets": result.source_assets,
             "validation_status": result.validation_status,
+            "pdf_policy": pdf_policy,
+            "force_pdf_validation": bool(force_pdf_validation),
             "warnings": result.warnings,
         }
     finally:

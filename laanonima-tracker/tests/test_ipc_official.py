@@ -229,6 +229,179 @@ class TestOfficialIPCSync(unittest.TestCase):
         self.assertAlmostEqual(float(nat_general["mom_change"]), 2.9)
         self.assertAlmostEqual(float(nat_general["index_value"]), 100.0)
 
+    def test_pdf_policy_on_new_month_skips_pdf_when_no_new_month(self):
+        self.config["analysis"]["ipc_official"].update(
+            {
+                "source_mode": "xls_pdf_hybrid",
+                "pdf_validation_policy": "on_new_month",
+                "region_scope": ["patagonia"],
+            }
+        )
+        self.session.add(
+            OfficialCPIMonthly(
+                source="indec_patagonia",
+                region="patagonia",
+                metric_code="general",
+                year_month="2026-01",
+                index_value=100.0,
+                status="final",
+                is_fallback=False,
+            )
+        )
+        self.session.commit()
+
+        xls_df = pd.DataFrame(
+            [
+                {
+                    "region": "patagonia",
+                    "year_month": "2026-01",
+                    "metric_code": "general",
+                    "category_slug": None,
+                    "index_value": 100.0,
+                    "mom_change": 2.1,
+                    "yoy_change": 25.0,
+                    "status": "final",
+                }
+            ]
+        )
+        pdf_df = pd.DataFrame(
+            [
+                {
+                    "region": "patagonia",
+                    "year_month": "2026-01",
+                    "metric_code": "general",
+                    "mom_change": 2.1,
+                }
+            ]
+        )
+
+        def _resp(content: bytes):  # noqa: ANN001
+            mock = Mock()
+            mock.content = content
+            mock.raise_for_status = Mock()
+            return mock
+
+        xls_url = "https://example.test/ipc.xls"
+        pdf_url = "https://example.test/ipc.pdf"
+
+        def _fake_get(url, timeout=0):  # noqa: ANN001
+            _ = timeout
+            if url == xls_url:
+                return _resp(b"xls")
+            if url == pdf_url:
+                return _resp(b"pdf")
+            raise AssertionError(f"Unexpected URL: {url}")
+
+        with patch.object(
+            INDECPatagoniaProvider,
+            "discover_assets",
+            return_value={"xls_url": xls_url, "pdf_url": pdf_url},
+        ), patch("src.ipc_official.requests.get", side_effect=_fake_get) as mock_get, patch.object(
+            INDECPatagoniaProvider,
+            "parse_xls_bytes",
+            return_value=xls_df,
+        ), patch.object(
+            INDECPatagoniaProvider,
+            "parse_pdf_bytes",
+            return_value=pdf_df,
+        ) as mock_parse_pdf:
+            result = sync_official_cpi(config=self.config, session=self.session, region="patagonia")
+
+        self.assertEqual(result.validation_status, "skipped_no_new_month")
+        self.assertFalse(mock_parse_pdf.called)
+        called_urls = [str(call.args[0]) for call in mock_get.call_args_list]
+        self.assertIn(xls_url, called_urls)
+        self.assertNotIn(pdf_url, called_urls)
+
+    def test_force_pdf_validation_overrides_on_new_month_policy(self):
+        self.config["analysis"]["ipc_official"].update(
+            {
+                "source_mode": "xls_pdf_hybrid",
+                "pdf_validation_policy": "on_new_month",
+                "region_scope": ["patagonia"],
+            }
+        )
+        self.session.add(
+            OfficialCPIMonthly(
+                source="indec_patagonia",
+                region="patagonia",
+                metric_code="general",
+                year_month="2026-01",
+                index_value=100.0,
+                status="final",
+                is_fallback=False,
+            )
+        )
+        self.session.commit()
+
+        xls_df = pd.DataFrame(
+            [
+                {
+                    "region": "patagonia",
+                    "year_month": "2026-01",
+                    "metric_code": "general",
+                    "category_slug": None,
+                    "index_value": 100.0,
+                    "mom_change": 2.1,
+                    "yoy_change": 25.0,
+                    "status": "final",
+                }
+            ]
+        )
+        pdf_df = pd.DataFrame(
+            [
+                {
+                    "region": "patagonia",
+                    "year_month": "2026-01",
+                    "metric_code": "general",
+                    "mom_change": 2.1,
+                }
+            ]
+        )
+
+        def _resp(content: bytes):  # noqa: ANN001
+            mock = Mock()
+            mock.content = content
+            mock.raise_for_status = Mock()
+            return mock
+
+        xls_url = "https://example.test/ipc.xls"
+        pdf_url = "https://example.test/ipc.pdf"
+
+        def _fake_get(url, timeout=0):  # noqa: ANN001
+            _ = timeout
+            if url == xls_url:
+                return _resp(b"xls")
+            if url == pdf_url:
+                return _resp(b"pdf")
+            raise AssertionError(f"Unexpected URL: {url}")
+
+        with patch.object(
+            INDECPatagoniaProvider,
+            "discover_assets",
+            return_value={"xls_url": xls_url, "pdf_url": pdf_url},
+        ), patch("src.ipc_official.requests.get", side_effect=_fake_get) as mock_get, patch.object(
+            INDECPatagoniaProvider,
+            "parse_xls_bytes",
+            return_value=xls_df,
+        ), patch.object(
+            INDECPatagoniaProvider,
+            "parse_pdf_bytes",
+            return_value=pdf_df,
+        ) as mock_parse_pdf:
+            result = sync_official_cpi(
+                config=self.config,
+                session=self.session,
+                region="patagonia",
+                force_pdf_validation=True,
+            )
+
+        self.assertTrue(mock_parse_pdf.called)
+        called_urls = [str(call.args[0]) for call in mock_get.call_args_list]
+        self.assertIn(xls_url, called_urls)
+        self.assertIn(pdf_url, called_urls)
+        self.assertIn(result.validation_status, {"ok", "warning", "not_available"})
+
     def test_reconcile_warns_when_tolerance_exceeded(self):
         xls_df = pd.DataFrame(
             [

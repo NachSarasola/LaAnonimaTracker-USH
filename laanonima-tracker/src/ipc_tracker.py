@@ -22,6 +22,8 @@ from src.models import (
     now_utc,
 )
 
+_LEGACY_MAPPING_WARNED = False
+
 
 @dataclass
 class TrackerBuildResult:
@@ -345,6 +347,7 @@ class TrackerIPCBuilder:
         return rows
 
     def _indec_code_by_category(self) -> Dict[str, str]:
+        global _LEGACY_MAPPING_WARNED
         if not isinstance(self.mapping_cfg, dict):
             return {}
         explicit = self.mapping_cfg.get("app_to_indec_division")
@@ -357,6 +360,12 @@ class TrackerIPCBuilder:
             return out
         legacy = self.mapping_cfg.get("map")
         if isinstance(legacy, dict):
+            if not _LEGACY_MAPPING_WARNED:
+                logger.warning(
+                    "Deprecated config path in use: analysis.ipc_category_mapping.map. "
+                    "Use analysis.ipc_category_mapping.app_to_indec_division."
+                )
+                _LEGACY_MAPPING_WARNED = True
             return {
                 str(k).strip().lower(): str(v).strip().lower()
                 for k, v in legacy.items()

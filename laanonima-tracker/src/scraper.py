@@ -1,4 +1,4 @@
-"""Playwright-based scraper for La Anónima supermarket."""
+"""Playwright-based scraper for La Anonima supermarket."""
 
 import json
 import re
@@ -45,7 +45,7 @@ class ProductNotFoundError(Exception):
 
 
 class LaAnonimaScraper:
-    """Main scraper class for La Anónima supermarket."""
+    """Main scraper class for La Anonima supermarket."""
     
     def __init__(self, config: Dict[str, Any], headless: Optional[bool] = None):
         """Initialize the scraper.
@@ -78,7 +78,15 @@ class LaAnonimaScraper:
         )
         self.min_match_confidence = float(self.scraping_config.get("min_match_confidence", 0.2))
         self.quick_selector_timeout_ms = int(self.scraping_config.get("quick_selector_timeout_ms", 250))
-        self.search_settle_delay_ms = int(self.scraping_config.get("search_settle_delay_ms", 700))
+        perf_cfg = self.scraping_config.get("performance", {})
+        if not isinstance(perf_cfg, dict):
+            perf_cfg = {}
+        self.search_settle_delay_ms = int(
+            perf_cfg.get(
+                "search_settle_delay_ms",
+                self.scraping_config.get("search_settle_delay_ms", 700),
+            )
+        )
         
         self.headless = headless if headless is not None else self.scraping_config.get("browser", {}).get("headless", True)
         
@@ -185,7 +193,7 @@ class LaAnonimaScraper:
         return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, "", ""))
 
     def _is_valid_product_url(self, url: Optional[str]) -> bool:
-        """Validate La Anónima product URL format."""
+        """Validate La Anonima product URL format."""
         return "/art_" in self._canonical_product_url(url)
 
     @staticmethod
@@ -465,19 +473,22 @@ class LaAnonimaScraper:
             wait_until="domcontentloaded",
             timeout=self.navigation_timeout,
         )
-        time.sleep(0.6)
+        try:
+            self.page.wait_for_load_state("networkidle", timeout=1500)
+        except Exception:
+            pass
 
         # Dismiss any modal/overlay that blocks clicks (e.g. cookie or promo)
         try:
             overlay = self.page.locator(".reveal-overlay").first
             if overlay.is_visible(timeout=min(1000, self.branch_selection_timeout)):
                 overlay.click(force=True)
-                time.sleep(0.2)
+                self.page.wait_for_timeout(80)
         except Exception:
             pass
         try:
             self.page.keyboard.press("Escape")
-            time.sleep(0.1)
+            self.page.wait_for_timeout(50)
         except Exception:
             pass
 
@@ -499,7 +510,7 @@ class LaAnonimaScraper:
             if not trigger.is_visible(timeout=self.branch_selection_timeout):
                 # Try alternative selectors
                 alt_selectors = [
-                    "a:has-text('Código Postal')",
+                    "a:has-text('Codigo Postal')",
                     "a:has-text('Sucursal')",
                     ".seleccionar-sucursal",
                     "[data-target='#codigo-postal']",
@@ -516,7 +527,7 @@ class LaAnonimaScraper:
             trigger.click(force=True, timeout=self.branch_selection_timeout)
             logger.info("Branch selector clicked")
 
-            time.sleep(0.35)
+            self.page.wait_for_timeout(120)
             input_selector = self._get_selector("postal_input") or "#idCodigoPostalUnificado"
             logger.info(f"Filling postal code: {postal_code}")
             postal_input = self.page.locator(input_selector).first
@@ -530,7 +541,7 @@ class LaAnonimaScraper:
                     }""",
                     trigger_selector,
                 )
-                time.sleep(0.2)
+                self.page.wait_for_timeout(80)
 
             if postal_input.is_visible(timeout=2000):
                 postal_input.fill(postal_code, timeout=5000)
@@ -549,7 +560,7 @@ class LaAnonimaScraper:
                 )
                 if not set_ok:
                     raise BranchSelectionError("Postal input not available to set branch")
-            time.sleep(0.8)
+            self.page.wait_for_timeout(180)
 
             # Wait for branch options in DOM (may be hidden)
             options_selector = self._get_selector("branch_options") or "#opcionesSucursal"
@@ -582,11 +593,10 @@ class LaAnonimaScraper:
             logger.info("Branch selection confirmed")
 
             # Wait for any AJAX/navigation to apply selection
-            time.sleep(1.0)
             try:
-                self.page.wait_for_load_state("networkidle", timeout=3500)
+                self.page.wait_for_load_state("networkidle", timeout=3000)
             except Exception:
-                pass
+                self.page.wait_for_timeout(180)
 
             is_set, current = self.check_branch_set()
             if is_set:
@@ -636,8 +646,8 @@ class LaAnonimaScraper:
             )
         except Exception:
             pass
-        # Small settle time to reduce flaky misses without sleeping 2+ seconds.
-        time.sleep(self.search_settle_delay_ms / 1000.0)
+        if self.search_settle_delay_ms > 0:
+            self.page.wait_for_timeout(self.search_settle_delay_ms)
     
     def search_product(self, keywords: List[str]) -> List[Dict[str, Any]]:
         """Search for a product using keywords.
@@ -1215,6 +1225,10 @@ def run_scrape(
     dry_plan: bool = False,
     candidate_storage: str = "db",
     observation_policy: str = "single+audit",
+    commit_batch_size: Optional[int] = None,
+    base_request_delay_ms: Optional[int] = None,
+    fail_fast_min_attempts: Optional[int] = None,
+    fail_fast_fail_ratio: Optional[float] = None,
 ) -> Dict[str, Any]:
     """Run a complete scrape operation.
 
@@ -1231,6 +1245,10 @@ def run_scrape(
         dry_plan: Return deterministic plan without running browser
         candidate_storage: Candidate persistence mode ('json', 'db', 'off')
         observation_policy: Observation policy ('single', 'single+audit')
+        commit_batch_size: Number of processed items per transaction
+        base_request_delay_ms: Delay between items in milliseconds
+        fail_fast_min_attempts: Min attempts before fail-fast is evaluated
+        fail_fast_fail_ratio: Fail ratio threshold for fail-fast [0..1]
 
     Returns:
         Dictionary with scrape results and statistics
@@ -1245,17 +1263,43 @@ def run_scrape(
     if observation_policy not in valid_observation_policies:
         raise ValueError("observation_policy invalido: use single o single+audit")
 
-    # Load configuration
     config = load_config(config_path)
+    scraping_cfg = config.get("scraping", {})
+    if not isinstance(scraping_cfg, dict):
+        scraping_cfg = {}
+    planning_cfg = scraping_cfg.get("planning", {})
+    if not isinstance(planning_cfg, dict):
+        planning_cfg = {}
+    perf_cfg = scraping_cfg.get("performance", {})
+    if not isinstance(perf_cfg, dict):
+        perf_cfg = {}
 
     if runtime_budget_minutes is None:
-        runtime_budget_minutes = config.get("scraping", {}).get("planning", {}).get("runtime_budget_minutes", 20)
+        runtime_budget_minutes = planning_cfg.get("runtime_budget_minutes", 20)
 
     if rotation_items is None:
-        rotation_items = config.get("scraping", {}).get("planning", {}).get("rotation_items_default", 4)
+        rotation_items = planning_cfg.get("rotation_items_default", 4)
+
+    if commit_batch_size is None:
+        commit_batch_size = int(perf_cfg.get("commit_batch_size", 12))
+    commit_batch_size = max(1, int(commit_batch_size))
+
+    if base_request_delay_ms is None:
+        base_request_delay_ms = int(
+            perf_cfg.get("base_request_delay_ms", scraping_cfg.get("request_delay", 1000))
+        )
+    base_request_delay_ms = max(0, int(base_request_delay_ms))
+
+    if fail_fast_min_attempts is None:
+        fail_fast_min_attempts = int(perf_cfg.get("fail_fast_min_attempts", 8))
+    fail_fast_min_attempts = max(1, int(fail_fast_min_attempts))
+
+    if fail_fast_fail_ratio is None:
+        fail_fast_fail_ratio = float(perf_cfg.get("fail_fast_fail_ratio", 0.85))
+    fail_fast_fail_ratio = max(0.0, min(1.0, float(fail_fast_fail_ratio)))
 
     if candidate_storage == "json":
-        candidate_storage = config.get("scraping", {}).get("candidates", {}).get("storage_mode", "json")
+        candidate_storage = scraping_cfg.get("candidates", {}).get("storage_mode", "json")
         candidate_storage = str(candidate_storage or "json").lower()
         if candidate_storage not in valid_candidate_storage:
             candidate_storage = "json"
@@ -1264,7 +1308,6 @@ def run_scrape(
     if observation_policy == "single":
         candidate_storage = "off"
 
-    # Setup database
     engine = get_engine(config, output_format)
     init_db(engine)
     Session = get_session_factory(engine)
@@ -1298,6 +1341,13 @@ def run_scrape(
                 "skipped": 0,
             }
 
+        performance_meta = {
+            "commit_batch_size": commit_batch_size,
+            "base_request_delay_ms": base_request_delay_ms,
+            "fail_fast_min_attempts": fail_fast_min_attempts,
+            "fail_fast_fail_ratio": fail_fast_fail_ratio,
+        }
+
         if dry_plan:
             return {
                 "run_uuid": None,
@@ -1320,12 +1370,12 @@ def run_scrape(
                 "observation_policy": observation_policy,
                 "candidate_storage_mode": candidate_storage,
                 "candidates_audit_path": None,
+                "performance": performance_meta,
             }
 
         run_uuid = str(uuid.uuid4())
         branch_config = get_branch_config(config)
 
-        # Create run record
         scrape_run = ScrapeRun(
             run_uuid=run_uuid,
             branch_id=branch_config.get("branch_id", "75"),
@@ -1339,6 +1389,24 @@ def run_scrape(
         )
         session.add(scrape_run)
         session.commit()
+
+        category_cache: Dict[str, Category] = {}
+        for category in session.query(Category).all():
+            slug = str(category.slug or "").strip().lower()
+            if slug:
+                category_cache[slug] = category
+
+        planned_ids = [
+            str(item.get("id") or "").strip()
+            for item in planned_items
+            if str(item.get("id") or "").strip()
+        ]
+        product_cache: Dict[str, Product] = {}
+        if planned_ids:
+            for product in session.query(Product).filter(Product.canonical_id.in_(planned_ids)).all():
+                product_cache[str(product.canonical_id)] = product
+
+        display_labels = get_category_display_names(config)
 
         results = {
             "run_uuid": run_uuid,
@@ -1359,14 +1427,23 @@ def run_scrape(
             "observation_policy": observation_policy,
             "candidate_storage_mode": candidate_storage,
             "candidates_audit_path": None,
+            "performance": performance_meta,
+            "fail_fast_triggered": False,
         }
 
         target_seconds = float(results["budget"].get("target_seconds") or 0)
         scrape_started_perf = perf_counter()
         candidate_audit_rows: List[Dict[str, Any]] = []
+        processed_attempts = 0
+        items_since_commit = 0
+
+        def _commit_if_needed(force: bool = False) -> None:
+            nonlocal items_since_commit
+            if force or items_since_commit >= commit_batch_size:
+                session.commit()
+                items_since_commit = 0
 
         with LaAnonimaScraper(config, headless=headless) as scraper:
-            # Select branch
             logger.info("Selecting branch...")
             scraper._branch_attempt = 0
             branch_success = scraper.select_branch()
@@ -1382,8 +1459,8 @@ def run_scrape(
             )
 
             for item in planned_items:
-                item_id = item.get("id", "unknown")
-                item_name = item.get("name", "Unknown")
+                item_id = str(item.get("id") or "unknown")
+                item_name = str(item.get("name") or "Unknown")
                 segment = str(item.get("_plan_segment", "other"))
                 segment_metrics = results["coverage_by_segment"].setdefault(
                     segment,
@@ -1402,21 +1479,18 @@ def run_scrape(
                     results["products_skipped"] += 1
                     scrape_run.products_skipped += 1
                     segment_metrics["skipped"] += 1
-                    session.commit()
+                    items_since_commit += 1
+                    _commit_if_needed()
                     continue
 
                 try:
                     logger.info(f"Processing: {item_name} ({item_id})")
 
-                    # Search for product
                     keywords = item.get("keywords", [item_name])
                     search_results = scraper.search_product(keywords)
-
                     if not search_results:
                         raise ProductNotFoundError(f"No results for {item_name}")
 
-                    # Lightweight strategy: pick at least 3 listing candidates (low/mid/high)
-                    # and use the median-price candidate as representative.
                     tiered_candidates, representative = scraper.select_tiered_candidates(
                         search_results,
                         item,
@@ -1490,14 +1564,12 @@ def run_scrape(
                                     )
                                 )
 
-                    # Normalize and validate canonical URL before confidence threshold.
                     if match:
                         canonical_url = scraper._canonical_product_url(match.get("url"))
                         match["url"] = canonical_url
                         if not scraper._is_valid_product_url(canonical_url):
                             confidence *= 0.3
 
-                    # Skip if no valid match or no price (so we keep a clean time series per product)
                     if not match or confidence < scraper.min_match_confidence:
                         raise ProductNotFoundError(
                             f"No acceptable match for {item_name} (confidence={confidence:.2f})"
@@ -1506,31 +1578,30 @@ def run_scrape(
                     if price_value is None:
                         raise ProductNotFoundError(f"No price found for {item_name}")
 
-                    # Resolve canonical business category/rubro
                     raw_category = item.get("category")
                     canonical_slug = resolve_canonical_category(config, raw_category)
-                    display_labels = get_category_display_names(config)
                     category_obj = None
                     if canonical_slug:
-                        category_obj = session.query(Category).filter_by(slug=canonical_slug).first()
+                        canonical_slug = str(canonical_slug).strip().lower()
+                        category_obj = category_cache.get(canonical_slug)
                         if not category_obj:
                             category_obj = Category(
                                 slug=canonical_slug,
                                 name=display_labels.get(canonical_slug, canonical_slug.replace("_", " ").title()),
-                                description=f"Rubro canónico para '{raw_category}'",
+                                description=f"Rubro canonico para '{raw_category}'",
                             )
                             session.add(category_obj)
-                            session.flush()
+                            session.flush([category_obj])
+                            category_cache[canonical_slug] = category_obj
 
-                    # Get or create product record (one per canonical_id for history)
-                    product = session.query(Product).filter_by(canonical_id=item_id).first()
+                    product = product_cache.get(item_id)
                     if not product:
                         product = Product(
                             canonical_id=item_id,
                             basket_id=item.get("basket_type", "cba"),
                             name=item_name,
                             category=raw_category,
-                            category_id=category_obj.id if category_obj else None,
+                            canonical_category=category_obj,
                             unit=item.get("unit"),
                             quantity=item.get("quantity"),
                             keywords=",".join(keywords),
@@ -1539,68 +1610,88 @@ def run_scrape(
                             signature_name=match.get("name"),
                         )
                         session.add(product)
-                        session.flush()
-                    elif category_obj and product.category_id != category_obj.id:
-                        product.category_id = category_obj.id
+                        product_cache[item_id] = product
+                    elif category_obj:
+                        current_slug = (
+                            str(product.canonical_category.slug).strip().lower()
+                            if getattr(product, "canonical_category", None) is not None
+                            else None
+                        )
+                        if current_slug != canonical_slug:
+                            product.canonical_category = category_obj
 
-                    # Create price record for this run (one row per product per run = time series)
-                    price_record = Price(
-                        product_id=product.id,
-                        category_id=product.category_id,
-                        run_id=scrape_run.id,
-                        canonical_id=item_id,
-                        basket_id=item.get("basket_type", "cba"),
-                        product_name=match.get("name", item_name),
-                        product_size=match.get("size"),
-                        product_brand=match.get("brand"),
-                        product_url=match.get("url"),
-                        current_price=price_value,
-                        original_price=match.get("original_price"),
-                        price_per_unit=match.get("price_per_unit"),
-                        in_stock=match.get("in_stock", True),
-                        is_promotion=match.get("is_promotion", False),
-                        confidence_score=Decimal(str(confidence)),
-                        match_method=match_method,
-                        scraped_at=_utcnow_naive(),
+                    session.add(
+                        Price(
+                            product=product,
+                            canonical_category=category_obj,
+                            run_id=scrape_run.id,
+                            canonical_id=item_id,
+                            basket_id=item.get("basket_type", "cba"),
+                            product_name=match.get("name", item_name),
+                            product_size=match.get("size"),
+                            product_brand=match.get("brand"),
+                            product_url=match.get("url"),
+                            current_price=price_value,
+                            original_price=match.get("original_price"),
+                            price_per_unit=match.get("price_per_unit"),
+                            in_stock=match.get("in_stock", True),
+                            is_promotion=match.get("is_promotion", False),
+                            confidence_score=_to_decimal_or_none(confidence),
+                            match_method=match_method,
+                            scraped_at=_utcnow_naive(),
+                        )
                     )
-                    session.add(price_record)
 
                     results["products_scraped"] += 1
                     scrape_run.products_scraped += 1
                     segment_metrics["scraped"] += 1
-                    session.commit()
-
-                    # Delay between requests
-                    delay = config.get("scraping", {}).get("request_delay", 1000) / 1000
-                    time.sleep(delay)
 
                 except Exception as e:
                     logger.error(f"Error processing {item_name}: {e}")
-
-                    # Record error
-                    error = ScrapeError(
-                        run_id=scrape_run.id,
-                        product_id=item_id,
-                        product_name=item_name,
-                        stage="scraping",
-                        error_type=type(e).__name__,
-                        error_message=str(e),
+                    session.add(
+                        ScrapeError(
+                            run_id=scrape_run.id,
+                            product_id=item_id,
+                            product_name=item_name,
+                            stage="scraping",
+                            error_type=type(e).__name__,
+                            error_message=str(e),
+                        )
                     )
-                    session.add(error)
-                    
                     results["products_failed"] += 1
-                    results["errors"].append({
-                        "product": item_name,
-                        "error": str(e),
-                    })
+                    results["errors"].append({"product": item_name, "error": str(e)})
                     scrape_run.products_failed += 1
                     segment_metrics["failed"] += 1
-                    session.commit()
 
+                finally:
+                    processed_attempts += 1
+                    items_since_commit += 1
+                    _commit_if_needed()
+
+                    if (
+                        processed_attempts >= fail_fast_min_attempts
+                        and results["products_scraped"] == 0
+                    ):
+                        fail_ratio = (
+                            float(results["products_failed"]) / float(processed_attempts)
+                            if processed_attempts > 0
+                            else 0.0
+                        )
+                        if fail_ratio >= fail_fast_fail_ratio:
+                            results["fail_fast_triggered"] = True
+                            _commit_if_needed(force=True)
+                            raise RuntimeError(
+                                "Fail-fast activado: 0 productos scrapeados tras "
+                                f"{processed_attempts} intentos (fallo={fail_ratio:.2f})."
+                            )
+
+                    if base_request_delay_ms > 0:
+                        time.sleep(base_request_delay_ms / 1000.0)
+
+            _commit_if_needed(force=True)
             if candidate_storage == "json" and should_audit_candidates:
                 results["candidates_audit_path"] = _save_candidate_audit_json(run_uuid, candidate_audit_rows)
 
-            # Mark run as completed
             scrape_run.status = (
                 "completed"
                 if results["products_failed"] == 0 and results["products_skipped"] == 0
@@ -1615,7 +1706,7 @@ def run_scrape(
                 if completed_at.tzinfo is not None:
                     completed_at = completed_at.astimezone(timezone.utc).replace(tzinfo=None)
                 scrape_run.duration_seconds = int((completed_at - started_at).total_seconds())
-            session.commit()
+            _commit_if_needed(force=True)
 
             results["status"] = scrape_run.status
             results["completed_at"] = datetime.utcnow().isoformat()
@@ -1626,10 +1717,24 @@ def run_scrape(
 
     except Exception as e:
         logger.error(f"Scrape failed: {e}")
+        try:
+            session.rollback()
+        except Exception:
+            pass
+
         if scrape_run is not None:
-            scrape_run.status = "failed"
-            scrape_run.completed_at = _utcnow_naive()
-            session.commit()
+            try:
+                persisted_run = (
+                    session.query(ScrapeRun)
+                    .filter(ScrapeRun.run_uuid == scrape_run.run_uuid)
+                    .first()
+                )
+                target_run = persisted_run or scrape_run
+                target_run.status = "failed"
+                target_run.completed_at = _utcnow_naive()
+                session.commit()
+            except Exception:
+                session.rollback()
 
         results = locals().get(
             "results",
@@ -1656,7 +1761,6 @@ def run_scrape(
 
     return results
 
-
 if __name__ == "__main__":
     # Simple CLI for testing
     import sys
@@ -1670,3 +1774,5 @@ if __name__ == "__main__":
     
     results = run_scrape(basket_type="cba", headless=False)
     print(f"Scrape completed: {results['products_scraped']} products scraped")
+
+

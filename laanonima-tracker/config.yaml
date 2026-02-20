@@ -537,6 +537,14 @@ scraping:
     storage_mode: "db"     # json|db|off
     min_candidates_per_product: 3
 
+  # Performance tuning defaults (compatible with legacy keys above)
+  performance:
+    commit_batch_size: 12
+    base_request_delay_ms: 550
+    search_settle_delay_ms: 250
+    fail_fast_min_attempts: 8
+    fail_fast_fail_ratio: 0.85
+
   # Deterministic basket planning for efficient runs
   planning:
     profile_default: "balanced"          # balanced|full|cba_only
@@ -642,6 +650,7 @@ analysis:
     region_scope: ["patagonia", "nacional"]
     discovery_url: "https://www.indec.gob.ar/Nivel4/Tema/3/5/31"
     fallback_file: "data/cpi/ipc_indec_patagonia.csv"
+    pdf_validation_policy: "on_new_month"   # always | on_new_month | never
     validation:
       max_abs_diff_pp: 0.10
     auto_source:

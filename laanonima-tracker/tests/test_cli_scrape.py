@@ -49,6 +49,10 @@ class TestCliScrapeOptions(unittest.TestCase):
         self.assertFalse(kwargs["dry_plan"])
         self.assertEqual(kwargs["candidate_storage"], "db")
         self.assertEqual(kwargs["observation_policy"], "single+audit")
+        self.assertIsNone(kwargs["commit_batch_size"])
+        self.assertIsNone(kwargs["base_request_delay_ms"])
+        self.assertIsNone(kwargs["fail_fast_min_attempts"])
+        self.assertIsNone(kwargs["fail_fast_fail_ratio"])
 
     @patch("src.cli.setup_logging")
     @patch("src.cli.ensure_directories")
@@ -88,6 +92,14 @@ class TestCliScrapeOptions(unittest.TestCase):
                 "off",
                 "--observation-policy",
                 "single",
+                "--commit-batch-size",
+                "10",
+                "--base-request-delay-ms",
+                "333",
+                "--fail-fast-min-attempts",
+                "5",
+                "--fail-fast-fail-ratio",
+                "0.7",
             ],
         )
         self.assertEqual(result.exit_code, 0)
@@ -100,6 +112,10 @@ class TestCliScrapeOptions(unittest.TestCase):
         self.assertTrue(kwargs["dry_plan"])
         self.assertEqual(kwargs["candidate_storage"], "off")
         self.assertEqual(kwargs["observation_policy"], "single")
+        self.assertEqual(kwargs["commit_batch_size"], 10)
+        self.assertEqual(kwargs["base_request_delay_ms"], 333)
+        self.assertEqual(kwargs["fail_fast_min_attempts"], 5)
+        self.assertEqual(kwargs["fail_fast_fail_ratio"], 0.7)
 
 
 if __name__ == "__main__":

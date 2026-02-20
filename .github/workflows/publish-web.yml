@@ -1,4 +1,4 @@
-﻿name: publish-web
+name: publish-web
 
 on:
   workflow_dispatch:
@@ -15,7 +15,7 @@ on:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 80
+    timeout-minutes: 55
     env:
       PYTHONUNBUFFERED: "1"
       DB_URL: ${{ secrets.DB_URL }}
@@ -81,75 +81,20 @@ jobs:
           cd laanonima-tracker
           python scripts/check_db_state.py --backend postgresql --init-db
 
-      - name: Enforce empty DB for first real launch
-        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.enforce_empty_db == 'true' }}
+      - name: Run unified data pipeline
         run: |
           cd laanonima-tracker
-          python scripts/check_db_state.py --backend postgresql --require-empty
-
-      - name: Compute incremental IPC window
-        run: |
-          IPC_TO=$(date -u +%Y-%m)
-          IPC_FROM=$(date -u -d "$(date -u +%Y-%m-01) -2 months" +%Y-%m)
-          echo "IPC_FROM=${IPC_FROM}" >> "$GITHUB_ENV"
-          echo "IPC_TO=${IPC_TO}" >> "$GITHUB_ENV"
-          echo "IPC incremental window: ${IPC_FROM} -> ${IPC_TO}"
-
-      - name: Run data pipeline
-        run: |
-          cd laanonima-tracker
-          python -m src.cli init
-          python -m src.cli scrape --basket all --backend postgresql --profile full --candidate-storage db --observation-policy single+audit
-          python -m src.cli ipc-sync --region all --from "${IPC_FROM}" --to "${IPC_TO}"
-          python -m src.cli ipc-build --basket all --from "${IPC_FROM}" --to "${IPC_TO}"
-          python -m src.cli ipc-publish --basket all --region patagonia --from "${IPC_FROM}" --to "${IPC_TO}" --skip-sync --skip-build
-          python -m src.cli ipc-publish --basket all --region nacional --from "${IPC_FROM}" --to "${IPC_TO}" --skip-sync --skip-build
-
-      - name: Validate pipeline persisted real rows
-        run: |
-          cd laanonima-tracker
-          python scripts/check_db_state.py --backend postgresql --require-has-data
-
-      - name: Build and publish static web (single command)
-        run: |
-          cd laanonima-tracker
-          python -m src.cli publish-web --basket all --view analyst --benchmark ipc --offline-assets external
-
-      - name: Smoke check generated public site (gate)
-        run: |
-          cd laanonima-tracker
-          python - <<'PY'
-          import os
-          import sys
-          import threading
-          from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
-          from pathlib import Path
-          from scripts.smoke_public_site import run_smoke
-
-          root = Path("public").resolve()
-          os.chdir(root)
-
-          class Quiet(SimpleHTTPRequestHandler):
-              def log_message(self, format, *args):
-                  pass
-
-          server = ThreadingHTTPServer(("127.0.0.1", 8080), Quiet)
-          thread = threading.Thread(target=server.serve_forever, daemon=True)
-          thread.start()
-          try:
-              code = run_smoke(
-                  base_url="http://127.0.0.1:8080",
-                  timeout=10.0,
-                  expected_canonical_base="https://preciosushuaia.com",
-                  strict=True,
-              )
-          finally:
-              server.shutdown()
-              server.server_close()
-              thread.join(timeout=2)
-
-          sys.exit(code)
-          PY
+          EXTRA_ARGS=""
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.event.inputs.enforce_empty_db }}" = "true" ]; then
+            EXTRA_ARGS="--require-empty"
+          fi
+          python scripts/run_data_pipeline.py \
+            --basket all \
+            --view analyst \
+            --benchmark ipc \
+            --offline-assets external \
+            --pdf-policy on_new_month \
+            ${EXTRA_ARGS}
 
       - name: Upload generated artifacts
         uses: actions/upload-artifact@v4
@@ -158,6 +103,7 @@ jobs:
           path: |
             laanonima-tracker/public
             laanonima-tracker/data/analysis/reports
+            laanonima-tracker/data/analysis/pipeline_timing_latest.json
           if-no-files-found: error
           retention-days: 14
 
