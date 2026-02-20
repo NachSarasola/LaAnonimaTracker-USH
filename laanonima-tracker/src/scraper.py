@@ -183,6 +183,37 @@ class LaAnonimaScraper:
         """Get a CSS selector from config."""
         return self.selectors.get(key, "")
 
+    def _detect_anti_bot_marker(self) -> Optional[str]:
+        """Return marker text when landing page appears to be a bot challenge."""
+        if not self.page:
+            return None
+        text_chunks = []
+        try:
+            text_chunks.append((self.page.title() or "").lower())
+        except Exception:
+            pass
+        try:
+            body_text = self.page.locator("body").first.inner_text(timeout=1200)
+            text_chunks.append((body_text or "").lower())
+        except Exception:
+            pass
+        combined = " ".join(text_chunks)
+        if not combined:
+            return None
+        markers = [
+            "just a moment",
+            "verify you are human",
+            "checking your browser",
+            "attention required",
+            "cf-challenge",
+            "enable javascript and cookies",
+            "captcha",
+        ]
+        for marker in markers:
+            if marker in combined:
+                return marker
+        return None
+
     @staticmethod
     def _canonical_product_url(url: Optional[str]) -> str:
         """Canonicalize product URL by dropping query params and fragments."""
@@ -502,48 +533,105 @@ class LaAnonimaScraper:
         logger.info(f"Current branch: {current}, need to change to {branch_name}")
 
         try:
-            # Click the branch selector trigger
-            trigger_selector = self._get_selector("branch_trigger") or "a[data-toggle='codigo-postal']"
-            logger.info(f"Clicking branch selector: {trigger_selector}")
-
-            trigger = self.page.locator(trigger_selector).first
-            if not trigger.is_visible(timeout=self.branch_selection_timeout):
-                # Try alternative selectors
-                alt_selectors = [
-                    "a:has-text('Codigo Postal')",
-                    "a:has-text('Sucursal')",
-                    ".seleccionar-sucursal",
-                    "[data-target='#codigo-postal']",
-                ]
-                for alt in alt_selectors:
-                    try:
-                        alt_trigger = self.page.locator(alt).first
-                        if alt_trigger.is_visible(timeout=self.branch_selection_timeout):
-                            trigger = alt_trigger
-                            break
-                    except:
-                        continue
-            
-            trigger.click(force=True, timeout=self.branch_selection_timeout)
-            logger.info("Branch selector clicked")
-
-            self.page.wait_for_timeout(120)
             input_selector = self._get_selector("postal_input") or "#idCodigoPostalUnificado"
-            logger.info(f"Filling postal code: {postal_code}")
             postal_input = self.page.locator(input_selector).first
+            quick_timeout = min(self.branch_selection_timeout, max(1200, self.quick_selector_timeout_ms * 6))
+            input_visible = False
+            input_attached = False
 
-            if not postal_input.is_visible(timeout=2000):
-                # Retry opening modal without waiting full fill timeout.
-                self.page.evaluate(
-                    """(selector) => {
-                        const el = document.querySelector(selector);
-                        if (el) el.click();
-                    }""",
-                    trigger_selector,
+            try:
+                input_visible = postal_input.is_visible(timeout=quick_timeout)
+            except Exception:
+                input_visible = False
+
+            try:
+                input_attached = postal_input.count() > 0
+            except Exception:
+                input_attached = False
+
+            # If input is not already available, try multiple triggers to open the modal.
+            if not input_visible and not input_attached:
+                trigger_selectors = []
+                configured_trigger = self._get_selector("branch_trigger")
+                if configured_trigger:
+                    trigger_selectors.append(configured_trigger)
+                trigger_selectors.extend(
+                    [
+                        "a[data-toggle='codigo-postal']",
+                        "[data-toggle='codigo-postal']",
+                        ".seleccionar-sucursal",
+                        "[data-target='#codigo-postal']",
+                        "a:has-text('Codigo Postal')",
+                        "a:has-text('Código Postal')",
+                        "a:has-text('Sucursal')",
+                        "text=Estás en sucursal",
+                        "text=Estas en sucursal",
+                    ]
                 )
-                self.page.wait_for_timeout(80)
+                unique_trigger_selectors = list(dict.fromkeys([s for s in trigger_selectors if s]))
+                logger.info(f"Trying branch trigger selectors: {', '.join(unique_trigger_selectors)}")
 
-            if postal_input.is_visible(timeout=2000):
+                trigger_opened = False
+                for selector in unique_trigger_selectors:
+                    try:
+                        candidate = self.page.locator(selector).first
+                        if candidate.count() == 0:
+                            continue
+                        candidate.click(force=True, timeout=quick_timeout)
+                        trigger_opened = True
+                        logger.info(f"Branch selector clicked via: {selector}")
+                        break
+                    except Exception:
+                        continue
+
+                if not trigger_opened:
+                    trigger_opened = self.page.evaluate(
+                        """(selectors) => {
+                            for (const selector of selectors) {
+                                const el = document.querySelector(selector);
+                                if (el) {
+                                    el.click();
+                                    return true;
+                                }
+                            }
+                            const modal = document.querySelector("#codigo-postal");
+                            if (modal) {
+                                modal.classList.add("is-open");
+                                modal.style.display = "block";
+                                return true;
+                            }
+                            return false;
+                        }""",
+                        unique_trigger_selectors,
+                    )
+                    if trigger_opened:
+                        logger.info("Branch selector opened via JS fallback")
+
+                if trigger_opened:
+                    self.page.wait_for_timeout(120)
+
+                postal_input = self.page.locator(input_selector).first
+                try:
+                    input_attached = postal_input.count() > 0
+                except Exception:
+                    input_attached = False
+                try:
+                    input_visible = postal_input.is_visible(timeout=quick_timeout if trigger_opened else 800)
+                except Exception:
+                    input_visible = False
+
+                if not input_attached:
+                    anti_bot_marker = self._detect_anti_bot_marker()
+                    if anti_bot_marker:
+                        raise BranchSelectionError(
+                            f"Landing page appears blocked by anti-bot challenge ({anti_bot_marker})"
+                        )
+                    raise BranchSelectionError(
+                        "Postal input not found after trying all branch trigger selectors"
+                    )
+
+            logger.info(f"Filling postal code: {postal_code}")
+            if input_visible:
                 postal_input.fill(postal_code, timeout=5000)
                 postal_input.press("Tab")
             else:

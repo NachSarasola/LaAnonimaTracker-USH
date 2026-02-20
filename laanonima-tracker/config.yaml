@@ -582,7 +582,7 @@ scraping:
     
   # Selectors (may need updating if site changes)
   selectors:
-    branch_trigger: "a[data-toggle='codigo-postal']"
+    branch_trigger: "[data-toggle='codigo-postal']"
     postal_input: "#idCodigoPostalUnificado"
     branch_options: "#opcionesSucursal"
     branch_radio: "input[name='sucursalSuper']"
