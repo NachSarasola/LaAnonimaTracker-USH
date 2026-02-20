@@ -50,6 +50,8 @@ def main() -> int:
                     "scrape",
                     "--basket",
                     "all",
+                    "--backend",
+                    "postgresql",
                     "--profile",
                     "full",
                     "--candidate-storage",
@@ -90,4 +92,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
-

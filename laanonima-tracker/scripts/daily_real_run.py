@@ -101,6 +101,8 @@ def main() -> int:
                     "scrape",
                     "--basket",
                     args.basket,
+                    "--backend",
+                    "postgresql",
                     "--profile",
                     "full",
                     "--candidate-storage",

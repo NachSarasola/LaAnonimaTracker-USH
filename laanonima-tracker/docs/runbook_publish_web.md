@@ -49,7 +49,7 @@ python scripts/bootstrap_first_real_run.py
 Recommended daily pipeline (production parity):
 
 ```bash
-python -m src.cli scrape --basket all --profile full --candidate-storage db --observation-policy single+audit
+python -m src.cli scrape --basket all --backend postgresql --profile full --candidate-storage db --observation-policy single+audit
 python -m src.cli ipc-sync --region all
 python -m src.cli ipc-publish --basket all --region patagonia
 python -m src.cli ipc-publish --basket all --region nacional
