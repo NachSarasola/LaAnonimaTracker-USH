@@ -570,6 +570,11 @@ class LaAnonimaScraper:
                 )
                 unique_trigger_selectors = list(dict.fromkeys([s for s in trigger_selectors if s]))
                 logger.info(f"Trying branch trigger selectors: {', '.join(unique_trigger_selectors)}")
+                js_safe_trigger_selectors = [
+                    s
+                    for s in unique_trigger_selectors
+                    if not s.startswith("text=") and ":has-text(" not in s
+                ]
 
                 trigger_opened = False
                 for selector in unique_trigger_selectors:
@@ -588,7 +593,12 @@ class LaAnonimaScraper:
                     trigger_opened = self.page.evaluate(
                         """(selectors) => {
                             for (const selector of selectors) {
-                                const el = document.querySelector(selector);
+                                let el = null;
+                                try {
+                                    el = document.querySelector(selector);
+                                } catch (e) {
+                                    continue;
+                                }
                                 if (el) {
                                     el.click();
                                     return true;
@@ -602,7 +612,7 @@ class LaAnonimaScraper:
                             }
                             return false;
                         }""",
-                        unique_trigger_selectors,
+                        js_safe_trigger_selectors,
                     )
                     if trigger_opened:
                         logger.info("Branch selector opened via JS fallback")
