@@ -10,7 +10,15 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.config_loader import load_config, get_basket_items, get_branch_config, resolve_canonical_category
-from src.models import get_engine, init_db, get_session_factory, Product, Price, CategoryIndex
+from src.models import (
+    CategoryIndex,
+    Price,
+    Product,
+    TrackerIPCCategoryMonthly,
+    get_engine,
+    get_session_factory,
+    init_db,
+)
 from src.category_backfill import backfill_canonical_categories, validate_price_category_traceability
 
 
@@ -99,6 +107,13 @@ class TestModels(unittest.TestCase):
         
         self.assertEqual(price.current_price, Decimal("100.50"))
         self.assertTrue(price.in_stock)
+
+    def test_tracker_ipc_indec_division_code_length(self):
+        """Ensure INDEC division codes fit current config mappings."""
+        self.assertEqual(
+            TrackerIPCCategoryMonthly.__table__.c.indec_division_code.type.length,
+            64,
+        )
 
 
 class TestAnalysis(unittest.TestCase):

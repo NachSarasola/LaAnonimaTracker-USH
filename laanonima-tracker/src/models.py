@@ -474,7 +474,7 @@ class TrackerIPCCategoryMonthly(Base):
     id = Column(Integer, primary_key=True)
     basket_type = Column(String(20), nullable=False, index=True)
     category_slug = Column(String(64), nullable=False, index=True)
-    indec_division_code = Column(String(32), nullable=True, index=True)
+    indec_division_code = Column(String(64), nullable=True, index=True)
     year_month = Column(String(7), nullable=False, index=True)
     method_version = Column(String(64), nullable=False, index=True)
     status = Column(String(32), nullable=False, default="provisional", index=True)
@@ -570,6 +570,7 @@ def init_db(engine):
     """Initialize database tables."""
     Base.metadata.create_all(engine)
     _ensure_category_columns(engine)
+    _ensure_ipc_schema_columns(engine)
     _ensure_runtime_indexes(engine)
 
 
@@ -611,6 +612,31 @@ def _ensure_category_columns(engine):
         price_columns = {c["name"] for c in inspector.get_columns("prices")}
         if "category_id" not in price_columns and dialect == "postgresql":
             conn.execute(text("ALTER TABLE prices ADD COLUMN IF NOT EXISTS category_id INTEGER"))
+
+
+def _ensure_ipc_schema_columns(engine):
+    """Best-effort schema migration for IPC tables in existing DBs."""
+    inspector = inspect(engine)
+    dialect = engine.dialect.name
+
+    if dialect != "postgresql" or not inspector.has_table("tracker_ipc_category_monthly"):
+        return
+
+    columns = {c["name"]: c for c in inspector.get_columns("tracker_ipc_category_monthly")}
+    indec_column = columns.get("indec_division_code")
+    indec_type = indec_column.get("type") if indec_column else None
+    indec_len = getattr(indec_type, "length", None)
+
+    if indec_len is None or indec_len >= 64:
+        return
+
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "ALTER TABLE tracker_ipc_category_monthly "
+                "ALTER COLUMN indec_division_code TYPE VARCHAR(64)"
+            )
+        )
 
 
 def _ensure_runtime_indexes(engine):
