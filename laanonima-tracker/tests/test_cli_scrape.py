@@ -53,6 +53,7 @@ class TestCliScrapeOptions(unittest.TestCase):
         self.assertIsNone(kwargs["base_request_delay_ms"])
         self.assertIsNone(kwargs["fail_fast_min_attempts"])
         self.assertIsNone(kwargs["fail_fast_fail_ratio"])
+        self.assertIsNone(kwargs["branch_strategy"])
 
     @patch("src.cli.setup_logging")
     @patch("src.cli.ensure_directories")
@@ -100,6 +101,8 @@ class TestCliScrapeOptions(unittest.TestCase):
                 "5",
                 "--fail-fast-fail-ratio",
                 "0.7",
+                "--branch-strategy",
+                "modal_only",
             ],
         )
         self.assertEqual(result.exit_code, 0)
@@ -116,6 +119,7 @@ class TestCliScrapeOptions(unittest.TestCase):
         self.assertEqual(kwargs["base_request_delay_ms"], 333)
         self.assertEqual(kwargs["fail_fast_min_attempts"], 5)
         self.assertEqual(kwargs["fail_fast_fail_ratio"], 0.7)
+        self.assertEqual(kwargs["branch_strategy"], "modal_only")
 
 
 if __name__ == "__main__":

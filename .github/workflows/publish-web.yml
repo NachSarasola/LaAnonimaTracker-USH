@@ -96,6 +96,17 @@ jobs:
             --pdf-policy on_new_month \
             ${EXTRA_ARGS}
 
+      - name: Upload branch diagnostics
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: branch-diagnostics
+          path: |
+            laanonima-tracker/data/logs/branch_error_*.png
+            laanonima-tracker/data/logs/branch_debug_*.html
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: Upload generated artifacts
         uses: actions/upload-artifact@v4
         with:

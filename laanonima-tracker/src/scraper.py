@@ -65,6 +65,22 @@ class LaAnonimaScraper:
         self.timeout = config.get("website", {}).get("timeout", 30000)
         self.navigation_timeout = config.get("website", {}).get("navigation_timeout", self.timeout)
         self.branch_selection_timeout = self.scraping_config.get("branch_selection_timeout", 10000)
+        branch_selection_cfg = self.scraping_config.get("branch_selection", {})
+        if not isinstance(branch_selection_cfg, dict):
+            branch_selection_cfg = {}
+        self.branch_selection_strategy = str(
+            branch_selection_cfg.get("strategy", "cp_query_first")
+        ).strip().lower()
+        if self.branch_selection_strategy not in {"cp_query_first", "modal_only", "auto"}:
+            self.branch_selection_strategy = "cp_query_first"
+        probe_timeout_default = min(
+            max(6000, int(self.branch_selection_timeout)),
+            12000,
+        )
+        self.branch_probe_timeout_ms = int(
+            branch_selection_cfg.get("probe_timeout_ms", probe_timeout_default)
+        )
+        self.branch_probe_timeout_ms = max(4000, self.branch_probe_timeout_ms)
         self.retry_attempts = config.get("website", {}).get("retry_attempts", 3)
         candidates_cfg = self.scraping_config.get("candidates", {})
         min_candidates_cfg = candidates_cfg.get(
@@ -187,6 +203,12 @@ class LaAnonimaScraper:
         """Return marker text when landing page appears to be a bot challenge."""
         if not self.page:
             return None
+        try:
+            url_text = (self.page.url or "").lower()
+            if "/cdn-cgi/" in url_text or "challenge-platform" in url_text:
+                return "cloudflare-challenge-url"
+        except Exception:
+            pass
         text_chunks = []
         try:
             text_chunks.append((self.page.title() or "").lower())
@@ -206,13 +228,172 @@ class LaAnonimaScraper:
             "checking your browser",
             "attention required",
             "cf-challenge",
+            "challenge-platform",
+            "/cdn-cgi/",
             "enable javascript and cookies",
             "captcha",
+            "security check",
+            "access denied",
+            "acceso denegado",
+            "verifica que eres humano",
         ]
         for marker in markers:
             if marker in combined:
                 return marker
         return None
+
+    def _collect_cookie_map(self) -> Dict[str, str]:
+        """Collect cookie values from document and browser context."""
+        cookies: Dict[str, str] = {}
+        if not self.page:
+            return cookies
+        try:
+            raw_cookie = self.page.evaluate("() => document.cookie || ''")
+            for chunk in str(raw_cookie or "").split(";"):
+                item = chunk.strip()
+                if not item or "=" not in item:
+                    continue
+                key, value = item.split("=", 1)
+                key = key.strip()
+                if key and key not in cookies:
+                    cookies[key] = value.strip()
+        except Exception:
+            pass
+        if self.context:
+            try:
+                for row in self.context.cookies(self.base_url):
+                    name = str(row.get("name") or "").strip()
+                    if not name or name in cookies:
+                        continue
+                    cookies[name] = str(row.get("value") or "")
+            except Exception:
+                pass
+        return cookies
+
+    def _detect_branch_state(self) -> Tuple[bool, Optional[str]]:
+        """Detect current branch state using DOM labels and cookies."""
+        if not self.page:
+            return False, None
+
+        target_branch = str(self.branch_config.get("branch_name", "USHUAIA 5")).strip()
+        target_branch_id = str(self.branch_config.get("branch_id", "75")).strip()
+        target_postal_code = str(self.branch_config.get("postal_code", "9410")).strip()
+        target_city = target_branch.split()[0].strip().lower() if target_branch else ""
+
+        selectors_to_try = [
+            self._get_selector("current_branch_label"),
+            ".sucursal-actual",
+            ".sucursal",
+            ".branch-name",
+            "[data-branch-name]",
+            ".sucursal-seleccionada",
+            ".header-sucursal",
+        ]
+        for selector in selectors_to_try:
+            try:
+                if not selector:
+                    continue
+                element = self.page.locator(selector).first
+                if not element.is_visible(timeout=min(2000, self.branch_probe_timeout_ms)):
+                    continue
+                text = (element.inner_text() or "").strip()
+                if not text:
+                    continue
+                text_lower = text.lower()
+                if (
+                    (target_branch and target_branch.lower() in text_lower)
+                    or (target_city and target_city in text_lower)
+                    or (target_postal_code and target_postal_code in text)
+                ):
+                    return True, text
+                return False, text
+            except Exception:
+                continue
+
+        cookies = self._collect_cookie_map()
+        current_cp = str(cookies.get("codigoPostal") or "").strip()
+        current_branch_id = str(cookies.get("Id-Sucursal-Super") or "").strip()
+        current_city = str(cookies.get("descripcionLocalidadCabezal") or "").strip()
+
+        label_parts = []
+        if current_city:
+            label_parts.append(current_city)
+        if current_cp:
+            label_parts.append(f"({current_cp})")
+        if current_branch_id:
+            label_parts.append(f"id={current_branch_id}")
+        cookie_label = " ".join(label_parts).strip() or None
+
+        if (
+            (target_postal_code and current_cp and current_cp == target_postal_code)
+            or (target_branch_id and current_branch_id and current_branch_id == target_branch_id)
+        ):
+            return True, cookie_label or target_branch
+
+        if cookie_label:
+            return False, cookie_label
+        return False, None
+
+    def _wait_for_target_branch(self, timeout_ms: int) -> Tuple[bool, Optional[str]]:
+        """Wait until target branch is detected or timeout is reached."""
+        if not self.page:
+            return False, None
+        timeout_ms = max(500, int(timeout_ms))
+        deadline = perf_counter() + (timeout_ms / 1000.0)
+        last_seen: Optional[str] = None
+        while perf_counter() < deadline:
+            is_set, current = self._detect_branch_state()
+            if current:
+                last_seen = current
+            if is_set:
+                return True, current
+            anti_bot_marker = self._detect_anti_bot_marker()
+            if anti_bot_marker:
+                raise BranchSelectionError(
+                    f"Landing page appears blocked by anti-bot challenge ({anti_bot_marker})"
+                )
+            self.page.wait_for_timeout(220)
+        return False, last_seen
+
+    def _apply_branch_via_cp_query(self, postal_code: str) -> bool:
+        """Set branch by loading homepage with ?cp=postal_code and waiting for confirmation."""
+        if not self.page:
+            raise RuntimeError("Browser not started")
+        safe_postal_code = quote(str(postal_code).strip())
+        cp_url = f"{self.base_url.rstrip('/')}/?cp={safe_postal_code}"
+        logger.info(f"Applying branch via CP query: {cp_url}")
+        self.page.goto(
+            cp_url,
+            wait_until="domcontentloaded",
+            timeout=self.navigation_timeout,
+        )
+        try:
+            self.page.wait_for_load_state("networkidle", timeout=3000)
+        except Exception:
+            pass
+        is_set, current = self._wait_for_target_branch(self.branch_selection_timeout)
+        if is_set:
+            logger.info(f"Branch verified via CP query: {current}")
+            self.current_branch = current
+            return True
+        logger.warning(
+            "CP query strategy did not verify target branch within timeout. last_seen={}",
+            current or "N/D",
+        )
+        return False
+
+    def _save_branch_debug_html(self) -> Optional[str]:
+        """Persist current page HTML for branch selection diagnostics."""
+        if not self.page:
+            return None
+        try:
+            out_dir = Path("data/logs")
+            out_dir.mkdir(parents=True, exist_ok=True)
+            out_path = out_dir / f"branch_debug_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
+            out_path.write_text(self.page.content(), encoding="utf-8")
+            return str(out_path)
+        except Exception:
+            return None
 
     @staticmethod
     def _canonical_product_url(url: Optional[str]) -> str:
@@ -422,50 +603,7 @@ class LaAnonimaScraper:
             raise BranchSelectionError("Browser not started")
         
         try:
-            # Look for branch indicator in the page
-            # Try multiple possible selectors
-            selectors_to_try = [
-                self._get_selector("current_branch_label"),
-                ".sucursal-actual",
-                ".sucursal",
-                ".branch-name",
-                "[data-branch-name]",
-                ".sucursal-seleccionada",
-                ".header-sucursal",
-            ]
-            
-            for selector in selectors_to_try:
-                try:
-                    if not selector:
-                        continue
-                    element = self.page.locator(selector).first
-                    if element.is_visible(timeout=2000):
-                        text = element.inner_text()
-                        if text:
-                            logger.debug(f"Found branch indicator: {text}")
-                            target_branch = self.branch_config.get("branch_name", "USHUAIA 5")
-                            target_postal_code = str(self.branch_config.get("postal_code", "")).strip()
-                            target_city = target_branch.split()[0].strip().lower() if target_branch else ""
-                            text_lower = text.lower()
-                            if (
-                                target_branch.lower() in text_lower
-                                or (target_city and target_city in text_lower)
-                                or (target_postal_code and target_postal_code in text)
-                            ):
-                                return True, text.strip()
-                            return False, text.strip()
-                except:
-                    continue
-            
-            # Check cookies or localStorage for branch info
-            try:
-                branch_cookie = self.page.evaluate("() => document.cookie")
-                if "sucursal" in branch_cookie or "branch" in branch_cookie:
-                    logger.debug(f"Found branch in cookie: {branch_cookie}")
-            except:
-                pass
-            
-            return False, None
+            return self._detect_branch_state()
             
         except Exception as e:
             logger.warning(f"Error checking branch status: {e}")
@@ -489,9 +627,9 @@ class LaAnonimaScraper:
         if not self.page:
             raise RuntimeError("Browser not started")
         
-        postal_code = self.branch_config.get("postal_code", "9410")
-        branch_name = self.branch_config.get("branch_name", "USHUAIA 5")
-        branch_id = self.branch_config.get("branch_id", "75")
+        postal_code = str(self.branch_config.get("postal_code", "9410")).strip()
+        branch_name = str(self.branch_config.get("branch_name", "USHUAIA 5")).strip()
+        branch_id = str(self.branch_config.get("branch_id", "75")).strip()
         
         logger.info(
             f"Selecting branch attempt {self._branch_attempt}/3: {branch_name} (CP: {postal_code})"
@@ -532,15 +670,21 @@ class LaAnonimaScraper:
 
         logger.info(f"Current branch: {current}, need to change to {branch_name}")
 
+        if self.branch_selection_strategy in {"cp_query_first", "auto"}:
+            cp_query_success = self._apply_branch_via_cp_query(postal_code)
+            if cp_query_success:
+                return True
+            logger.warning("Falling back to modal branch selection after CP query attempt.")
+
         try:
             input_selector = self._get_selector("postal_input") or "#idCodigoPostalUnificado"
             postal_input = self.page.locator(input_selector).first
-            quick_timeout = min(self.branch_selection_timeout, max(1200, self.quick_selector_timeout_ms * 6))
+            branch_probe_timeout = min(self.branch_selection_timeout, self.branch_probe_timeout_ms)
             input_visible = False
             input_attached = False
 
             try:
-                input_visible = postal_input.is_visible(timeout=quick_timeout)
+                input_visible = postal_input.is_visible(timeout=branch_probe_timeout)
             except Exception:
                 input_visible = False
 
@@ -582,7 +726,7 @@ class LaAnonimaScraper:
                         candidate = self.page.locator(selector).first
                         if candidate.count() == 0:
                             continue
-                        candidate.click(force=True, timeout=quick_timeout)
+                        candidate.click(force=True, timeout=branch_probe_timeout)
                         trigger_opened = True
                         logger.info(f"Branch selector clicked via: {selector}")
                         break
@@ -626,7 +770,9 @@ class LaAnonimaScraper:
                 except Exception:
                     input_attached = False
                 try:
-                    input_visible = postal_input.is_visible(timeout=quick_timeout if trigger_opened else 800)
+                    input_visible = postal_input.is_visible(
+                        timeout=branch_probe_timeout if trigger_opened else 1000
+                    )
                 except Exception:
                     input_visible = False
 
@@ -696,20 +842,29 @@ class LaAnonimaScraper:
             except Exception:
                 self.page.wait_for_timeout(180)
 
-            is_set, current = self.check_branch_set()
+            is_set, current = self._wait_for_target_branch(self.branch_selection_timeout)
             if is_set:
                 logger.info(f"Branch selection verified: {current}")
                 self.current_branch = current
                 return True
-            # Selection may be stored in cookie/session; continue and rely on prices at scrape time
-            logger.warning(
-                "Branch indicator not found after selection (may still be applied). Continuing."
+            raise BranchSelectionError(
+                f"Branch was not verified after selection (last_seen={current or 'N/D'})"
             )
-            self.current_branch = branch_name
-            return True
                 
         except Exception as e:
             logger.error(f"Branch selection failed (attempt {self._branch_attempt}): {e}")
+            try:
+                current_url = self.page.url if self.page else "N/D"
+                current_title = self.page.title() if self.page else "N/D"
+                anti_bot_marker = self._detect_anti_bot_marker() or "none"
+                logger.error(
+                    "Branch diagnostics: url={} | title={} | anti_bot_marker={}",
+                    current_url,
+                    current_title,
+                    anti_bot_marker,
+                )
+            except Exception:
+                pass
             # Take screenshot for debugging
             try:
                 screenshot_path = f"data/logs/branch_error_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
@@ -717,6 +872,9 @@ class LaAnonimaScraper:
                 logger.info(f"Error screenshot saved to {screenshot_path}")
             except:
                 pass
+            debug_html_path = self._save_branch_debug_html()
+            if debug_html_path:
+                logger.info(f"Branch debug HTML saved to {debug_html_path}")
             if self._is_closed_target_error(e):
                 self._ensure_browser_session()
             raise BranchSelectionError(f"Failed to select branch: {e}")
@@ -1327,6 +1485,7 @@ def run_scrape(
     base_request_delay_ms: Optional[int] = None,
     fail_fast_min_attempts: Optional[int] = None,
     fail_fast_fail_ratio: Optional[float] = None,
+    branch_strategy: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Run a complete scrape operation.
 
@@ -1347,21 +1506,38 @@ def run_scrape(
         base_request_delay_ms: Delay between items in milliseconds
         fail_fast_min_attempts: Min attempts before fail-fast is evaluated
         fail_fast_fail_ratio: Fail ratio threshold for fail-fast [0..1]
+        branch_strategy: Branch selection strategy override (cp_query_first|modal_only|auto)
 
     Returns:
         Dictionary with scrape results and statistics
     """
     valid_candidate_storage = {"json", "db", "off"}
     valid_observation_policies = {"single", "single+audit"}
+    valid_branch_strategies = {"cp_query_first", "modal_only", "auto"}
     candidate_storage = (candidate_storage or "json").lower()
     observation_policy = (observation_policy or "single+audit").lower()
+    if branch_strategy is not None:
+        branch_strategy = str(branch_strategy).strip().lower()
 
     if candidate_storage not in valid_candidate_storage:
         raise ValueError("candidate_storage invalido: use json, db o off")
     if observation_policy not in valid_observation_policies:
         raise ValueError("observation_policy invalido: use single o single+audit")
+    if branch_strategy and branch_strategy not in valid_branch_strategies:
+        raise ValueError("branch_strategy invalido: use cp_query_first, modal_only o auto")
 
     config = load_config(config_path)
+    if branch_strategy:
+        scraping_node = config.setdefault("scraping", {})
+        if not isinstance(scraping_node, dict):
+            scraping_node = {}
+            config["scraping"] = scraping_node
+        branch_selection_node = scraping_node.get("branch_selection")
+        if not isinstance(branch_selection_node, dict):
+            branch_selection_node = {}
+            scraping_node["branch_selection"] = branch_selection_node
+        branch_selection_node["strategy"] = branch_strategy
+
     scraping_cfg = config.get("scraping", {})
     if not isinstance(scraping_cfg, dict):
         scraping_cfg = {}
@@ -1371,6 +1547,9 @@ def run_scrape(
     perf_cfg = scraping_cfg.get("performance", {})
     if not isinstance(perf_cfg, dict):
         perf_cfg = {}
+    branch_selection_cfg = scraping_cfg.get("branch_selection", {})
+    if not isinstance(branch_selection_cfg, dict):
+        branch_selection_cfg = {}
 
     if runtime_budget_minutes is None:
         runtime_budget_minutes = planning_cfg.get("runtime_budget_minutes", 20)
@@ -1444,6 +1623,7 @@ def run_scrape(
             "base_request_delay_ms": base_request_delay_ms,
             "fail_fast_min_attempts": fail_fast_min_attempts,
             "fail_fast_fail_ratio": fail_fast_fail_ratio,
+            "branch_strategy": str(branch_selection_cfg.get("strategy", "cp_query_first")),
         }
 
         if dry_plan:

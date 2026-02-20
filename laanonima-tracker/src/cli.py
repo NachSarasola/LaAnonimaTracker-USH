@@ -180,6 +180,12 @@ def cli(ctx, config: Optional[str], verbose: bool):
     default=None,
     help="Fail ratio threshold for fail-fast guard (0-1)",
 )
+@click.option(
+    "--branch-strategy",
+    type=click.Choice(["cp_query_first", "modal_only", "auto"], case_sensitive=False),
+    default=None,
+    help="Branch selection strategy override (optional)",
+)
 @click.pass_context
 def scrape(
     ctx,
@@ -198,6 +204,7 @@ def scrape(
     base_request_delay_ms: Optional[int],
     fail_fast_min_attempts: Optional[int],
     fail_fast_fail_ratio: Optional[float],
+    branch_strategy: Optional[str],
 ):
     """Run price scraping for the configured basket."""
     config = ctx.obj["config"]
@@ -206,7 +213,8 @@ def scrape(
     logger.info(
         "Starting scrape: basket={}, headless={}, backend={}, limit={}, profile={}, budget_min={}, "
         "rotation_items={}, sample_random={}, dry_plan={}, candidate_storage={}, observation_policy={}, "
-        "commit_batch_size={}, base_request_delay_ms={}, fail_fast_min_attempts={}, fail_fast_fail_ratio={}",
+        "commit_batch_size={}, base_request_delay_ms={}, fail_fast_min_attempts={}, fail_fast_fail_ratio={}, "
+        "branch_strategy={}",
         basket,
         headless,
         backend,
@@ -222,6 +230,7 @@ def scrape(
         base_request_delay_ms,
         fail_fast_min_attempts,
         fail_fast_fail_ratio,
+        branch_strategy,
     )
 
     try:
@@ -242,6 +251,7 @@ def scrape(
             base_request_delay_ms=base_request_delay_ms,
             fail_fast_min_attempts=fail_fast_min_attempts,
             fail_fast_fail_ratio=fail_fast_fail_ratio,
+            branch_strategy=branch_strategy,
         )
 
         click.echo(f"\n{'='*70}")

@@ -281,6 +281,10 @@ class TestScraperCandidateStorage(unittest.TestCase):
                 fail_fast_fail_ratio=0.5,
             )
 
+    def test_invalid_branch_strategy_raises(self):
+        with self.assertRaises(ValueError):
+            run_scrape(branch_strategy="invalid-strategy")
+
 
 if __name__ == "__main__":
     unittest.main()

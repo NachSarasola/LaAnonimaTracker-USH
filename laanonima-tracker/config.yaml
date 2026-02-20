@@ -531,6 +531,9 @@ scraping:
   # Timeouts livianos para parseo/listado
   quick_selector_timeout_ms: 250
   search_settle_delay_ms: 700
+  branch_selection:
+    strategy: "cp_query_first"  # cp_query_first|modal_only|auto
+    probe_timeout_ms: 6000
 
   # Candidate persistence strategy (prepara modo futuro de guardar 3)
   candidates:
