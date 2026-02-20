@@ -10,6 +10,9 @@ from pathlib import Path
 from time import perf_counter
 from typing import Any, Dict, List
 
+_SCRIPT_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(_SCRIPT_ROOT))
+
 from scripts.pipeline_common import (
     ROOT,
     build_env,
