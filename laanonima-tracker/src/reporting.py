@@ -1926,18 +1926,18 @@ class ReportGenerator:
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>La Anonima: rastreador de precios - Ushuaia</title>
-<meta name="description" content="Panel profesional para seguimiento de precios historicos, variacion nominal/real y comparativa de IPC."/>
+<title>Tracker de precios: La Anónima Ushuaia</title>
+<meta name="description" content="Precios de La Anónima Ushuaia con filtros y evolución."/>
 <meta name="theme-color" content="#1d4ed8"/>
 <link rel="canonical" href="__TRACKER_URL__"/>
 <meta property="og:type" content="website"/>
-<meta property="og:title" content="La Anonima Tracker"/>
-<meta property="og:description" content="Seguimiento historico de precios y comparativa macro IPC."/>
+<meta property="og:title" content="Tracker de precios: La Anónima Ushuaia"/>
+<meta property="og:description" content="Precios de La Anónima Ushuaia con filtros y evolución."/>
 <meta property="og:image" content="__OG_IMAGE_URL__"/>
 <meta property="og:url" content="__TRACKER_URL__"/>
 <meta name="twitter:card" content="summary_large_image"/>
-<meta name="twitter:title" content="La Anonima Tracker"/>
-<meta name="twitter:description" content="Seguimiento historico de precios y comparativa macro IPC."/>
+<meta name="twitter:title" content="Tracker de precios: La Anónima Ushuaia"/>
+<meta name="twitter:description" content="Precios de La Anónima Ushuaia con filtros y evolución."/>
 <meta name="twitter:image" content="__OG_IMAGE_URL__"/>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
 <link rel="manifest" href="/site.webmanifest"/>
@@ -1957,23 +1957,23 @@ __TRACKER_STYLE_BLOCK__
       <nav class="head-links" aria-label="Navegacion del sitio">
         <a href="/">Inicio</a>
         <a href="/tracker/" class="active">Tracker</a>
-        <a href="/historico/">Historico</a>
-        <a href="/metodologia/">Metodologia</a>
+        <a href="/historico/">Histórico</a>
+        <a href="/metodologia/">Metodología</a>
         <a href="/contacto/">Contacto</a>
       </nav>
-      <h1 class="title">Tracker de precios</h1>
+      <h1 class="title">Tracker de precios: La Anónima Ushuaia</h1>
       <p class="meta">Actualizado: __GEN__</p>
       <p class="meta">Rango: __FROM__ a __TO__</p>
-      <p class="meta" id="freshness-meta" title="Proxima corrida: N/D">Estado: pendiente Â· Ultimo dato: N/D</p>
+      <p class="meta" id="freshness-meta" title="Proxima corrida: N/D">Estado: pendiente · Último dato: N/D</p>
     </div>
     <div>
       <span id="quality-badge" class="badge">Completo</span>
-      <div class="method ui-version">Version publica</div>
+      <div class="method ui-version">Vista pública</div>
     </div>
   </section>
 
   <section class="card helper" id="quick-guide">
-    <p class="method">Filtra rapido y usa "Copiar vista" para compartir exactamente este estado.</p>
+    <p class="method">Filtra y comparte la vista.</p>
     <div id="active-filters" class="pills"></div>
   </section>
 
@@ -1983,22 +1983,20 @@ __TRACKER_STYLE_BLOCK__
   </section>
 
   <section class="card premium-panel" id="premium-panel" style="display:none">
-    <h2>Funciones opcionales</h2>
-    <p class="muted">Modulos disponibles para una futura version Pro.</p>
+    <h2>Opciones</h2>
     <ul id="premium-features" class="premium-list"></ul>
   </section>
 
   <section id="empty" class="card" style="display:none">
     <h2 class="empty-title">Sin datos para el rango seleccionado</h2>
-    <p class="muted empty-text">El reporte se genero correctamente, pero no hay observaciones de precios en la base local.</p>
-    <p class="muted">Paso sugerido: ejecutar <code>python -m src.cli scrape --basket all</code> y luego <code>python -m src.cli app</code>.</p>
+    <p class="muted empty-text">No hay observaciones de precios para este rango.</p>
   </section>
 
   <div id="app" class="stack">
     <section class="kpis" id="kpi-grid"></section>
 
     <article class="card chart-card" id="panel-secondary">
-      <h2>IPC Propio vs IPC Oficial (indice base 100)</h2>
+      <h2>IPC propio vs IPC oficial</h2>
       <div class="band-toolbar">
         <div class="band-select-wrap">
           <label for="macro-scope">Vista macro</label>
@@ -2008,7 +2006,7 @@ __TRACKER_STYLE_BLOCK__
           </select>
         </div>
         <div class="band-select-wrap">
-          <label for="macro-region">Region oficial</label>
+          <label for="macro-region">Región oficial</label>
           <select id="macro-region"></select>
         </div>
         <div class="band-select-wrap">
@@ -2018,7 +2016,7 @@ __TRACKER_STYLE_BLOCK__
         <div id="macro-status" class="muted"></div>
       </div>
       <details class="macro-details" id="macro-details">
-        <summary>Detalle tecnico</summary>
+        <summary>Detalle técnico</summary>
         <div id="macro-detail-text"></div>
       </details>
       <div id="macro-notice" class="macro-note" hidden></div>
@@ -2027,15 +2025,15 @@ __TRACKER_STYLE_BLOCK__
     </article>
 
     <details class="filters" id="filters-panel" open>
-      <summary>Filtros y seleccion de productos</summary>
+      <summary>Filtros y selección de productos</summary>
       <div class="filters-grid">
         <div class="filter-field span-4">
-          <label for="q">Buscar producto</label>
+          <label for="q">Buscar</label>
           <div class="search-wrap">
             <input id="q" placeholder="nombre del producto" />
             <button id="clear-search" type="button" class="soft">Limpiar</button>
           </div>
-          <div class="field-meta">Tip rapido: presiona <strong>/</strong> para enfocar la busqueda.</div>
+          <div class="field-meta">Atajo: presiona <strong>/</strong></div>
         </div>
         <div class="filter-field">
           <label for="cba">CBA</label>
@@ -2046,13 +2044,13 @@ __TRACKER_STYLE_BLOCK__
           </select>
         </div>
         <div class="filter-field">
-          <label for="cat">Categoria</label>
+          <label for="cat">Categoría</label>
           <select id="cat"></select>
         </div>
         <div class="filter-field">
           <label for="ord">Ordenar por</label>
           <select id="ord">
-            <option value="alphabetical">Alfabetico</option>
+            <option value="alphabetical">Alfabético</option>
             <option value="price">Precio</option>
             <option value="var_nominal">Var. nominal</option>
             <option value="var_real">Var. real</option>
@@ -2077,7 +2075,7 @@ __TRACKER_STYLE_BLOCK__
           </div>
         </div>
         <div class="filter-field span-3">
-          <label>Seleccion rapida</label>
+          <label>Selección rápida</label>
           <div class="switchers">
             <button id="quick-up" type="button">Ganadores</button>
             <button id="quick-down" type="button">Perdedores</button>
@@ -2085,7 +2083,7 @@ __TRACKER_STYLE_BLOCK__
           </div>
         </div>
         <div class="filter-field span-4">
-          <label for="sel">Productos en grafico</label>
+          <label for="sel">Productos en gráfico</label>
           <select id="sel" multiple size="5"></select>
           <div id="selection-meta" class="field-meta">0 productos seleccionados</div>
         </div>
@@ -2106,7 +2104,7 @@ __TRACKER_STYLE_BLOCK__
         <section class="card table-section">
           <h2>Listado de productos</h2>
           <div class="table-toolbar">
-            <div id="table-meta" class="muted">0 resultados Â· 0 en grafico</div>
+            <div id="table-meta" class="muted">0 resultados · 0 en gráfico</div>
             <div class="table-actions">
               <label for="page-size">Filas</label>
               <select id="page-size" class="page-size"></select>
@@ -2119,8 +2117,8 @@ __TRACKER_STYLE_BLOCK__
             <table>
               <thead>
                 <tr>
-                  <th>Producto (hipervinculo)</th>
-                  <th>Presentacion</th>
+                  <th>Producto</th>
+                  <th>Presentación</th>
                   <th>Precio</th>
                   <th>Var. %</th>
                   <th id="th-var-real" style="display:none">Var. real %</th>
@@ -2139,7 +2137,7 @@ __TRACKER_STYLE_BLOCK__
 
       <aside class="workspace-side">
         <section class="card chart-card" id="panel-bands">
-          <h2>DispersiÃ³n intra-producto (low/mid/high)</h2>
+          <h2>Dispersión de candidatos (low/mid/high)</h2>
           <div class="band-toolbar">
             <div class="band-select-wrap">
               <label for="band-product">Producto para banda</label>
@@ -2655,7 +2653,7 @@ function paginatedRows(rows){
 
 function updateTableMeta(total,totalPages){
   if(el.tableMeta){
-    el.tableMeta.textContent=`${total} resultados Â· ${st.selected_products.length} en grafico`;
+    el.tableMeta.textContent=`${total} resultados · ${st.selected_products.length} en gráfico`;
   }
   if(el.pageInfo){
     el.pageInfo.textContent=`${st.current_page} / ${totalPages}`;
@@ -2684,7 +2682,7 @@ function drawActiveFilters(totalRows){
   if(st.macro_region && st.macro_region!==(p.macro_default_region||"patagonia")) chips.push({key:"macro_region",label:`Region macro: ${st.macro_region}`});
   if(st.macro_scope==="rubros" && st.macro_category) chips.push({key:"macro_category",label:`Rubro macro: ${st.macro_category}`});
 
-  const html=[`<span class="pill pill-info">Productos filtrados: ${totalRows}</span>`,`<span class="pill">En grafico: ${st.selected_products.length}</span>`];
+  const html=[`<span class="pill pill-info">Productos filtrados: ${totalRows}</span>`,`<span class="pill">En gráfico: ${st.selected_products.length}</span>`];
   if(!chips.length){
     html.push(`<span class="pill">Sin filtros adicionales</span>`);
   }else{
@@ -3506,16 +3504,12 @@ function drawSecondaryChart(force=false){
     const trackerMonth=safeText(pub.latest_tracker_month ?? latestTracker?.year_month, "N/D");
     const officialMonth=safeText(pub.latest_official_month ?? latestOfficial?.year_month, "N/D");
     const pubStatus=safeText(pub.status, "sin_publicacion");
-    const statusOrigin=safeText(pub.status_origin, "publication_run");
-    const latestMonth=safeText(([...src].reverse().find(x=>x.year_month)||{}).year_month, "N/D");
     const comparability=strictComparable ? "comparables" : "parcial";
-    const originLabel=statusOrigin==="derived_from_series" ? "derivado de series" : "publicacion";
     el.macroStatus.textContent=
       `Macro: ${regionLabel} | Tracker ${trackerMonth} | Oficial ${officialMonth} | ${comparability}`;
     if(el.macroDetailText){
       el.macroDetailText.textContent=
-        `${macroLabel}. Estado tracker: ${trackerStatus}. Estado oficial: ${officialStatus}. `
-        + `Publicacion: ${pubStatus} (${originLabel}). Ultimo mes con dato: ${latestMonth}.`;
+        `${macroLabel}. Tracker: ${trackerStatus}. Oficial: ${officialStatus}. Estado: ${pubStatus}.`;
     }
   }
 }
@@ -3709,13 +3703,13 @@ function drawQuality(){
   if(el.qualityMacro){
     el.qualityMacro.textContent=
       `Tracker IPC: ${(trackerSeries[0]?.year_month)||"N/D"} a ${(latestTracker?.year_month)||"N/D"} `
-      + `Â· estado ${(safeText(latestTracker?.status) || "N/D")}.`;
+      + `· estado ${(safeText(latestTracker?.status) || "N/D")}.`;
   }
   el.qualityIpc.textContent=
-    `IPC oficial (${regionLabel}): ${(latestOfficial?.year_month)||"N/D"} Â· `
-    + `fuente ${(pub.official_source_effective)||pub.official_source||"N/D"} Â· `
+    `IPC oficial (${regionLabel}): ${(latestOfficial?.year_month)||"N/D"} · `
+    + `fuente ${(pub.official_source_effective)||pub.official_source||"N/D"} · `
     + `estado ${(pub.status)||"sin_publicacion"}`
-    + `${safeText(pub.status_origin,"publication_run")==="derived_from_series" ? " (derivado)." : ""} Â· `
+    + `${safeText(pub.status_origin,"publication_run")==="derived_from_series" ? " (derivado)." : ""} · `
     + `sin IPC: ${missingMonths.length? missingMonths.join(", ") : "ninguno"}.`;
   if(el.qualitySegments){
     el.qualitySegments.textContent=
@@ -3747,7 +3741,7 @@ function drawQuality(){
     const status=p.web_status||"partial";
     const nextRun=p.next_update_eta||"N/D";
     const lastData=p.last_data_timestamp?fmtDate(p.last_data_timestamp):"N/D";
-    el.freshnessMeta.textContent=`Estado: ${status} Â· Ultimo dato: ${lastData}`;
+    el.freshnessMeta.textContent=`Estado: ${status} · Último dato: ${lastData}`;
     el.freshnessMeta.title=`Proxima corrida: ${nextRun}`;
   }
 }

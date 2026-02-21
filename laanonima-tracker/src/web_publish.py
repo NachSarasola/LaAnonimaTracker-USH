@@ -27,6 +27,8 @@ _MONTH_RE = re.compile(r"^\d{4}-\d{2}$")
 _TRACKER_CSS_REF_RE = re.compile(r"""href=["'](?:\./)?tracker-ui\.css(?:\?[^"'<>]*)?["']""", re.IGNORECASE)
 _PUBLICATION_POLICY = "publish_with_alert_on_partial"
 _PUBLICATION_POLICY_SUMMARY = "Se publica con alerta si falta cobertura o IPC."
+_SITE_TITLE = "Tracker de precios: La Anónima Ushuaia"
+_SITE_SHORT = "Precios Ushuaia"
 
 
 @dataclass
@@ -434,14 +436,14 @@ class StaticWebPublisher:
 <rect x='42' y='42' width='1116' height='546' rx='26' fill='url(#bg)'/>
 <circle cx='1040' cy='130' r='130' fill='rgba(255,255,255,0.14)'/>
 <circle cx='970' cy='520' r='190' fill='rgba(255,255,255,0.10)'/>
-<text x='90' y='228' fill='#ffffff' font-size='64' font-family='Segoe UI, Arial, sans-serif' font-weight='700'>La Anonima Tracker</text>
-<text x='90' y='298' fill='#dff4ff' font-size='34' font-family='Segoe UI, Arial, sans-serif'>Precios historicos + comparativa macro IPC</text>
-<text x='90' y='520' fill='#e8fbff' font-size='28' font-family='Segoe UI, Arial, sans-serif'>Datos publicos actualizados diariamente</text>
+<text x='90' y='228' fill='#ffffff' font-size='60' font-family='Segoe UI, Arial, sans-serif' font-weight='700'>Tracker de precios: La Anonima Ushuaia</text>
+<text x='90' y='298' fill='#dff4ff' font-size='34' font-family='Segoe UI, Arial, sans-serif'>Precios en La Anonima Ushuaia</text>
+<text x='90' y='520' fill='#e8fbff' font-size='28' font-family='Segoe UI, Arial, sans-serif'>Series historicas simples y claras</text>
 </svg>
 """
         web_manifest = {
-            "name": "La Anonima Tracker",
-            "short_name": "LA Tracker",
+            "name": _SITE_TITLE,
+            "short_name": _SITE_SHORT,
             "start_url": "/",
             "display": "standalone",
             "background_color": "#f9fafb",
@@ -468,8 +470,8 @@ class StaticWebPublisher:
         links = [
             ("home", "/", "Inicio"),
             ("tracker", "/tracker/", "Tracker"),
-            ("historico", "/historico/", "Historico"),
-            ("metodologia", "/metodologia/", "Metodologia"),
+            ("historico", "/historico/", "Histórico"),
+            ("metodologia", "/metodologia/", "Metodología"),
             ("contacto", "/contacto/", "Contacto"),
         ]
         nav_items = []
@@ -478,7 +480,7 @@ class StaticWebPublisher:
             nav_items.append(f"<a href='{href}'{class_attr}>{label}</a>")
         return (
             "<section class='card topbar'>"
-            "<a href='/' class='brand'>La Anonima Tracker</a>"
+            "<a href='/' class='brand'>Precios La Anónima Ushuaia</a>"
             f"<nav class='nav' aria-label='Principal'>{''.join(nav_items)}</nav>"
             "</section>"
         )
@@ -598,9 +600,8 @@ class StaticWebPublisher:
                 "<span class='{badge_classes}'>{state_label}</span>"
                 "</div>"
                 "<div class='history-sub'>"
-                "<span>Run: {run_key}</span>"
-                "<span>UTC: {generated}</span>"
                 "<span>Cobertura: {coverage_label}</span>"
+                "<span>Mes: {month}</span>"
                 "</div>"
                 "</a>"
             ).format(
@@ -611,7 +612,6 @@ class StaticWebPublisher:
                 run_local=item["run_date_local"],
                 badge_classes=badge_classes,
                 state_label=state_label,
-                generated=item["generated_at_utc"],
                 coverage_label=coverage_label,
             )
 
@@ -621,29 +621,29 @@ class StaticWebPublisher:
             runs_html = "".join(_run_item_html(item) for item in items)
             month_sections.append(
                 "<section class='card'>"
-                f"<div class='history-head'><h2>{month}</h2><span class='status-chip'>{len(items)} runs</span></div>"
+                f"<div class='history-head'><h2>{month}</h2><span class='status-chip'>{len(items)} corridas</span></div>"
                 f"<div class='history-list'>{runs_html}</div>"
-                f"<p class='meta-line'><a href='/historico/{month}/'>Ver mes completo</a></p>"
+                f"<p class='meta-line'><a href='/historico/{month}/'>Ver corridas del mes</a></p>"
                 "</section>"
             )
 
-        list_html = "".join(month_sections) if month_sections else "<p class='muted'>Sin reportes historicos disponibles.</p>"
+        list_html = "".join(month_sections) if month_sections else "<p class='muted'>Sin corridas disponibles.</p>"
 
         root_html = f"""<!doctype html>
 <html lang='es'>
 <head>
-{self._meta_head('Historico | La Anonima Tracker', 'Historico de corridas publicadas del tracker por mes y dia.', '/historico/')}
+{self._meta_head(f'Histórico de precios | {_SITE_TITLE}', 'Elige una corrida para ver precios.', '/historico/')}
 {self._analytics_head_script()}
 </head>
 <body>
 <main class='shell'>
   {self._top_nav(active='historico')}
   <section class='card'>
-    <h1>Historico de precios</h1>
-    <p class='muted'>Explora corridas por mes y fecha ({self.history_timezone}).</p>
+    <h1>Histórico de precios</h1>
+    <p class='muted'>Elige una corrida para ver precios.</p>
     <div class='list-tools'>
-      <input id='history-search' type='search' placeholder='Filtrar por mes o run (YYYY-MM / YYYY-MM-DD)'/>
-      <div class='status-chip'><span id='history-count'>{len(run_rows)}</span> runs</div>
+      <input id='history-search' type='search' placeholder='Buscar por mes o fecha'/>
+      <div class='status-chip'><span id='history-count'>{len(run_rows)}</span> corridas</div>
     </div>
   </section>
   <div id='history-list'>{list_html}</div>
@@ -685,16 +685,16 @@ class StaticWebPublisher:
             month_html = f"""<!doctype html>
 <html lang='es'>
 <head>
-{self._meta_head(f'Historico {month} | La Anonima Tracker', f'Corridas del mes {month}.', f'/historico/{month}/')}
+{self._meta_head(f'Histórico {month} | {_SITE_TITLE}', f'Corridas del mes {month}.', f'/historico/{month}/')}
 {self._analytics_head_script()}
 </head>
 <body>
 <main class='shell'>
   {self._top_nav(active='historico')}
   <section class='card'>
-    <h1>Historico {month}</h1>
-    <p class='muted'>Corridas publicadas ({self.history_timezone}).</p>
-    <div class='status-chip'>{len(items)} runs</div>
+    <h1>Corridas de {month}</h1>
+    <p class='muted'>Hora local: {self.history_timezone}</p>
+    <div class='status-chip'>{len(items)} corridas</div>
   </section>
   <section class='card'>
     <div class='history-list'>{month_list}</div>
@@ -850,15 +850,12 @@ class StaticWebPublisher:
         quality_block = manifest.get("quality") if isinstance(manifest.get("quality"), dict) else {}
         coverage_total = quality_block.get("coverage_total_pct")
         coverage_label = "N/D" if coverage_total is None else f"{float(coverage_total):.1f}%"
-        publication_status = str(quality_block.get("publication_status") or "N/D")
-        validation_status = str(quality_block.get("official_validation_status") or "N/D")
-        policy_summary = str(manifest.get("publication_policy_summary") or _PUBLICATION_POLICY_SUMMARY)
         has_data = bool(latest_block.get("has_data", latest.metadata.get("has_data", False)))
         data_label = "Con datos" if has_data else "Sin datos"
         html = f"""<!doctype html>
 <html lang='es'>
 <head>
-{self._meta_head('La Anonima Tracker', 'Tracker publico de precios historicos e inflacion comparada.', '/')}
+{self._meta_head(_SITE_TITLE, 'Precios en La Anónima Ushuaia.', '/')}
 {self._analytics_head_script()}
 </head>
 <body>
@@ -867,13 +864,13 @@ class StaticWebPublisher:
   <section class='card'>
     <div class='hero-grid'>
       <div class='hero-stack'>
-        <h1>Precios en Ushuaia</h1>
+        <h1>{_SITE_TITLE}</h1>
         <p class='muted'>Actualizado: {latest_generated}</p>
         <p class='muted'>Rango: {from_month} a {to_month}</p>
         <div class='status-chip'>Estado: {latest_status}</div>
         <div class='cta-row'>
           <a id='cta-open-tracker' href='/tracker/' class='btn btn-primary'>Abrir tracker</a>
-          <a href='/historico/' class='btn btn-secondary'>Ver historico</a>
+          <a href='/historico/' class='btn btn-secondary'>Ver histórico</a>
         </div>
       </div>
       <div class='metric-strip'>
@@ -881,11 +878,10 @@ class StaticWebPublisher:
         <div class='metric-tile'><strong>Cobertura</strong><span>{coverage_label}</span></div>
       </div>
     </div>
-    <p class='meta-line'>Publicacion: {policy_summary} | Macro: {publication_status} | Validacion: {validation_status}</p>
   </section>
 
   <section class='card'>
-    <h2>Resumen operativo</h2>
+    <h2>Resumen</h2>
     <div class='kpis'>{self._kpi_cards_from_metadata(latest.metadata)}</div>
   </section>
 
@@ -1036,7 +1032,7 @@ class StaticWebPublisher:
         redirects = "\n".join(redirects_lines) + "\n"
         not_found = (
             "<!doctype html><html lang='es'><head>"
-            + self._meta_head("404 | La Anonima Tracker", "Pagina no encontrada.", "/404.html")
+            + self._meta_head(f"404 | {_SITE_TITLE}", "Página no encontrada.", "/404.html")
             + "</head><body><main class='shell'>"
             + self._top_nav(active="home")
             + "<section class='card'>"
@@ -1121,9 +1117,8 @@ class StaticWebPublisher:
             "Metodologia",
             "metodologia",
             (
-                "<p class='muted'>El tracker calcula variaciones con observaciones reales de precios y compara con IPC oficial INDEC cuando hay solape temporal.</p>"
-                "<p class='muted'>Se informan estados de calidad (fresh/stale/partial) y cobertura para interpretar correctamente los resultados.</p>"
-                f"<p class='muted'>Regla de publicacion: <code>{_PUBLICATION_POLICY}</code> ({_PUBLICATION_POLICY_SUMMARY.lower()})</p>"
+                "<p class='muted'>Se comparan precios observados por producto entre meses y se muestra el estado de datos.</p>"
+                "<p class='muted'><a href='/tracker/'>Ver tracker</a> | <a href='/historico/'>Ver histórico</a></p>"
             ),
             "/metodologia/",
             "Metodologia del tracker: recoleccion, calculo y comparativa de series.",
@@ -1132,7 +1127,7 @@ class StaticWebPublisher:
             "Contacto",
             "contacto",
             (
-                "<p class='muted'>Consultas editoriales, colaboraciones o propuestas comerciales.</p>"
+                "<p class='muted'>Consultas sobre datos o funcionamiento del tracker.</p>"
                 f"<p class='muted'>Correo: <a href='mailto:{self.contact_email}'>{self.contact_email}</a></p>"
             ),
             "/contacto/",
