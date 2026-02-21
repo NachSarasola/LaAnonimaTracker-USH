@@ -709,11 +709,11 @@ deployment:
 # Advertising placeholders
 # ------------------------
 ads:
-  enabled: false                    # set true in production website
+  enabled: true
   provider: "adsense"
-  client_id: "${ADSENSE_CLIENT_ID:ca-pub-xxxxxxxxxxxxxxxx}"
+  client_id: "${ADSENSE_CLIENT_ID:ca-pub-7036697873963446}"
   # Legacy compatibility key (still read by code paths).
-  client_id_placeholder: "ca-pub-xxxxxxxxxxxxxxxx"
+  client_id_placeholder: "ca-pub-7036697873963446"
   slots:
     - "header"
     - "inline"
