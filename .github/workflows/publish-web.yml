@@ -16,6 +16,9 @@ jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 55
+    permissions:
+      contents: read
+      deployments: write
     env:
       PYTHONUNBUFFERED: "1"
       DB_URL: ${{ secrets.DB_URL }}
