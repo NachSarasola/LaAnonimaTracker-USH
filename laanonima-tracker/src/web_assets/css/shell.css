@@ -240,12 +240,12 @@ h2{font-size:1.08rem;line-height:1.3}
 }
 .history-list{
   display:grid;
-  gap:12px;
+  gap:10px;
 }
 .history-list a{
   display:grid;
-  gap:10px;
-  padding:16px;
+  gap:8px;
+  padding:12px 14px;
   border:1px solid var(--line);
   border-radius:14px;
   text-decoration:none;
@@ -270,6 +270,36 @@ h2{font-size:1.08rem;line-height:1.3}
   gap:10px;
   font-size:.8rem;
   color:var(--muted);
+}
+.history-month{
+  padding:0;
+  overflow:hidden;
+}
+.history-month-summary{
+  cursor:pointer;
+  list-style:none;
+  padding:14px 16px;
+  display:grid;
+  gap:6px;
+  position:relative;
+}
+.history-month-summary::-webkit-details-marker{display:none}
+.history-month-summary::after{
+  content:"▸";
+  position:absolute;
+  right:16px;
+  top:18px;
+  color:#64748b;
+  font-size:.84rem;
+  transition:transform .16s ease;
+}
+.history-month[open] .history-month-summary::after{transform:rotate(90deg)}
+.history-month .history-list{
+  padding:0 16px 12px 16px;
+}
+.history-month .meta-line{
+  padding:0 16px 14px 16px;
+  margin:0;
 }
 .badge-mini{
   display:inline-flex;

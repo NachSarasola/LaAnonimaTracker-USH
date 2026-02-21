@@ -138,6 +138,60 @@ class TestScraperContract(unittest.TestCase):
         self.assertIsNotNone(representative)
         self.assertIn(representative["tier"], {"mid", "high", "low"})
 
+    def test_select_tiered_candidates_prefers_same_grammage_group(self):
+        basket_item = {"name": "Arroz", "keywords": ["arroz"], "quantity": 1, "unit": "kg"}
+        search_results = [
+            {"name": "Arroz Mini 500g", "price": Decimal("900"), "url": "https://www.laanonima.com.ar/a/art_10/"},
+            {"name": "Arroz Clasico 1kg", "price": Decimal("1500"), "url": "https://www.laanonima.com.ar/a/art_11/"},
+            {"name": "Arroz Premium 1000g", "price": Decimal("1700"), "url": "https://www.laanonima.com.ar/a/art_12/"},
+            {"name": "Arroz Seleccion 1 kg", "price": Decimal("1900"), "url": "https://www.laanonima.com.ar/a/art_13/"},
+            {"name": "Arroz Familiar 2kg", "price": Decimal("2800"), "url": "https://www.laanonima.com.ar/a/art_14/"},
+        ]
+
+        selected, representative = self.scraper.select_tiered_candidates(search_results, basket_item, min_candidates=3)
+
+        self.assertEqual(len(selected), 3)
+        self.assertIsNotNone(representative)
+        selected_names = {row["product"]["name"] for row in selected}
+        self.assertNotIn("Arroz Mini 500g", selected_names)
+        self.assertNotIn("Arroz Familiar 2kg", selected_names)
+        self.assertIn("Arroz Clasico 1kg", selected_names)
+        self.assertIn("Arroz Premium 1000g", selected_names)
+        self.assertIn("Arroz Seleccion 1 kg", selected_names)
+
+    def test_select_tiered_candidates_returns_fewer_when_same_size_not_available(self):
+        basket_item = {"name": "Arroz", "keywords": ["arroz"], "quantity": 1, "unit": "kg"}
+        search_results = [
+            {"name": "Arroz A 500g", "price": Decimal("950"), "url": "https://www.laanonima.com.ar/a/art_21/"},
+            {"name": "Arroz B 1kg", "price": Decimal("1600"), "url": "https://www.laanonima.com.ar/a/art_22/"},
+            {"name": "Arroz C 2kg", "price": Decimal("2900"), "url": "https://www.laanonima.com.ar/a/art_23/"},
+        ]
+
+        selected, representative = self.scraper.select_tiered_candidates(search_results, basket_item, min_candidates=3)
+
+        self.assertEqual(len(selected), 1)
+        self.assertIsNotNone(representative)
+        self.assertEqual(representative["product"]["name"], "Arroz B 1kg")
+
+    def test_select_tiered_candidates_treats_900g_as_comparable_to_1kg(self):
+        basket_item = {"name": "Arroz", "keywords": ["arroz"], "quantity": 1, "unit": "kg"}
+        search_results = [
+            {"name": "Arroz Eco 900g", "price": Decimal("1300"), "url": "https://www.laanonima.com.ar/a/art_31/"},
+            {"name": "Arroz Clasico 1kg", "price": Decimal("1500"), "url": "https://www.laanonima.com.ar/a/art_32/"},
+            {"name": "Arroz Premium 1000g", "price": Decimal("1700"), "url": "https://www.laanonima.com.ar/a/art_33/"},
+            {"name": "Arroz Familiar 1200g", "price": Decimal("2100"), "url": "https://www.laanonima.com.ar/a/art_34/"},
+        ]
+
+        selected, representative = self.scraper.select_tiered_candidates(search_results, basket_item, min_candidates=3)
+
+        self.assertEqual(len(selected), 3)
+        self.assertIsNotNone(representative)
+        selected_names = {row["product"]["name"] for row in selected}
+        self.assertIn("Arroz Eco 900g", selected_names)
+        self.assertIn("Arroz Clasico 1kg", selected_names)
+        self.assertIn("Arroz Premium 1000g", selected_names)
+        self.assertNotIn("Arroz Familiar 1200g", selected_names)
+
 
 if __name__ == "__main__":
     unittest.main()

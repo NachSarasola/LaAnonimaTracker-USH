@@ -232,6 +232,48 @@ class TestInteractiveReport(unittest.TestCase):
         self.assertIn("if(!hasPlotly())", html)
         self.assertIn("drawCanvasChart(", html)
 
+    def test_reporting_table_shows_only_main_rows_until_expanded(self):
+        self._seed()
+        result = self.generator.generate(from_month="2024-01", to_month="2024-02", basket_type="all")
+        html = Path(result["artifacts"]["html_path"]).read_text(encoding="utf-8")
+
+        self.assertIn("if(isExpanded){", html)
+        self.assertIn("row-main", html)
+        self.assertIn("row-candidate", html)
+
+    def test_reporting_row_click_expands_but_anchor_click_does_not_toggle(self):
+        self._seed()
+        result = self.generator.generate(from_month="2024-01", to_month="2024-02", basket_type="all")
+        html = Path(result["artifacts"]["html_path"]).read_text(encoding="utf-8")
+
+        self.assertIn('if(target && target.closest("a")) return;', html)
+        self.assertIn('tr.setAttribute("aria-expanded"', html)
+
+    def test_reporting_executive_mode_collapses_technical_details(self):
+        self._seed()
+        result = self.generator.generate(
+            from_month="2024-01",
+            to_month="2024-02",
+            basket_type="all",
+            analysis_depth="executive",
+        )
+        html = Path(result["artifacts"]["html_path"]).read_text(encoding="utf-8")
+
+        self.assertIn('<details class="card quality" id="quality-panel">', html)
+        self.assertIn('<details class="card chart-card chart-panel secondary-chart-panel" id="panel-secondary">', html)
+        self.assertIn('<details class="card chart-card chart-panel main-chart-panel" id="main-chart-panel">', html)
+        self.assertNotIn('id="quality-panel" open', html)
+        self.assertNotIn('id="panel-secondary" open', html)
+
+    def test_reporting_normalize_presentation_recognizes_cc_cm3(self):
+        self._seed()
+        result = self.generator.generate(from_month="2024-01", to_month="2024-02", basket_type="all")
+        html = Path(result["artifacts"]["html_path"]).read_text(encoding="utf-8")
+
+        self.assertIn('replace(/c\\.\\s*c\\./gi,"cc")', html)
+        self.assertIn('replace(/cm\\s*3/gi,"cm3")', html)
+        self.assertIn('unit==="cc" || unit==="cm3"', html)
+
 
 if __name__ == "__main__":
     unittest.main()

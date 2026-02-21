@@ -352,6 +352,34 @@ class TestWebPublish(unittest.TestCase):
         self.assertTrue((run_dir / "index.html").exists())
         self.assertTrue((self.output_dir / "data" / "history" / "2026-02" / f"{run_slug}.metadata.json").exists())
 
+    def test_web_publish_history_root_renders_collapsible_month_sections(self):
+        now = datetime.now(timezone.utc)
+        html_path, metadata_path = self._write_report("2026-01", "2026-02", now)
+        self._write_report("2025-12", "2026-01", now - timedelta(hours=1))
+
+        publisher = StaticWebPublisher(self.config)
+        publisher.report_dir = self.report_dir
+        publisher.publish(preferred_html=str(html_path), preferred_metadata=str(metadata_path))
+
+        historico_html = (self.output_dir / "historico" / "index.html").read_text(encoding="utf-8")
+        self.assertIn("details class='card history-month'", historico_html)
+        self.assertIn("data-month-panel=", historico_html)
+        self.assertIn("history-month-summary", historico_html)
+
+    def test_web_publish_history_search_updates_visible_count_with_collapsed_months(self):
+        now = datetime.now(timezone.utc)
+        html_path, metadata_path = self._write_report("2026-01", "2026-02", now)
+        self._write_report("2025-12", "2026-01", now - timedelta(hours=1))
+
+        publisher = StaticWebPublisher(self.config)
+        publisher.report_dir = self.report_dir
+        publisher.publish(preferred_html=str(html_path), preferred_metadata=str(metadata_path))
+
+        historico_html = (self.output_dir / "historico" / "index.html").read_text(encoding="utf-8")
+        self.assertIn("const monthPanels=Array.from(container.querySelectorAll('details[data-month-panel]'));", historico_html)
+        self.assertIn("panel.open=panelVisible>0;", historico_html)
+        self.assertIn("count.textContent=String(visible);", historico_html)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1973,7 +1973,7 @@ __TRACKER_STYLE_BLOCK__
   </section>
 
   <section class="card helper" id="quick-guide">
-    <p class="method">Filtra y comparte la vista.</p>
+    <p class="method">Toca una fila para ver opciones low/mid/high.</p>
     <div id="active-filters" class="pills"></div>
   </section>
 
@@ -1995,37 +1995,8 @@ __TRACKER_STYLE_BLOCK__
   <div id="app" class="stack">
     <section class="kpis" id="kpi-grid"></section>
 
-    <article class="card chart-card" id="panel-secondary">
-      <h2>IPC propio vs IPC oficial</h2>
-      <div class="band-toolbar">
-        <div class="band-select-wrap">
-          <label for="macro-scope">Vista macro</label>
-          <select id="macro-scope">
-            <option value="general">General</option>
-            <option value="rubros">Rubros</option>
-          </select>
-        </div>
-        <div class="band-select-wrap">
-          <label for="macro-region">Región oficial</label>
-          <select id="macro-region"></select>
-        </div>
-        <div class="band-select-wrap">
-          <label for="macro-category">Rubro</label>
-          <select id="macro-category"></select>
-        </div>
-        <div id="macro-status" class="muted"></div>
-      </div>
-      <details class="macro-details" id="macro-details">
-        <summary>Detalle técnico</summary>
-        <div id="macro-detail-text"></div>
-      </details>
-      <div id="macro-notice" class="macro-note" hidden></div>
-      <div id="chart-secondary" class="chart small"><div class="chart-empty">Sin comparativa IPC</div></div>
-      <div id="legend-secondary" class="legend"></div>
-    </article>
-
     <details class="filters" id="filters-panel" open>
-      <summary>Filtros y selección de productos</summary>
+      <summary>Filtros</summary>
       <div class="filters-grid">
         <div class="filter-field span-4">
           <label for="q">Buscar</label>
@@ -2085,7 +2056,7 @@ __TRACKER_STYLE_BLOCK__
         <div class="filter-field span-4">
           <label for="sel">Productos en gráfico</label>
           <select id="sel" multiple size="5"></select>
-          <div id="selection-meta" class="field-meta">0 productos seleccionados</div>
+          <div id="selection-meta" class="field-meta">0 seleccionados</div>
         </div>
         <div class="filter-field span-4 filter-actions">
           <label>Acciones</label>
@@ -2128,29 +2099,33 @@ __TRACKER_STYLE_BLOCK__
             </table>
           </div>
         </section>
-        <article class="card chart-card">
-          <h2>Comparativa de precios por producto</h2>
-          <div id="chart-main" class="chart"><div class="chart-empty">Sin datos para graficar</div></div>
-          <div id="legend-main" class="legend"></div>
-        </article>
+        <details class="card chart-card chart-panel main-chart-panel" id="main-chart-panel">
+          <summary><strong>Comparativa por producto</strong></summary>
+          <div class="chart-panel-body">
+            <div id="chart-main" class="chart"><div class="chart-empty">Sin datos para graficar</div></div>
+            <div id="legend-main" class="legend"></div>
+          </div>
+        </details>
       </div>
 
       <aside class="workspace-side">
-        <section class="card chart-card" id="panel-bands">
-          <h2>Dispersión de candidatos (low/mid/high)</h2>
-          <div class="band-toolbar">
-            <div class="band-select-wrap">
-              <label for="band-product">Producto para banda</label>
-              <select id="band-product"></select>
+        <details class="card chart-card chart-panel side-chart-panel" id="panel-bands">
+          <summary><strong>Dispersión low/mid/high</strong></summary>
+          <div class="chart-panel-body">
+            <div class="band-toolbar">
+              <div class="band-select-wrap">
+                <label for="band-product">Producto</label>
+                <select id="band-product"></select>
+              </div>
+              <div id="band-meta" class="muted"></div>
             </div>
-            <div id="band-meta" class="muted"></div>
+            <div id="chart-bands" class="chart small"><div class="chart-empty">Sin datos de terna auditada</div></div>
+            <div id="legend-bands" class="legend"></div>
           </div>
-          <div id="chart-bands" class="chart small"><div class="chart-empty">Sin datos de terna auditada</div></div>
-          <div id="legend-bands" class="legend"></div>
-        </section>
+        </details>
 
         <details class="card quality" id="quality-panel">
-          <summary><strong>Calidad de datos</strong></summary>
+          <summary><strong>Calidad de datos</strong><span id="quality-summary" class="muted"></span></summary>
           <div class="quality-body">
             <div class="quality-item" id="quality-coverage"></div>
             <div class="quality-item" id="quality-panel-size"></div>
@@ -2163,12 +2138,42 @@ __TRACKER_STYLE_BLOCK__
         </details>
       </aside>
     </section>
+
+    <details class="card chart-card chart-panel secondary-chart-panel" id="panel-secondary">
+      <summary><strong>Macro e IPC</strong><span id="macro-status" class="muted"></span></summary>
+      <div class="chart-panel-body">
+        <div class="band-toolbar">
+          <div class="band-select-wrap">
+            <label for="macro-scope">Vista</label>
+            <select id="macro-scope">
+              <option value="general">General</option>
+              <option value="rubros">Rubros</option>
+            </select>
+          </div>
+          <div class="band-select-wrap">
+            <label for="macro-region">Región</label>
+            <select id="macro-region"></select>
+          </div>
+          <div class="band-select-wrap">
+            <label for="macro-category">Rubro</label>
+            <select id="macro-category"></select>
+          </div>
+        </div>
+        <details class="macro-details" id="macro-details">
+          <summary>Detalle técnico</summary>
+          <div id="macro-detail-text"></div>
+        </details>
+        <div id="macro-notice" class="macro-note" hidden></div>
+        <div id="chart-secondary" class="chart small"><div class="chart-empty">Sin comparativa IPC</div></div>
+        <div id="legend-secondary" class="legend"></div>
+      </div>
+    </details>
   </div>
 </div>
 
 <div id="mobile-onboarding" class="onboarding-mobile" hidden role="dialog" aria-live="polite">
   <div class="onboarding-title">Vista movil</div>
-  <div>Abrir filtros para ver precios rapido.</div>
+  <div>Abrí filtros para ver precios rápido.</div>
   <div class="onboarding-actions">
     <button id="onboarding-goto" type="button" class="primary">Ir a filtros</button>
     <button id="onboarding-close" type="button">Cerrar</button>
@@ -2249,9 +2254,11 @@ const el={
   qualityIpc:document.getElementById("quality-ipc"),
   qualitySegments:document.getElementById("quality-segments"),
   qualityPolicy:document.getElementById("quality-policy"),
+  qualitySummary:document.getElementById("quality-summary"),
   warnings:document.getElementById("warnings"),
   qualityPanel:document.getElementById("quality-panel"),
   panelSecondary:document.getElementById("panel-secondary"),
+  mainChartPanel:document.getElementById("main-chart-panel"),
   chartMain:document.getElementById("chart-main"),
   legendMain:document.getElementById("legend-main"),
   macroScope:document.getElementById("macro-scope"),
@@ -2370,15 +2377,22 @@ const trendIcon=v=>{
 function normalizePresentation(value){
   const raw=String(value||"").trim();
   if(!raw || raw.toUpperCase()==="N/D") return "N/D";
-  const normalized=raw.replace(",",".").replace(/\s+/g," ").trim();
-  const match=normalized.match(/^([0-9]+(?:\.[0-9]+)?)\s*([a-zA-Z]+)\b(.*)$/);
+  const normalized=raw
+    .replace(",",".")
+    .replace(/c\.\s*c\./gi,"cc")
+    .replace(/cm\s*3/gi,"cm3")
+    .replace(/cm³/gi,"cm3")
+    .replace(/\s+/g," ")
+    .trim();
+  const match=normalized.match(/^([0-9]+(?:\.[0-9]+)?)\s*([a-zA-Z0-9\.]+)\b(.*)$/);
   if(!match){
-    return raw.replace(/(\d+)[.,]0+(?=\s*[a-zA-Z]|$)/g,"$1");
+    return raw.replace(/(\d+)[.,]0+(?=\s*[a-zA-Z0-9]|$)/g,"$1");
   }
   const qty=Number(match[1]);
   if(!Number.isFinite(qty)) return raw;
 
-  const unit=norm(match[2].replace(/[^a-z]/gi,""));
+  const unitToken=String(match[2]||"").toLowerCase().replace(/\./g,"").replace("³","3");
+  const unit=norm(unitToken).replace(/[^a-z0-9]/g,"");
   const tail=String(match[3]||"").trim();
   const suffix=tail ? ` ${tail}` : "";
   const qtyLabel=new Intl.NumberFormat("es-AR",{maximumFractionDigits:3,useGrouping:false}).format(qty);
@@ -2386,10 +2400,11 @@ function normalizePresentation(value){
     if(unit==="kg" || unit==="kilo" || unit==="kilos") return "kg";
     if(unit==="g" || unit==="gr" || unit==="gramo" || unit==="gramos") return "g";
     if(unit==="l" || unit==="lt" || unit==="litro" || unit==="litros") return "l";
+    if(unit==="cc" || unit==="cm3" || unit==="centimetrocubico" || unit==="centimetroscubicos") return "ml";
     if(unit==="ml") return "ml";
     if(unit==="unidad" || unit==="unidades" || unit==="un") return "un";
     if(unit==="docena" || unit==="docenas" || unit==="doc") return "doc";
-    return match[2].toLowerCase();
+    return unitToken;
   })();
 
   if(qty>0 && qty<1 && (unit==="kg" || unit==="kilo" || unit==="kilos")){
@@ -2404,7 +2419,7 @@ function normalizePresentation(value){
 function inferPresentationFromName(name){
   const raw=String(name||"").trim();
   if(!raw) return "N/D";
-  const fromQty=raw.match(/\bx\s*([0-9]+(?:[.,][0-9]+)?)\s*(kg|kilo|kilos|g|gr|gramos?|l|lt|litros?|ml|un|unidad(?:es)?|doc|docena(?:s)?)\b/i);
+  const fromQty=raw.match(/\bx\s*([0-9]+(?:[.,][0-9]+)?)\s*(kg|kilo|kilos|g|gr|gramos?|l|lt|litros?|ml|cc|c\.?c\.?|cm3|cm³|centimetros?\s*cubicos?|un|unidad(?:es)?|doc|docena(?:s)?)\b/i);
   if(fromQty){
     return normalizePresentation(`${fromQty[1]} ${fromQty[2]}`);
   }
@@ -2562,6 +2577,7 @@ let _rowsCacheKey="";
 let _rowsCacheValue=[];
 let _lastMainChartKey="";
 let _lastSecondaryChartKey="";
+let expandedProductId="";
 const lazyPanels={
   bands_ready:false,
   quality_ready:false,
@@ -2633,7 +2649,7 @@ function syncSelection(rows){
     el.sel.appendChild(o);
   }
   if(el.selectionMeta){
-    el.selectionMeta.textContent=`${st.selected_products.length} productos seleccionados`;
+    el.selectionMeta.textContent=`${st.selected_products.length} seleccionados`;
   }
 }
 
@@ -2669,20 +2685,20 @@ function updateTableMeta(total,totalPages){
 function drawActiveFilters(totalRows){
   if(!el.activeFilters) return;
   const defaultBase=p.months?.[0]||"";
-  const sortLabels={alphabetical:"Alfabetico",price:"Precio",var_nominal:"Var. nominal",var_real:"Var. real"};
+  const sortLabels={alphabetical:"Alfabético",price:"Precio",var_nominal:"Var. nominal",var_real:"Var. real"};
   const chips=[];
-  if((st.query||"").trim()) chips.push({key:"query",label:`Busqueda: "${st.query.trim()}"`});
-  if(st.cba_filter!=="all") chips.push({key:"cba",label:`CBA: ${st.cba_filter==="yes"?"Si":"No"}`});
-  if(st.category!=="all") chips.push({key:"category",label:`Categoria: ${st.category}`});
+  if((st.query||"").trim()) chips.push({key:"query",label:`Búsqueda: "${st.query.trim()}"`});
+  if(st.cba_filter!=="all") chips.push({key:"cba",label:`CBA: ${st.cba_filter==="yes"?"Sí":"No"}`});
+  if(st.category!=="all") chips.push({key:"category",label:`Categoría: ${st.category}`});
   if(st.sort_by!=="alphabetical") chips.push({key:"sort_by",label:`Orden: ${sortLabels[st.sort_by]||st.sort_by}`});
   if(st.base_month && st.base_month!==defaultBase) chips.push({key:"base_month",label:`Base: ${st.base_month}`});
   if(st.price_mode==="real") chips.push({key:"price_mode",label:"Modo: Real"});
   if(st.show_real_column) chips.push({key:"show_real_column",label:"Tabla: var. real visible"});
   if(st.macro_scope==="rubros") chips.push({key:"macro_scope",label:"Macro: Rubros"});
-  if(st.macro_region && st.macro_region!==(p.macro_default_region||"patagonia")) chips.push({key:"macro_region",label:`Region macro: ${st.macro_region}`});
+  if(st.macro_region && st.macro_region!==(p.macro_default_region||"patagonia")) chips.push({key:"macro_region",label:`Región macro: ${st.macro_region}`});
   if(st.macro_scope==="rubros" && st.macro_category) chips.push({key:"macro_category",label:`Rubro macro: ${st.macro_category}`});
 
-  const html=[`<span class="pill pill-info">Productos filtrados: ${totalRows}</span>`,`<span class="pill">En gráfico: ${st.selected_products.length}</span>`];
+  const html=[`<span class="pill pill-info">Resultados: ${totalRows}</span>`,`<span class="pill">En gráfico: ${st.selected_products.length}</span>`];
   if(!chips.length){
     html.push(`<span class="pill">Sin filtros adicionales</span>`);
   }else{
@@ -3157,6 +3173,9 @@ function drawCanvasChart(container,legend,series,yLabel,xLabel="Tiempo"){
 }
 
 function drawMainChart(rows,force=false){
+  if(el.mainChartPanel && !el.mainChartPanel.open && !force){
+    return;
+  }
   const chartKey=[
     st.price_mode,
     ...(st.selected_products||[]),
@@ -3344,6 +3363,7 @@ function drawSecondaryPlotly(container,legend,tracker,official,gap,regionLabel){
 }
 
 function drawSecondaryChart(force=false){
+  const panelClosed=!!(el.panelSecondary && !el.panelSecondary.open && !force);
   const region=st.macro_region||p.macro_default_region||"patagonia";
   const regionLabel=region==="nacional"?"Nacional":"Patagonia";
   const generalSrc=(p.ipc_comparison_by_region?.[region]||p.ipc_comparison_series||[]);
@@ -3361,11 +3381,6 @@ function drawSecondaryChart(force=false){
     return;
   }
   _lastSecondaryChartKey=secondaryKey;
-  if(st.view==="executive"){
-    el.panelSecondary.style.display="none";
-  }else{
-    el.panelSecondary.style.display="";
-  }
 
   if(el.macroScope){
     if(!["general","rubros"].includes(st.macro_scope)){
@@ -3475,8 +3490,10 @@ function drawSecondaryChart(force=false){
     {name:`IPC ${regionLabel} base 100`,points:official,color:"#ca6702",value_kind:"index"},
     {name:"Brecha (pp)",points:gap,color:"#9b2226",value_kind:"pp"}
   ].filter(s=>s.points.length>0);
-  if(!drawSecondaryPlotly(el.chartSecondary,el.legendSecondary,tracker,official,gap,regionLabel)){
-    drawCanvasChart(el.chartSecondary,el.legendSecondary,series,"Indice base 100 / brecha");
+  if(!panelClosed){
+    if(!drawSecondaryPlotly(el.chartSecondary,el.legendSecondary,tracker,official,gap,regionLabel)){
+      drawCanvasChart(el.chartSecondary,el.legendSecondary,series,"Indice base 100 / brecha");
+    }
   }
 
   if(el.macroNotice){
@@ -3503,13 +3520,12 @@ function drawSecondaryChart(force=false){
     const officialStatus=safeText(pub.latest_official_status ?? latestOfficial?.official_status, latestOfficial ? "disponible" : "N/D");
     const trackerMonth=safeText(pub.latest_tracker_month ?? latestTracker?.year_month, "N/D");
     const officialMonth=safeText(pub.latest_official_month ?? latestOfficial?.year_month, "N/D");
-    const pubStatus=safeText(pub.status, "sin_publicacion");
     const comparability=strictComparable ? "comparables" : "parcial";
     el.macroStatus.textContent=
-      `Macro: ${regionLabel} | Tracker ${trackerMonth} | Oficial ${officialMonth} | ${comparability}`;
+      `Macro: ${regionLabel} · Tracker ${trackerMonth} · Oficial ${officialMonth} · ${comparability}`;
     if(el.macroDetailText){
       el.macroDetailText.textContent=
-        `${macroLabel}. Tracker: ${trackerStatus}. Oficial: ${officialStatus}. Estado: ${pubStatus}.`;
+        `${macroLabel}. Tracker: ${trackerStatus}. Oficial: ${officialStatus}.`;
     }
   }
 }
@@ -3545,6 +3561,9 @@ function drawBandChart(rows){
     return;
   }
   el.panelBands.style.display="";
+  if(!el.panelBands.open){
+    return;
+  }
   mountBandOptions(rows);
 
   const selectedId=st.band_product;
@@ -3581,6 +3600,34 @@ function drawBandChart(rows){
   }
 }
 
+function hasCandidateTriplet(triplet){
+  if(!triplet || typeof triplet!=="object") return false;
+  return Object.keys(triplet).length>0;
+}
+
+function buildCandidateSubRow(tier,candidate){
+  const candidateNameRaw=candidate?.candidate_name||"N/D";
+  const candidateName=esc(candidateNameRaw);
+  const candidateUrl=String(candidate?.candidate_url||"").trim();
+  const candidateLinked=(candidateUrl && candidateNameRaw!=="N/D")
+    ? `<a href="${esc(candidateUrl)}" target="_blank" rel="noopener noreferrer">${candidateName}</a>`
+    : `<span>${candidateName}</span>`;
+  const candidatePrice=(candidate?.candidate_price!=null) ? money(candidate.candidate_price) : "N/D";
+  const tierLabel=tier==="mid"?"Mid":"Low";
+  const tierFinal=tier==="high"?"High":tierLabel;
+  const tierClass=tier==="mid"?"tier-mid":(tier==="high"?"tier-high":"tier-low");
+  const sub=document.createElement("tr");
+  sub.className=`row-candidate ${tierClass}`;
+  sub.innerHTML=`
+    <td><span class="candidate-tier">${tierFinal}</span></td>
+    <td>${candidateLinked}</td>
+    <td class="num">${candidatePrice}</td>
+    <td class="num muted">-</td>
+    ${st.show_real_column?`<td class="num muted">-</td>`:""}
+  `;
+  return sub;
+}
+
 function drawTable(rows){
   el.tb.innerHTML="";
   el.thVarReal.style.display=st.show_real_column?"":"none";
@@ -3590,50 +3637,77 @@ function drawTable(rows){
     el.tb.innerHTML=`<tr><td colspan="${st.show_real_column?5:4}" class="muted">No hay resultados con estos filtros.</td></tr>`;
     return;
   }
+
+  if(expandedProductId && !pageRows.some(r=>r.canonical_id===expandedProductId)){
+    expandedProductId="";
+  }
+
+  const fragment=document.createDocumentFragment();
   for(const r of pageRows){
+    const productId=String(r.canonical_id||"");
+    const triplet=(candidateTripletsById||{})[productId]||{};
+    const hasCandidates=hasCandidateTriplet(triplet);
+    const isExpanded=hasCandidates && expandedProductId===productId;
+
     const tr=document.createElement("tr");
-    tr.className="row-main";
-    const name=esc(r.product_name||r.canonical_id);
+    tr.className=`row-main${hasCandidates?" expandable":""}${isExpanded?" is-expanded":""}`;
+    const nameRaw=String(r.product_name||r.canonical_id||"");
+    const name=esc(nameRaw);
     const linked=r.product_url
       ? `<a href="${esc(r.product_url)}" target="_blank" rel="noopener noreferrer" title="${name}">${name}</a>`
       : `<span title="${name}">${name}</span>`;
     const nomCls=trendClass(r.variation_nominal_pct);
     const realCls=trendClass(r.variation_real_pct);
     const presentation=resolvePresentation(r);
+    const chevron=hasCandidates ? (isExpanded ? "▾" : "▸") : "";
+    const metaText=hasCandidates ? (isExpanded ? "Ocultar opciones" : "Ver opciones") : "";
     tr.innerHTML=`
-      <td>${linked}</td>
+      <td>
+        <div class="product-cell">
+          <span class="row-chevron" aria-hidden="true">${chevron}</span>
+          <div class="product-copy">
+            ${linked}
+            ${metaText?`<span class="row-meta">${metaText}</span>`:""}
+          </div>
+        </div>
+      </td>
       <td>${esc(presentation)}</td>
       <td class="num">${money(r.current_price)}</td>
       <td class="num"><span class="${nomCls}">${trendIcon(r.variation_nominal_pct)} ${pctSigned(r.variation_nominal_pct)}</span></td>
       ${st.show_real_column?`<td class="num"><span class="${realCls}">${trendIcon(r.variation_real_pct)} ${pctSigned(r.variation_real_pct)}</span></td>`:""}
     `;
-    el.tb.appendChild(tr);
 
-    const triplet=(candidateTripletsById||{})[r.canonical_id]||{};
-    ["low","mid","high"].forEach((tier)=>{
-      const candidate=triplet[tier]||null;
-      const candidateNameRaw=candidate?.candidate_name||"N/D";
-      const candidateName=esc(candidateNameRaw);
-      const candidateUrl=String(candidate?.candidate_url||"").trim();
-      const candidateLinked=(candidateUrl && candidateNameRaw!=="N/D")
-        ? `<a href="${esc(candidateUrl)}" target="_blank" rel="noopener noreferrer">${candidateName}</a>`
-        : `<span>${candidateName}</span>`;
-      const candidatePrice=(candidate?.candidate_price!=null) ? money(candidate.candidate_price) : "N/D";
-      const tierLabel=tier==="mid"?"Mid":"Low";
-      const tierFinal=tier==="high"?"High":tierLabel;
-      const tierClass=tier==="mid"?"tier-mid":(tier==="high"?"tier-high":"tier-low");
-      const sub=document.createElement("tr");
-      sub.className=`row-candidate ${tierClass}`;
-      sub.innerHTML=`
-        <td><span class="candidate-tier">${tierFinal}</span></td>
-        <td>${candidateLinked}</td>
-        <td class="num">${candidatePrice}</td>
-        <td class="num muted">-</td>
-        ${st.show_real_column?`<td class="num muted">-</td>`:""}
-      `;
-      el.tb.appendChild(sub);
-    });
+    if(hasCandidates){
+      tr.tabIndex=0;
+      tr.setAttribute("role","button");
+      tr.setAttribute("aria-expanded",isExpanded?"true":"false");
+      tr.setAttribute("aria-label",`${isExpanded?"Ocultar":"Ver"} opciones de ${nameRaw}`);
+      const toggleRow=()=>{
+        expandedProductId = (expandedProductId===productId) ? "" : productId;
+        drawTable(rows);
+      };
+      tr.addEventListener("click",(ev)=>{
+        const target=(ev.target instanceof Element)?ev.target:null;
+        if(target && target.closest("a")) return;
+        toggleRow();
+      });
+      tr.addEventListener("keydown",(ev)=>{
+        if(ev.key==="Enter" || ev.key===" "){
+          ev.preventDefault();
+          toggleRow();
+        }
+      });
+    }
+    fragment.appendChild(tr);
+
+    if(isExpanded){
+      ["low","mid","high"].forEach((tier)=>{
+        const candidate=triplet[tier]||null;
+        fragment.appendChild(buildCandidateSubRow(tier,candidate));
+      });
+    }
   }
+  el.tb.appendChild(fragment);
 }
 
 function drawKpis(){
@@ -3698,30 +3772,31 @@ function drawQuality(){
   el.qualityBadge.className=`badge${qf.is_partial?" warn":""}`;
   el.qualityCoverage.textContent=
     `Cobertura: ${fmtNum(cov.coverage_total_pct)}% `
-    + `(${cov.observed_products_total ?? "N/D"} de ${cov.expected_products ?? "N/D"}).`;
+    + `(${cov.observed_products_total ?? "N/D"}/${cov.expected_products ?? "N/D"}).`;
   el.qualityPanelSize.textContent=`Panel: ${qf.balanced_panel_n ?? "N/D"} productos.`;
   if(el.qualityMacro){
     el.qualityMacro.textContent=
-      `Tracker IPC: ${(trackerSeries[0]?.year_month)||"N/D"} a ${(latestTracker?.year_month)||"N/D"} `
-      + `· estado ${(safeText(latestTracker?.status) || "N/D")}.`;
+      `Tracker IPC: ${(trackerSeries[0]?.year_month)||"N/D"} a ${(latestTracker?.year_month)||"N/D"}.`;
   }
   el.qualityIpc.textContent=
     `IPC oficial (${regionLabel}): ${(latestOfficial?.year_month)||"N/D"} · `
-    + `fuente ${(pub.official_source_effective)||pub.official_source||"N/D"} · `
-    + `estado ${(pub.status)||"sin_publicacion"}`
-    + `${safeText(pub.status_origin,"publication_run")==="derived_from_series" ? " (derivado)." : ""} · `
+    + `estado ${(pub.status)||"sin_publicacion"} · `
     + `sin IPC: ${missingMonths.length? missingMonths.join(", ") : "ninguno"}.`;
   if(el.qualitySegments){
     el.qualitySegments.textContent=
-      `Segmentos: CBA ${cba.observed ?? 0}/${cba.expected ?? 0} (${fmtNum(cba.coverage_pct)}%), `
-      + `Nucleo ${core.observed ?? 0}/${core.expected ?? 0} (${fmtNum(core.coverage_pct)}%), `
-      + `Rotacion ${rot.observed ?? 0}/${rot.expected ?? 0} (${fmtNum(rot.coverage_pct)}%).`;
+      `Segmentos: CBA ${cba.observed ?? 0}/${cba.expected ?? 0}, `
+      + `Núcleo ${core.observed ?? 0}/${core.expected ?? 0}, `
+      + `Rotación ${rot.observed ?? 0}/${rot.expected ?? 0}.`;
   }
   if(el.qualityPolicy){
     el.qualityPolicy.textContent=
-      `Publicacion: ${p.publication_policy || "N/D"}. `
+      `Publicación: ${p.publication_policy || "N/D"}. `
       + `terna low/mid/high auditada: ${pct(sq.terna_compliance_pct)} `
       + `(${sq.products_with_full_terna ?? 0}/${sq.products_with_bands ?? 0}).`;
+  }
+  if(el.qualitySummary){
+    el.qualitySummary.textContent=
+      `${fmtNum(cov.coverage_total_pct)}% cobertura · ${qf.balanced_panel_n ?? "N/D"} productos`;
   }
   el.warnings.innerHTML="";
   for(const w of (qf.warnings||[])){
@@ -3731,11 +3806,8 @@ function drawQuality(){
   }
   if(k.kpi_fallback_used){
     const li=document.createElement("li");
-    li.textContent=`KPI calculado con ventana efectiva ${k.from_month} -> ${k.to_month} por disponibilidad de datos.`;
+    li.textContent=`KPI con ventana efectiva ${k.from_month} -> ${k.to_month}.`;
     el.warnings.appendChild(li);
-  }
-  if(el.qualityPanel){
-    el.qualityPanel.open=st.view!=="executive";
   }
   if(el.freshnessMeta){
     const status=p.web_status||"partial";
@@ -4076,6 +4148,7 @@ function resetState(){
   _lastMainChartKey="";
   _lastSecondaryChartKey="";
   applyStateToControls();
+  applyViewDensityDefaults();
   render();
 }
 
@@ -4133,6 +4206,22 @@ function debounce(fn,ms){
     if(t)clearTimeout(t);
     t=setTimeout(()=>fn(...args),ms);
   };
+}
+
+function applyViewDensityDefaults(){
+  const compact=st.view==="executive";
+  if(el.mainChartPanel){
+    el.mainChartPanel.open=!compact;
+  }
+  if(el.panelSecondary){
+    el.panelSecondary.open=!compact;
+  }
+  if(el.panelBands){
+    el.panelBands.open=!compact;
+  }
+  if(el.qualityPanel){
+    el.qualityPanel.open=!compact;
+  }
 }
 
 function bindShortcuts(){
@@ -4255,11 +4344,36 @@ function bindEvents(){
       clearFilterToken(key||"");
     });
   }
+  if(el.mainChartPanel){
+    el.mainChartPanel.addEventListener("toggle",()=>{
+      if(el.mainChartPanel.open){
+        _lastMainChartKey="";
+        drawMainChart(filteredRows(),true);
+      }
+    });
+  }
+  if(el.panelSecondary){
+    el.panelSecondary.addEventListener("toggle",()=>{
+      if(el.panelSecondary.open){
+        _lastSecondaryChartKey="";
+        drawSecondaryChart(true);
+      }
+    });
+  }
+  if(el.panelBands){
+    el.panelBands.addEventListener("toggle",()=>{
+      if(el.panelBands.open){
+        maybeDrawBandPanel(filteredRows(), true);
+      }
+    });
+  }
   el.reset.addEventListener("click",resetState);
   window.addEventListener("resize",debounce(()=>{
     const rows=filteredRows();
-    drawMainChart(rows,true);
-    drawSecondaryChart(true);
+    _lastMainChartKey="";
+    _lastSecondaryChartKey="";
+    drawMainChart(rows);
+    drawSecondaryChart();
     maybeDrawBandPanel(rows);
   },150));
 }
@@ -4284,6 +4398,7 @@ function init(){
   loadState();
   mountFilterOptions();
   applyStateToControls();
+  applyViewDensityDefaults();
   bindShortcuts();
   bindEvents();
   initLazyPanels();

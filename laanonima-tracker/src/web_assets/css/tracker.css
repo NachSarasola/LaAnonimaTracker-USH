@@ -332,11 +332,47 @@ button.soft:hover{background:#f1f5f9}
 .workspace-grid{
   display:grid;
   gap:16px;
-  grid-template-columns:minmax(0,1.75fr) minmax(300px,.75fr);
+  grid-template-columns:minmax(0,2.1fr) minmax(280px,.7fr);
   align-items:start;
 }
 .workspace-main,.workspace-side{display:grid;gap:16px}
 .chart-card h2{text-align:left}
+.chart-panel{
+  padding:0;
+  overflow:hidden;
+}
+.chart-panel > summary{
+  cursor:pointer;
+  list-style:none;
+  padding:14px 16px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  border-bottom:1px solid transparent;
+}
+.chart-panel > summary::-webkit-details-marker{display:none}
+.chart-panel > summary strong{
+  font-size:.95rem;
+  letter-spacing:-.01em;
+}
+.chart-panel > summary::after{
+  content:"▸";
+  font-size:.85rem;
+  color:#64748b;
+  transition:transform .16s ease;
+}
+.chart-panel[open] > summary{
+  border-bottom-color:var(--line);
+}
+.chart-panel[open] > summary::after{
+  transform:rotate(90deg);
+}
+.chart-panel-body{
+  display:grid;
+  gap:10px;
+  padding:0 16px 16px 16px;
+}
 .chart{
   border:1px solid var(--line);
   border-radius:14px;
@@ -441,6 +477,14 @@ button.soft:hover{background:#f1f5f9}
   cursor:pointer;
   list-style:none;
   padding:14px 16px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+}
+.quality summary .muted{
+  font-size:.78rem;
+  font-weight:500;
 }
 .quality summary::-webkit-details-marker{display:none}
 .quality-body{
@@ -462,6 +506,9 @@ button.soft:hover{background:#f1f5f9}
   padding:0;
   color:#9a3412;
   font-size:.82rem;
+}
+.table-section{
+  padding:20px;
 }
 .table-section h2{margin-bottom:8px}
 .table-toolbar{
@@ -486,13 +533,15 @@ button.soft:hover{background:#f1f5f9}
 }
 .table-wrap{
   overflow-x:auto;
+  max-height:72vh;
   border:1px solid var(--line);
   border-radius:14px;
   background:#fff;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.85);
 }
 table{width:100%;border-collapse:separate;border-spacing:0;min-width:720px}
 th,td{
-  padding:10px 8px;
+  padding:11px 10px;
   border-bottom:1px solid #edf2f7;
   text-align:left;
   font-size:.9rem;
@@ -507,14 +556,19 @@ th{
   border-bottom:1px solid var(--line);
   text-align:left;
 }
-thead th{position:sticky;top:0;z-index:1;backdrop-filter:blur(3px)}
+thead th{
+  position:sticky;
+  top:0;
+  z-index:2;
+  backdrop-filter:blur(3px);
+  box-shadow:0 1px 0 #e5e7eb;
+}
 td:nth-child(2),th:nth-child(2){text-align:left}
-tbody tr:nth-child(even){background:#fcfdff}
-tbody tr:hover{background:#f8fafc}
+tbody tr{background:#fff}
 td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 a{color:var(--primary);text-decoration:none}
 a:hover{text-decoration:underline;text-decoration-thickness:1.5px}
-td:first-child a{
+.product-copy a{
   display:inline-block;
   max-width:460px;
   overflow:hidden;
@@ -522,12 +576,55 @@ td:first-child a{
   white-space:nowrap;
   vertical-align:bottom;
 }
+.product-cell{
+  display:flex;
+  align-items:flex-start;
+  gap:8px;
+  min-width:0;
+}
+.product-copy{
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+  min-width:0;
+}
+.row-chevron{
+  width:16px;
+  min-width:16px;
+  color:#64748b;
+  font-size:.82rem;
+  line-height:1.2;
+  padding-top:2px;
+}
+.row-meta{
+  font-size:.72rem;
+  color:#64748b;
+  letter-spacing:.01em;
+}
 .row-main td:first-child{
   font-weight:700;
   color:#0f172a;
 }
 .row-main td{
   border-bottom:1px solid #e5e7eb;
+  background:#fff;
+}
+.row-main:hover{
+  background:#f8fafc;
+}
+.row-main.expandable{
+  cursor:pointer;
+}
+.row-main.expandable:hover{
+  background:#eff6ff;
+}
+.row-main.expandable:focus-visible{
+  outline:2px solid rgba(29,78,216,.35);
+  outline-offset:-2px;
+}
+.row-main.is-expanded .row-chevron{
+  color:#1d4ed8;
+  font-weight:700;
 }
 .row-candidate td{
   font-size:.82rem;
@@ -697,6 +794,8 @@ td:first-child a{
   .kpis{grid-template-columns:repeat(2,minmax(120px,1fr))}
   .filters-grid{grid-template-columns:1fr}
   .filter-field,.filter-field.span-3,.filter-field.span-4,.filter-field.span-6{grid-column:span 1;min-height:auto}
+  .table-section{padding:16px}
+  .table-wrap{max-height:none}
   .search-wrap{flex-direction:column}
   .search-wrap button{width:100%}
   .switchers button{width:100%}

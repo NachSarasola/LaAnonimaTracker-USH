@@ -88,6 +88,12 @@ class LaAnonimaScraper:
             self.scraping_config.get("min_candidates_per_product", 3),
         )
         self.min_candidates_per_product = max(3, int(min_candidates_cfg))
+        tolerance_cfg = candidates_cfg.get("intra_tier_size_tolerance_ratio", 0.15)
+        try:
+            tolerance_value = float(tolerance_cfg)
+        except (TypeError, ValueError):
+            tolerance_value = 0.15
+        self.intra_tier_size_tolerance_ratio = min(0.35, max(0.0, tolerance_value))
         self.max_results_per_search = max(
             self.min_candidates_per_product,
             int(self.scraping_config.get("max_results_per_search", 12)),
@@ -422,7 +428,8 @@ class LaAnonimaScraper:
         if not unit:
             return None
 
-        normalized = unit.strip().lower()
+        normalized = unit.strip().lower().replace("³", "3")
+        compact = normalized.replace(".", "").replace(" ", "")
         aliases = {
             "kg": "kg",
             "kilo": "kg",
@@ -445,7 +452,9 @@ class LaAnonimaScraper:
             "unidad": "un",
             "unidades": "un",
         }
-        return aliases.get(normalized, normalized)
+        if compact in {"cc", "cm3", "centimetrocubico", "centimetroscubicos"}:
+            return "ml"
+        return aliases.get(normalized, aliases.get(compact, compact))
 
     def _parse_presentation_from_name(self, name: str) -> Dict[str, Any]:
         """Extract presentation amount/unit from product name.
@@ -455,8 +464,8 @@ class LaAnonimaScraper:
         normalized_name = (name or "").lower()
 
         patterns = [
-            r"(?P<qty>\d+[\.,]?\d*)\s*(?P<unit>kg|kilo(?:s)?|g|grs?|gramos?|l|lt?s?|litros?|ml|mililitros?|un|u|unidad(?:es)?)\b",
-            r"\b(?P<unit>kg|g|l|ml|un|u)\s*(?P<qty>\d+[\.,]?\d*)\b",
+            r"(?P<qty>\d+[\.,]?\d*)\s*(?P<unit>kg|kilo(?:s)?|g|grs?|gramos?|l|lt?s?|litros?|ml|mililitros?|cc|c\.?c\.?|cm3|cm³|centimetros?\s*cubicos?|un|u|unidad(?:es)?)\b",
+            r"\b(?P<unit>kg|g|l|ml|cc|c\.?c\.?|cm3|cm³|un|u)\s*(?P<qty>\d+[\.,]?\d*)\b",
         ]
 
         for pattern in patterns:
@@ -496,6 +505,80 @@ class LaAnonimaScraper:
         if unit == "l" and target_unit == "ml":
             return quantity * 1000
         return None
+
+    @staticmethod
+    def _to_base_quantity(quantity: Optional[float], unit: Optional[str]) -> Optional[Tuple[str, float]]:
+        """Normalize quantity to base units for comparability (g/ml/un)."""
+        if quantity is None or unit is None:
+            return None
+        try:
+            qty = float(quantity)
+        except (TypeError, ValueError):
+            return None
+        if qty <= 0:
+            return None
+
+        if unit == "kg":
+            return ("g", qty * 1000.0)
+        if unit == "g":
+            return ("g", qty)
+        if unit == "l":
+            return ("ml", qty * 1000.0)
+        if unit == "ml":
+            return ("ml", qty)
+        if unit == "un":
+            return ("un", qty)
+        return None
+
+    def _presentation_group_key(
+        self,
+        product: Dict[str, Any],
+        basket_item: Dict[str, Any],
+    ) -> Optional[Tuple[str, float]]:
+        """Return normalized presentation key for grouping comparable candidates."""
+        product_unit = self._normalize_unit(product.get("presentation_unit"))
+        product_qty = product.get("presentation_quantity")
+        if product_unit is None or product_qty is None:
+            parsed = self._parse_presentation_from_name(str(product.get("name") or ""))
+            product_unit = self._normalize_unit(parsed.get("presentation_unit"))
+            product_qty = parsed.get("presentation_quantity")
+        if product_unit is None or product_qty is None:
+            return None
+
+        base = self._to_base_quantity(product_qty, product_unit)
+        if base is None:
+            return None
+
+        target_unit = self._normalize_unit(basket_item.get("unit"))
+        target_qty = basket_item.get("quantity")
+        target_base = self._to_base_quantity(target_qty, target_unit)
+        if target_base and base[0] != target_base[0]:
+            return None
+
+        # Round to avoid floating noise (e.g. 0.33 l -> 330.0000001 ml)
+        return (base[0], round(base[1], 3))
+
+    def _is_presentation_comparable(
+        self,
+        candidate_key: Optional[Tuple[str, float]],
+        reference_key: Optional[Tuple[str, float]],
+    ) -> bool:
+        """Return True when two presentation keys are comparable for intra-tier."""
+        if candidate_key is None or reference_key is None:
+            return False
+        cand_unit, cand_value = candidate_key
+        ref_unit, ref_value = reference_key
+        if cand_unit != ref_unit:
+            return False
+        if ref_value <= 0:
+            return False
+
+        # For piece-based products keep strict count equality.
+        if ref_unit == "un":
+            return abs(cand_value - ref_value) < 1e-9
+
+        relative_delta = abs(cand_value - ref_value) / ref_value
+        return relative_delta <= self.intra_tier_size_tolerance_ratio
 
     def _score_product_match(
         self,
@@ -1238,12 +1321,14 @@ class LaAnonimaScraper:
             if score <= 0 or price is None:
                 continue
             scored_urls.add(product.get("url") or "")
+            presentation_key = self._presentation_group_key(product, basket_item)
             scored.append(
                 {
                     "product": product,
                     "confidence": float(score),
                     "tie_break": tie_break,
                     "fallback": False,
+                    "presentation_key": presentation_key,
                 }
             )
 
@@ -1257,12 +1342,14 @@ class LaAnonimaScraper:
 
         if not scored and fallback_pool:
             for product in fallback_pool:
+                presentation_key = self._presentation_group_key(product, basket_item)
                 scored.append(
                     {
                         "product": product,
                         "confidence": float(self.min_match_confidence),
                         "tie_break": (0, 0, 0),
                         "fallback": True,
+                        "presentation_key": presentation_key,
                     }
                 )
 
@@ -1275,12 +1362,79 @@ class LaAnonimaScraper:
             )
         )
 
-        selected_positions = {0, len(scored) // 2, len(scored) - 1}
-        selected = [scored[idx].copy() for idx in sorted(selected_positions)]
+        # Keep intra-tier comparability by selecting candidates from the same
+        # normalized presentation group (e.g. 1kg and 1000g are equivalent).
+        grouped_by_presentation: Dict[Tuple[str, float], List[Dict[str, Any]]] = {}
+        for row in scored:
+            key = row.get("presentation_key")
+            if key is None:
+                continue
+            grouped_by_presentation.setdefault(key, []).append(row)
 
-        max_selectable = min(target_n, len(scored))
+        target_base = self._to_base_quantity(
+            basket_item.get("quantity"),
+            self._normalize_unit(basket_item.get("unit")),
+        )
+
+        selected_pool = scored
+        if grouped_by_presentation:
+            if target_base:
+                target_group = (target_base[0], round(target_base[1], 3))
+                comparable_rows = [
+                    row
+                    for row in scored
+                    if self._is_presentation_comparable(row.get("presentation_key"), target_group)
+                ]
+                if comparable_rows:
+                    selected_pool = comparable_rows
+                elif target_group in grouped_by_presentation:
+                    selected_pool = list(grouped_by_presentation.get(target_group, []))
+                else:
+                    ranked_groups = sorted(
+                        grouped_by_presentation.items(),
+                        key=lambda kv: (
+                            len(kv[1]),
+                            -(
+                                abs(kv[0][1] - target_base[1])
+                                if kv[0][0] == target_base[0]
+                                else 1e9
+                            ),
+                            sum(item["confidence"] for item in kv[1]) / max(1, len(kv[1])),
+                        ),
+                        reverse=True,
+                    )
+                    selected_pool = list(grouped_by_presentation.get(ranked_groups[0][0], []))
+            else:
+                ranked_groups = sorted(
+                    grouped_by_presentation.items(),
+                    key=lambda kv: (
+                        len(kv[1]),
+                        sum(item["confidence"] for item in kv[1]) / max(1, len(kv[1])),
+                    ),
+                )
+                selected_pool = list(grouped_by_presentation.get(ranked_groups[0][0], []))
+            selected_pool.sort(
+                key=lambda row: (
+                    row["product"].get("price"),
+                    -row["confidence"],
+                    row["product"].get("name", ""),
+                )
+            )
+
+        selected_positions = {0, len(selected_pool) // 2, len(selected_pool) - 1}
+        selected = [selected_pool[idx].copy() for idx in sorted(selected_positions) if selected_pool]
+
+        max_selectable = min(target_n, len(selected_pool))
         if len(selected) < max_selectable and fallback_pool:
+            reference_key = (
+                (target_base[0], round(target_base[1], 3))
+                if target_base
+                else selected_pool[0].get("presentation_key")
+            )
             for product in fallback_pool:
+                fallback_key = self._presentation_group_key(product, basket_item)
+                if selected_pool and not self._is_presentation_comparable(fallback_key, reference_key):
+                    continue
                 if any(product is s["product"] for s in selected):
                     continue
                 selected.append(
@@ -1289,18 +1443,22 @@ class LaAnonimaScraper:
                         "confidence": float(self.min_match_confidence),
                         "tie_break": (0, 0, 0),
                         "fallback": True,
+                        "presentation_key": fallback_key,
                     }
                 )
                 if len(selected) >= max_selectable:
                     break
 
         if len(selected) < max_selectable:
-            for row in scored:
+            for row in selected_pool:
                 if any(row["product"] is s["product"] for s in selected):
                     continue
                 selected.append(row.copy())
                 if len(selected) >= max_selectable:
                     break
+
+        if not selected:
+            return [], None
 
         selected.sort(key=lambda row: row["product"].get("price"))
         for idx, row in enumerate(selected):

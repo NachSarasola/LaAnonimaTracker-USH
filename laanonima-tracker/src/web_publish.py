@@ -25,6 +25,7 @@ from src.web_styles import (
 _REPORT_METADATA_RE = re.compile(r"report_interactive_(\d{6})_to_(\d{6})_(\d{8}_\d{6})\.metadata\.json$")
 _MONTH_RE = re.compile(r"^\d{4}-\d{2}$")
 _TRACKER_CSS_REF_RE = re.compile(r"""href=["'](?:\./)?tracker-ui\.css(?:\?[^"'<>]*)?["']""", re.IGNORECASE)
+_HEAD_CLOSE_RE = re.compile(r"</head>", re.IGNORECASE)
 _PUBLICATION_POLICY = "publish_with_alert_on_partial"
 _PUBLICATION_POLICY_SUMMARY = "Se publica con alerta si falta cobertura o IPC."
 _SITE_TITLE = "Tracker de precios: La Anónima Ushuaia"
@@ -377,6 +378,17 @@ class StaticWebPublisher:
             html,
         )
 
+    @staticmethod
+    def _ensure_tracker_css_link(html: str) -> str:
+        """Ensure copied tracker pages always load modern external tracker CSS."""
+        normalized = StaticWebPublisher._normalize_tracker_css_ref(html)
+        if _TRACKER_CSS_REF_RE.search(normalized):
+            return normalized
+        link = f'<link rel="stylesheet" href="./tracker-ui.css?v={get_tracker_css_version()}"/>'
+        if _HEAD_CLOSE_RE.search(normalized):
+            return _HEAD_CLOSE_RE.sub(f"{link}</head>", normalized, count=1)
+        return f"{link}\n{normalized}"
+
     def _meta_head(self, title: str, description: str, path: str) -> str:
         canonical_path = str(path or "/").strip()
         if not canonical_path.startswith("/"):
@@ -500,11 +512,10 @@ class StaticWebPublisher:
 
         source_tracker_css = latest.html_path.parent / "tracker-ui.css"
         tracker_html = latest.html_path.read_text(encoding="utf-8")
-        expects_tracker_css = bool(_TRACKER_CSS_REF_RE.search(tracker_html))
-        tracker_path.write_text(self._normalize_tracker_css_ref(tracker_html), encoding="utf-8")
+        tracker_path.write_text(self._ensure_tracker_css_link(tracker_html), encoding="utf-8")
         if source_tracker_css.exists():
             shutil.copy2(source_tracker_css, tracker_css_path)
-        elif expects_tracker_css:
+        else:
             tracker_css_path.write_text(get_tracker_css_bundle(), encoding="utf-8")
         shutil.copy2(latest.metadata_path, latest_meta_path)
 
@@ -535,11 +546,10 @@ class StaticWebPublisher:
             run_tracker_css = run_dir / "tracker-ui.css"
             source_tracker_css = entry.html_path.parent / "tracker-ui.css"
             run_html_text = entry.html_path.read_text(encoding="utf-8")
-            expects_tracker_css = bool(_TRACKER_CSS_REF_RE.search(run_html_text))
-            run_html.write_text(self._normalize_tracker_css_ref(run_html_text), encoding="utf-8")
+            run_html.write_text(self._ensure_tracker_css_link(run_html_text), encoding="utf-8")
             if source_tracker_css.exists():
                 shutil.copy2(source_tracker_css, run_tracker_css)
-            elif expects_tracker_css:
+            else:
                 run_tracker_css.write_text(get_tracker_css_bundle(), encoding="utf-8")
 
             data_month_dir = data_history_root / entry.month
@@ -601,7 +611,6 @@ class StaticWebPublisher:
                 "</div>"
                 "<div class='history-sub'>"
                 "<span>Cobertura: {coverage_label}</span>"
-                "<span>Mes: {month}</span>"
                 "</div>"
                 "</a>"
             ).format(
@@ -616,15 +625,21 @@ class StaticWebPublisher:
             )
 
         month_sections: List[str] = []
-        for month in sorted(rows_by_month.keys(), reverse=True):
+        for idx, month in enumerate(sorted(rows_by_month.keys(), reverse=True)):
             items = rows_by_month[month]
             runs_html = "".join(_run_item_html(item) for item in items)
+            latest_run = str(items[0].get("run_date_local") or "N/D") if items else "N/D"
+            default_open = "1" if idx == 0 else "0"
+            open_attr = " open" if idx == 0 else ""
             month_sections.append(
-                "<section class='card'>"
+                f"<details class='card history-month' data-month-panel='{month}' data-default-open='{default_open}'{open_attr}>"
+                "<summary class='history-month-summary'>"
                 f"<div class='history-head'><h2>{month}</h2><span class='status-chip'>{len(items)} corridas</span></div>"
+                f"<div class='meta-line'>Última corrida: {latest_run}</div>"
+                "</summary>"
                 f"<div class='history-list'>{runs_html}</div>"
                 f"<p class='meta-line'><a href='/historico/{month}/'>Ver corridas del mes</a></p>"
-                "</section>"
+                "</details>"
             )
 
         list_html = "".join(month_sections) if month_sections else "<p class='muted'>Sin corridas disponibles.</p>"
@@ -656,21 +671,33 @@ class StaticWebPublisher:
   const container=document.getElementById('history-list');
   const count=document.getElementById('history-count');
   if(!input || !container || !count) return;
-  const rows=Array.from(container.querySelectorAll('a[data-run]'));
+  const monthPanels=Array.from(container.querySelectorAll('details[data-month-panel]'));
   const apply=()=>{{
     const q=String(input.value||'').trim().toLowerCase();
     let visible=0;
-    rows.forEach((row)=>{{
-      const month=String(row.getAttribute('data-month')||'').toLowerCase();
-      const run=String(row.getAttribute('data-run')||'').toLowerCase();
-      const text=String(row.textContent||'').toLowerCase();
-      const match=!q || month.includes(q) || run.includes(q) || text.includes(q);
-      row.style.display=match?'grid':'none';
-      if(match) visible+=1;
+    monthPanels.forEach((panel)=>{{
+      const panelRows=Array.from(panel.querySelectorAll('a[data-run]'));
+      let panelVisible=0;
+      panelRows.forEach((row)=>{{
+        const month=String(row.getAttribute('data-month')||'').toLowerCase();
+        const run=String(row.getAttribute('data-run')||'').toLowerCase();
+        const text=String(row.textContent||'').toLowerCase();
+        const match=!q || month.includes(q) || run.includes(q) || text.includes(q);
+        row.style.display=match?'grid':'none';
+        if(match) panelVisible+=1;
+      }});
+      panel.style.display=panelVisible?'':'none';
+      if(q){{
+        panel.open=panelVisible>0;
+      }}else{{
+        panel.open=String(panel.getAttribute('data-default-open')||'0')==='1';
+      }}
+      visible+=panelVisible;
     }});
     count.textContent=String(visible);
   }};
   input.addEventListener('input', apply);
+  apply();
 }})();
 </script>
 </body>
