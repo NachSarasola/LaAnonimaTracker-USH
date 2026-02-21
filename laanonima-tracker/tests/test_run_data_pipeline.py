@@ -35,7 +35,7 @@ class TestRunDataPipeline(unittest.TestCase):
             "prices_count": 5,
             "latest_scraped_at": datetime.now(timezone.utc).isoformat(),
         }
-        default_source_block = source_block or (True, "marker=request could not be satisfied")
+        default_source_block = source_block or (False, "ok")
 
         with patch.object(sys, "argv", ["run_data_pipeline.py", "--skip-smoke", *argv_extra]):
             with patch("scripts.run_data_pipeline.require_db_url", return_value="postgresql://u:p@h:5432/db"):
@@ -76,7 +76,12 @@ class TestRunDataPipeline(unittest.TestCase):
             "prices_count": 8,
             "latest_scraped_at": (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat(),
         }
-        code, payload, _calls = self._invoke([], _run_stage, db_state=fresh_state)
+        code, payload, _calls = self._invoke(
+            [],
+            _run_stage,
+            db_state=fresh_state,
+            source_block=(True, "marker=request could not be satisfied"),
+        )
         self.assertEqual(code, 0)
         self.assertEqual(payload.get("status"), "completed")
         self.assertTrue(payload.get("scrape_fallback_used"))
@@ -94,7 +99,12 @@ class TestRunDataPipeline(unittest.TestCase):
             "prices_count": 8,
             "latest_scraped_at": (datetime.now(timezone.utc) - timedelta(days=8)).isoformat(),
         }
-        code, payload, _calls = self._invoke([], _run_stage, db_state=stale_state)
+        code, payload, _calls = self._invoke(
+            [],
+            _run_stage,
+            db_state=stale_state,
+            source_block=(True, "marker=request could not be satisfied"),
+        )
         self.assertEqual(code, 1)
         self.assertEqual(payload.get("status"), "failed")
         self.assertFalse(payload.get("scrape_fallback_used"))
@@ -109,7 +119,12 @@ class TestRunDataPipeline(unittest.TestCase):
             "prices_count": 0,
             "latest_scraped_at": None,
         }
-        code, payload, _calls = self._invoke([], _run_stage, db_state=empty_state)
+        code, payload, _calls = self._invoke(
+            [],
+            _run_stage,
+            db_state=empty_state,
+            source_block=(True, "marker=request could not be satisfied"),
+        )
         self.assertEqual(code, 1)
         self.assertEqual(payload.get("status"), "failed")
         self.assertFalse(payload.get("scrape_fallback_used"))
@@ -129,4 +144,3 @@ class TestRunDataPipeline(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

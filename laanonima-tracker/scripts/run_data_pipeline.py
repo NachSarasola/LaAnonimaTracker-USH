@@ -317,10 +317,11 @@ def main() -> int:
                     break
                 except Exception as scrape_exc:
                     scrape_error_text = str(scrape_exc)
-                    if not _is_blocking_scrape_error(scrape_error_text):
+                    blocked, block_probe_reason = _detect_source_block(config)
+                    is_blocking_error = _is_blocking_scrape_error(scrape_error_text) or blocked
+                    if not is_blocking_error:
                         raise
 
-                    blocked, block_probe_reason = _detect_source_block(config)
                     block_reason = block_probe_reason if blocked else f"blocking_error={scrape_error_text}"
                     source_block_reason = block_reason
                     stages.append(
