@@ -138,10 +138,21 @@ def write_github_summary(payload: Dict[str, Any]) -> None:
         f"- Total seconds: `{payload.get('total_seconds', 0)}`",
         f"- DB fingerprint: `{payload.get('db_fingerprint', 'n/a')}`",
         f"- IPC window: `{payload.get('ipc_window', {}).get('from')}` -> `{payload.get('ipc_window', {}).get('to')}`",
+        f"- Scrape fallback used: `{payload.get('scrape_fallback_used', False)}`",
+        f"- Scrape block retries used: `{payload.get('scrape_block_retries_used', 0)}`",
+        f"- Source block reason: `{payload.get('source_block_reason') or 'n/a'}`",
+        f"- Data age hours: `{payload.get('data_age_hours') if payload.get('data_age_hours') is not None else 'n/a'}`",
         "",
         "| Stage | Seconds |",
         "|---|---:|",
     ]
+    warnings = payload.get("warnings", []) or []
+    if warnings:
+        lines.append("")
+        lines.append("### Warnings")
+        for warning in warnings:
+            lines.append(f"- {warning}")
+        lines.append("")
     for stage in payload.get("stages", []):
         lines.append(f"| `{stage.get('stage')}` | {stage.get('duration_seconds')} |")
     lines.append("")

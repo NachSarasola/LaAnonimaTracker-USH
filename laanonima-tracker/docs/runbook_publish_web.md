@@ -52,9 +52,25 @@ Recommended daily pipeline (production parity):
 python scripts/run_data_pipeline.py --basket all --view analyst --benchmark ipc --offline-assets external --pdf-policy on_new_month
 ```
 
+Anti-bot hardened pipeline (reintento + fallback controlado):
+
+```bash
+python scripts/run_data_pipeline.py \
+  --basket all \
+  --view analyst \
+  --benchmark ipc \
+  --offline-assets external \
+  --pdf-policy on_new_month \
+  --scrape-failure-mode fallback_skip_if_blocked \
+  --scrape-block-retries 1 \
+  --scrape-block-retry-delay-seconds 45 \
+  --max-data-staleness-days 7
+```
+
 Runner output clave:
 - `data/analysis/pipeline_timing_latest.json` con tiempos por etapa.
 - GitHub Job Summary con tabla de etapas/segundos (en CI).
+- Si aplica fallback: `scrape_fallback_used`, `source_block_reason`, `data_age_hours`, `scrape_block_retries_used`.
 
 Daily one-command runner (recommended for operación diaria):
 
@@ -146,6 +162,28 @@ Optional:
 1. Daily workflow fails:
 - Inspect last GitHub Actions logs.
 - Re-run workflow manually.
+
+### Bloqueo anti-bot (CloudFront)
+
+Regla operativa:
+- El pipeline reintenta scrape (`--scrape-block-retries`) y espera (`--scrape-block-retry-delay-seconds`).
+- Si sigue bloqueado, solo continua si hay historial y la frescura cumple umbral.
+- Umbral default: `--max-data-staleness-days 7` (168h).
+
+Cuándo CONTINÚA deploy:
+- Scrape bloqueado.
+- `prices_count > 0`.
+- `latest_scraped_age_hours <= 168`.
+
+Cuándo FALLA:
+- DB sin precios.
+- `latest_scraped_age_hours > 168`.
+- Error de scrape no relacionado a anti-bot.
+
+Contingencia manual (sin scrape, con guard de frescura):
+- En `workflow_dispatch`, usar `skip_scrape=true`.
+- Mantener `max_data_staleness_days=7`.
+- Esto reutiliza datos existentes solo si pasan el gate de frescura.
 
 2. Data pipeline degrades but website must stay online:
 - Rebuild with `--skip-report --from YYYY-MM --to YYYY-MM` using last validated range.

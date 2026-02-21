@@ -8,9 +8,28 @@ on:
         required: false
         default: false
         type: boolean
+      skip_scrape:
+        description: "Skip scrape stage and reuse existing DB data (contingency mode)"
+        required: false
+        default: false
+        type: boolean
+      max_data_staleness_days:
+        description: "Max age in days accepted for fallback/skip-scrape"
+        required: false
+        default: 7
+        type: number
+      scrape_block_retries:
+        description: "Retries for anti-bot blocking before fallback"
+        required: false
+        default: 1
+        type: number
   schedule:
     # 06:10 ART ~= 09:10 UTC
     - cron: "10 9 * * *"
+
+concurrency:
+  group: publish-web-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   build-and-deploy:
@@ -88,8 +107,20 @@ jobs:
         run: |
           cd laanonima-tracker
           EXTRA_ARGS=""
+          SCRAPE_ARGS=""
+          STALENESS_DAYS="7"
+          BLOCK_RETRIES="1"
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.event.inputs.enforce_empty_db }}" = "true" ]; then
             EXTRA_ARGS="--require-empty"
+          fi
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.event.inputs.skip_scrape }}" = "true" ]; then
+            SCRAPE_ARGS="--skip-scrape"
+          fi
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ github.event.inputs.max_data_staleness_days }}" ]; then
+            STALENESS_DAYS="${{ github.event.inputs.max_data_staleness_days }}"
+          fi
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ github.event.inputs.scrape_block_retries }}" ]; then
+            BLOCK_RETRIES="${{ github.event.inputs.scrape_block_retries }}"
           fi
           python scripts/run_data_pipeline.py \
             --basket all \
@@ -97,6 +128,11 @@ jobs:
             --benchmark ipc \
             --offline-assets external \
             --pdf-policy on_new_month \
+            --scrape-failure-mode fallback_skip_if_blocked \
+            --scrape-block-retries "${BLOCK_RETRIES}" \
+            --scrape-block-retry-delay-seconds 45 \
+            --max-data-staleness-days "${STALENESS_DAYS}" \
+            ${SCRAPE_ARGS} \
             ${EXTRA_ARGS}
 
       - name: Upload branch diagnostics

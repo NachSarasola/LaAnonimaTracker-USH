@@ -75,6 +75,8 @@ Validar al menos:
 1. Ejecutar workflow manual `publish-web` (GitHub Actions).
    - Para primer lanzamiento real: ejecutar con `enforce_empty_db=true`.
    - Para corridas normales posteriores: usar `enforce_empty_db=false`.
+   - Si origen bloquea por anti-bot: usar `skip_scrape=true` solo como contingencia.
+   - Mantener `max_data_staleness_days=7` para no publicar datos vencidos.
    - Antes de disparar, validar config localmente:
 
 ```bash
@@ -110,6 +112,10 @@ python scripts/smoke_public_site.py \
 - `manifest.latest` y `latest.metadata` coherentes
 - estado visible `fresh/partial/stale`
 - macro IPC no vacio en modo `independent_base`
+- Si hubo fallback por anti-bot, revisar en Job Summary:
+  - `scrape_fallback_used=true`
+  - `source_block_reason`
+  - `data_age_hours <= 168`
 
 ## 6) Go-live (produccion)
 
