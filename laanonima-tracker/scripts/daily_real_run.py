@@ -23,7 +23,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Run daily real-price pipeline for production website.")
     parser.add_argument("--config", default=None, help="Optional config.yaml path")
     parser.add_argument("--basket", default="all", help="Basket type for scrape/publish (default: all)")
-    parser.add_argument("--view", default="analyst", help="Public report view (default: analyst)")
+    parser.add_argument("--view", default="executive", help="Public report view (default: executive)")
     parser.add_argument("--benchmark", default="ipc", help="Benchmark mode for report (default: ipc)")
     parser.add_argument(
         "--offline-assets",
@@ -47,6 +47,12 @@ def main() -> int:
         default="on_new_month",
         help="PDF validation policy for IPC sync (default: on_new_month)",
     )
+    parser.add_argument(
+        "--scrape-splits",
+        type=int,
+        default=2,
+        help="Deterministic scrape partitions per daily run (default: 2)",
+    )
     parser.add_argument("--force-pdf-validation", action="store_true", help="Force PDF validation")
     args = parser.parse_args()
 
@@ -67,6 +73,8 @@ def main() -> int:
             str(args.ipc_lookback_months),
             "--pdf-policy",
             args.pdf_policy,
+            "--scrape-splits",
+            str(max(1, int(args.scrape_splits))),
         ]
     )
     if args.skip_scrape:

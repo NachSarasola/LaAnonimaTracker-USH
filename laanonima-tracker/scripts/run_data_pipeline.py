@@ -216,6 +216,12 @@ def main() -> int:
         help="Behavior when scrape stage fails (default: fallback_skip_if_blocked).",
     )
     parser.add_argument(
+        "--scrape-splits",
+        type=int,
+        default=2,
+        help="Deterministic scrape partitions to execute sequentially (default: 2).",
+    )
+    parser.add_argument(
         "--timing-output",
         default="data/analysis/pipeline_timing_latest.json",
         help="Path for pipeline timing JSON",
@@ -284,107 +290,115 @@ def main() -> int:
         _run_stage(stages, name=failed_stage, command=cli_cmd(args.config, "init"), env=env)
 
         if not args.skip_scrape:
-            scrape_cmd = cli_cmd(
-                args.config,
-                "scrape",
-                "--basket",
-                args.basket,
-                "--backend",
-                "postgresql",
-                "--profile",
-                "full",
-                "--candidate-storage",
-                "db",
-                "--observation-policy",
-                "single+audit",
-            )
-            if args.commit_batch_size is not None:
-                scrape_cmd.extend(["--commit-batch-size", str(args.commit_batch_size)])
-            if args.base_request_delay_ms is not None:
-                scrape_cmd.extend(["--base-request-delay-ms", str(args.base_request_delay_ms)])
-            if args.fail_fast_min_attempts is not None:
-                scrape_cmd.extend(["--fail-fast-min-attempts", str(args.fail_fast_min_attempts)])
-            if args.fail_fast_fail_ratio is not None:
-                scrape_cmd.extend(["--fail-fast-fail-ratio", str(args.fail_fast_fail_ratio)])
+            scrape_splits = max(1, int(args.scrape_splits))
+            for split_idx in range(scrape_splits):
+                scrape_cmd = cli_cmd(
+                    args.config,
+                    "scrape",
+                    "--basket",
+                    args.basket,
+                    "--backend",
+                    "postgresql",
+                    "--profile",
+                    "full",
+                    "--candidate-storage",
+                    "db",
+                    "--observation-policy",
+                    "single+audit",
+                    "--partition-count",
+                    str(scrape_splits),
+                    "--partition-index",
+                    str(split_idx),
+                )
+                if args.commit_batch_size is not None:
+                    scrape_cmd.extend(["--commit-batch-size", str(args.commit_batch_size)])
+                if args.base_request_delay_ms is not None:
+                    scrape_cmd.extend(["--base-request-delay-ms", str(args.base_request_delay_ms)])
+                if args.fail_fast_min_attempts is not None:
+                    scrape_cmd.extend(["--fail-fast-min-attempts", str(args.fail_fast_min_attempts)])
+                if args.fail_fast_fail_ratio is not None:
+                    scrape_cmd.extend(["--fail-fast-fail-ratio", str(args.fail_fast_fail_ratio)])
 
-            failed_stage = "scrape-full"
-            attempt_index = 0
-            while True:
-                attempt_index += 1
-                scrape_started = perf_counter()
-                try:
-                    _run_stage(stages, name=failed_stage, command=scrape_cmd, env=env)
-                    break
-                except Exception as scrape_exc:
-                    scrape_error_text = str(scrape_exc)
-                    blocked, block_probe_reason = _detect_source_block(config)
-                    is_blocking_error = _is_blocking_scrape_error(scrape_error_text) or blocked
-                    if not is_blocking_error:
-                        raise
+                failed_stage = "scrape-full" if scrape_splits == 1 else f"scrape-full-part-{split_idx + 1}"
+                attempt_index = 0
+                while True:
+                    attempt_index += 1
+                    scrape_started = perf_counter()
+                    try:
+                        _run_stage(stages, name=failed_stage, command=scrape_cmd, env=env)
+                        break
+                    except Exception as scrape_exc:
+                        scrape_error_text = str(scrape_exc)
+                        blocked, block_probe_reason = _detect_source_block(config)
+                        is_blocking_error = _is_blocking_scrape_error(scrape_error_text) or blocked
+                        if not is_blocking_error:
+                            raise
 
-                    block_reason = block_probe_reason if blocked else f"blocking_error={scrape_error_text}"
-                    source_block_reason = block_reason
-                    stages.append(
-                        {
-                            "stage": failed_stage,
-                            "command": " ".join(scrape_cmd),
-                            "duration_seconds": round(perf_counter() - scrape_started, 3),
-                            "result": "retryable_blocking_failure",
-                            "attempt": attempt_index,
-                            "error": scrape_error_text,
-                            "reason": block_reason,
-                        }
-                    )
-
-                    if attempt_index <= scrape_block_retries:
-                        scrape_block_retries_used += 1
-                        warning = (
-                            f"scrape-full bloqueado (intento {attempt_index}/{scrape_block_retries + 1}); "
-                            f"reintento en {scrape_block_retry_delay_seconds}s. reason={block_reason}"
-                        )
-                        warnings.append(warning)
-                        print(f"WARN: {warning}")
-                        if scrape_block_retry_delay_seconds > 0:
-                            time.sleep(scrape_block_retry_delay_seconds)
-                        continue
-
-                    if args.scrape_failure_mode != "fallback_skip_if_blocked":
-                        raise
-
-                    state = _db_state(env)
-                    prices_count = int(state.get("prices_count") or 0)
-                    data_age_hours = _compute_data_age_hours(state.get("latest_scraped_at"))
-                    has_fresh_data = data_age_hours is not None and data_age_hours <= max_data_staleness_hours
-                    if prices_count > 0 and has_fresh_data:
-                        scrape_fallback_used = True
-                        warning = (
-                            "scrape-full fallback activado: origen bloqueado, "
-                            f"datos en DB={prices_count}, edad_horas={data_age_hours}, "
-                            f"umbral_horas={max_data_staleness_hours}. reason={block_reason}"
-                        )
-                        warnings.append(warning)
-                        print(f"WARN: {warning}")
+                        block_reason = block_probe_reason if blocked else f"blocking_error={scrape_error_text}"
+                        source_block_reason = block_reason
                         stages.append(
                             {
                                 "stage": failed_stage,
                                 "command": " ".join(scrape_cmd),
                                 "duration_seconds": round(perf_counter() - scrape_started, 3),
-                                "result": "fallback_skip_if_blocked",
+                                "result": "retryable_blocking_failure",
                                 "attempt": attempt_index,
                                 "error": scrape_error_text,
                                 "reason": block_reason,
-                                "prices_count": prices_count,
-                                "data_age_hours": data_age_hours,
-                                "max_data_staleness_hours": max_data_staleness_hours,
                             }
                         )
-                        break
 
-                    raise RuntimeError(
-                        "Scrape bloqueado por anti-bot y fallback rechazado: "
-                        f"prices_count={prices_count}, data_age_hours={data_age_hours}, "
-                        f"max_allowed_hours={max_data_staleness_hours}, reason={block_reason}"
-                    ) from scrape_exc
+                        if attempt_index <= scrape_block_retries:
+                            scrape_block_retries_used += 1
+                            warning = (
+                                f"{failed_stage} bloqueado (intento {attempt_index}/{scrape_block_retries + 1}); "
+                                f"reintento en {scrape_block_retry_delay_seconds}s. reason={block_reason}"
+                            )
+                            warnings.append(warning)
+                            print(f"WARN: {warning}")
+                            if scrape_block_retry_delay_seconds > 0:
+                                time.sleep(scrape_block_retry_delay_seconds)
+                            continue
+
+                        if args.scrape_failure_mode != "fallback_skip_if_blocked":
+                            raise
+
+                        state = _db_state(env)
+                        prices_count = int(state.get("prices_count") or 0)
+                        data_age_hours = _compute_data_age_hours(state.get("latest_scraped_at"))
+                        has_fresh_data = data_age_hours is not None and data_age_hours <= max_data_staleness_hours
+                        if prices_count > 0 and has_fresh_data:
+                            scrape_fallback_used = True
+                            warning = (
+                                f"{failed_stage} fallback activado: origen bloqueado, "
+                                f"datos en DB={prices_count}, edad_horas={data_age_hours}, "
+                                f"umbral_horas={max_data_staleness_hours}. reason={block_reason}"
+                            )
+                            warnings.append(warning)
+                            print(f"WARN: {warning}")
+                            stages.append(
+                                {
+                                    "stage": failed_stage,
+                                    "command": " ".join(scrape_cmd),
+                                    "duration_seconds": round(perf_counter() - scrape_started, 3),
+                                    "result": "fallback_skip_if_blocked",
+                                    "attempt": attempt_index,
+                                    "error": scrape_error_text,
+                                    "reason": block_reason,
+                                    "prices_count": prices_count,
+                                    "data_age_hours": data_age_hours,
+                                    "max_data_staleness_hours": max_data_staleness_hours,
+                                }
+                            )
+                            break
+
+                        raise RuntimeError(
+                            "Scrape bloqueado por anti-bot y fallback rechazado: "
+                            f"prices_count={prices_count}, data_age_hours={data_age_hours}, "
+                            f"max_allowed_hours={max_data_staleness_hours}, reason={block_reason}"
+                        ) from scrape_exc
+                if scrape_fallback_used:
+                    break
 
         failed_stage = "quality-gate-has-data"
         _run_stage(
@@ -516,6 +530,7 @@ def main() -> int:
         "source_block_reason": source_block_reason or None,
         "data_age_hours": data_age_hours,
         "scrape_block_retries_used": scrape_block_retries_used,
+        "scrape_splits": max(1, int(args.scrape_splits)),
         "total_seconds": total_seconds,
         "db_fingerprint": db_fingerprint(db_url),
         "ipc_window": {"from": ipc_from, "to": ipc_to},

@@ -154,6 +154,58 @@ class TestBasketPlanner(unittest.TestCase):
                 limit=1,
             )
 
+    def test_partitioning_is_deterministic(self):
+        plan_a = build_scrape_plan(
+            config=self.config,
+            session=self.session,
+            basket_type="all",
+            profile="full",
+            partition_count=2,
+            partition_index=0,
+        )
+        plan_b = build_scrape_plan(
+            config=self.config,
+            session=self.session,
+            basket_type="all",
+            profile="full",
+            partition_count=2,
+            partition_index=0,
+        )
+        ids_a = [row["id"] for row in plan_a.planned_items]
+        ids_b = [row["id"] for row in plan_b.planned_items]
+        self.assertEqual(ids_a, ids_b)
+
+    def test_partitioning_union_matches_full_plan(self):
+        full = build_scrape_plan(
+            config=self.config,
+            session=self.session,
+            basket_type="all",
+            profile="full",
+            partition_count=1,
+            partition_index=0,
+        )
+        part0 = build_scrape_plan(
+            config=self.config,
+            session=self.session,
+            basket_type="all",
+            profile="full",
+            partition_count=2,
+            partition_index=0,
+        )
+        part1 = build_scrape_plan(
+            config=self.config,
+            session=self.session,
+            basket_type="all",
+            profile="full",
+            partition_count=2,
+            partition_index=1,
+        )
+        full_ids = {row["id"] for row in full.planned_items}
+        split_ids = {row["id"] for row in part0.planned_items} | {row["id"] for row in part1.planned_items}
+        overlap = {row["id"] for row in part0.planned_items} & {row["id"] for row in part1.planned_items}
+        self.assertEqual(full_ids, split_ids)
+        self.assertEqual(overlap, set())
+
 
 if __name__ == "__main__":
     unittest.main()

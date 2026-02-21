@@ -1509,6 +1509,8 @@ def run_scrape(
     fail_fast_min_attempts: Optional[int] = None,
     fail_fast_fail_ratio: Optional[float] = None,
     branch_strategy: Optional[str] = None,
+    partition_count: int = 1,
+    partition_index: int = 0,
 ) -> Dict[str, Any]:
     """Run a complete scrape operation.
 
@@ -1530,6 +1532,8 @@ def run_scrape(
         fail_fast_min_attempts: Min attempts before fail-fast is evaluated
         fail_fast_fail_ratio: Fail ratio threshold for fail-fast [0..1]
         branch_strategy: Branch selection strategy override (cp_query_first|modal_only|auto)
+        partition_count: Deterministic number of scrape partitions
+        partition_index: Selected partition index [0..partition_count-1]
 
     Returns:
         Dictionary with scrape results and statistics
@@ -1548,6 +1552,10 @@ def run_scrape(
         raise ValueError("observation_policy invalido: use single o single+audit")
     if branch_strategy and branch_strategy not in valid_branch_strategies:
         raise ValueError("branch_strategy invalido: use cp_query_first, modal_only o auto")
+    partition_count = max(1, int(partition_count))
+    partition_index = int(partition_index)
+    if partition_index < 0 or partition_index >= partition_count:
+        raise ValueError("partition_index fuera de rango para partition_count")
 
     config = load_config(config_path)
     if branch_strategy:
@@ -1626,6 +1634,8 @@ def run_scrape(
             rotation_items=rotation_items,
             limit=limit,
             sample_random=sample_random,
+            partition_count=partition_count,
+            partition_index=partition_index,
         )
         planned_items = list(plan.planned_items)
         mandatory_ids = set(plan.mandatory_ids)
@@ -1647,6 +1657,8 @@ def run_scrape(
             "fail_fast_min_attempts": fail_fast_min_attempts,
             "fail_fast_fail_ratio": fail_fast_fail_ratio,
             "branch_strategy": str(branch_selection_cfg.get("strategy", "cp_query_first")),
+            "partition_count": partition_count,
+            "partition_index": partition_index,
         }
 
         if dry_plan:

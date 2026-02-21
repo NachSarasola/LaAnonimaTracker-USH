@@ -54,6 +54,8 @@ class TestCliScrapeOptions(unittest.TestCase):
         self.assertIsNone(kwargs["fail_fast_min_attempts"])
         self.assertIsNone(kwargs["fail_fast_fail_ratio"])
         self.assertIsNone(kwargs["branch_strategy"])
+        self.assertEqual(kwargs["partition_count"], 1)
+        self.assertEqual(kwargs["partition_index"], 0)
 
     @patch("src.cli.setup_logging")
     @patch("src.cli.ensure_directories")
@@ -103,6 +105,10 @@ class TestCliScrapeOptions(unittest.TestCase):
                 "0.7",
                 "--branch-strategy",
                 "modal_only",
+                "--partition-count",
+                "3",
+                "--partition-index",
+                "2",
             ],
         )
         self.assertEqual(result.exit_code, 0)
@@ -120,6 +126,8 @@ class TestCliScrapeOptions(unittest.TestCase):
         self.assertEqual(kwargs["fail_fast_min_attempts"], 5)
         self.assertEqual(kwargs["fail_fast_fail_ratio"], 0.7)
         self.assertEqual(kwargs["branch_strategy"], "modal_only")
+        self.assertEqual(kwargs["partition_count"], 3)
+        self.assertEqual(kwargs["partition_index"], 2)
 
 
 if __name__ == "__main__":

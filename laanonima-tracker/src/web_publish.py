@@ -5,18 +5,26 @@ from __future__ import annotations
 import json
 import re
 import shutil
+from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
+from zoneinfo import ZoneInfo
 
 from src.config_loader import load_config
 from src.reporting import run_report
-from src.web_styles import get_shell_css_bundle, get_tracker_css_bundle
+from src.web_styles import (
+    get_shell_css_bundle,
+    get_shell_css_version,
+    get_tracker_css_bundle,
+    get_tracker_css_version,
+)
 
 _REPORT_METADATA_RE = re.compile(r"report_interactive_(\d{6})_to_(\d{6})_(\d{8}_\d{6})\.metadata\.json$")
 _MONTH_RE = re.compile(r"^\d{4}-\d{2}$")
+_TRACKER_CSS_REF_RE = re.compile(r"""href=["'](?:\./)?tracker-ui\.css(?:\?[^"'<>]*)?["']""", re.IGNORECASE)
 _PUBLICATION_POLICY = "publish_with_alert_on_partial"
 _PUBLICATION_POLICY_SUMMARY = "Se publica con alerta si falta cobertura o IPC."
 
@@ -66,6 +74,13 @@ class StaticWebPublisher:
         if not self.contact_email:
             self.contact_email = "hola@preciosushuaia.com"
         self.keep_history_months = max(1, int(deployment.get("keep_history_months", 24)))
+        self.keep_history_runs = max(1, int(deployment.get("keep_history_runs", 180)))
+        self.history_timezone = str(deployment.get("history_timezone", "America/Argentina/Ushuaia")).strip() or "America/Argentina/Ushuaia"
+        try:
+            self._history_tz = ZoneInfo(self.history_timezone)
+        except Exception:
+            self._history_tz = timezone.utc
+            self.history_timezone = "UTC"
         self.fresh_max_hours = float(deployment.get("fresh_max_hours", 36))
         self.schedule_utc = str(deployment.get("schedule_utc", "09:10"))
         analysis_cfg = config.get("analysis", {}) if isinstance(config.get("analysis"), dict) else {}
@@ -294,15 +309,29 @@ class StaticWebPublisher:
         return entries[0]
 
     def _collect_history(self) -> List[ReportEntry]:
-        unique: Dict[str, ReportEntry] = {}
-        for entry in self._iter_report_entries():
-            if entry.month not in unique:
-                unique[entry.month] = entry
-            if len(unique) >= self.keep_history_months:
-                break
-        rows = list(unique.values())
-        rows.sort(key=lambda item: item.month, reverse=True)
-        return rows
+        entries = self._iter_report_entries()
+        return entries[: self.keep_history_runs]
+
+    def _to_history_tz(self, value: datetime) -> datetime:
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        return value.astimezone(self._history_tz)
+
+    @staticmethod
+    def _metadata_run_stamp(path: Path) -> Optional[str]:
+        match = _REPORT_METADATA_RE.search(path.name)
+        if not match:
+            return None
+        return match.group(3)
+
+    def _history_slug_for_entry(self, entry: ReportEntry, seen: Dict[Tuple[str, str], int]) -> str:
+        local_stamp = self._to_history_tz(entry.generated_at).strftime("%Y-%m-%d_%H%M%S")
+        key = (entry.month, local_stamp)
+        seen[key] = seen.get(key, 0) + 1
+        count = seen[key]
+        if count == 1:
+            return local_stamp
+        return f"{local_stamp}_{count}"
 
     def _next_update_eta(self, now: Optional[datetime] = None) -> datetime:
         now_utc = now.astimezone(timezone.utc) if now else datetime.now(timezone.utc)
@@ -339,6 +368,13 @@ class StaticWebPublisher:
     def _ensure_dir(path: Path) -> None:
         path.mkdir(parents=True, exist_ok=True)
 
+    @staticmethod
+    def _normalize_tracker_css_ref(html: str) -> str:
+        return _TRACKER_CSS_REF_RE.sub(
+            f'href="./tracker-ui.css?v={get_tracker_css_version()}"',
+            html,
+        )
+
     def _meta_head(self, title: str, description: str, path: str) -> str:
         canonical_path = str(path or "/").strip()
         if not canonical_path.startswith("/"):
@@ -354,7 +390,7 @@ class StaticWebPublisher:
             f"<link rel='canonical' href='{canonical_url}'/>"
             "<link rel='icon' type='image/svg+xml' href='/favicon.svg'/>"
             "<link rel='manifest' href='/site.webmanifest'/>"
-            "<link rel='stylesheet' href='/assets/css/shell-ui.css'/>"
+            f"<link rel='stylesheet' href='/assets/css/shell-ui.css?v={get_shell_css_version()}'/>"
             "<link rel='preconnect' href='https://fonts.googleapis.com'/>"
             "<link rel='preconnect' href='https://fonts.gstatic.com' crossorigin/>"
             "<link href='https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap' rel='stylesheet'/>"
@@ -428,11 +464,6 @@ class StaticWebPublisher:
         )
 
     @staticmethod
-    def _shell_css() -> str:
-        return get_shell_css_bundle()
-
-
-    @staticmethod
     def _top_nav(active: str = "home") -> str:
         links = [
             ("home", "/", "Inicio"),
@@ -465,10 +496,10 @@ class StaticWebPublisher:
         tracker_css_path = tracker_dir / "tracker-ui.css"
         latest_meta_path = data_dir / "latest.metadata.json"
 
-        shutil.copy2(latest.html_path, tracker_path)
         source_tracker_css = latest.html_path.parent / "tracker-ui.css"
         tracker_html = latest.html_path.read_text(encoding="utf-8")
-        expects_tracker_css = 'href="./tracker-ui.css"' in tracker_html or "href='./tracker-ui.css'" in tracker_html
+        expects_tracker_css = bool(_TRACKER_CSS_REF_RE.search(tracker_html))
+        tracker_path.write_text(self._normalize_tracker_css_ref(tracker_html), encoding="utf-8")
         if source_tracker_css.exists():
             shutil.copy2(source_tracker_css, tracker_css_path)
         elif expects_tracker_css:
@@ -486,86 +517,122 @@ class StaticWebPublisher:
         self._ensure_dir(historico_root)
         self._ensure_dir(data_history_root)
 
-        rows: List[Dict[str, Any]] = []
+        run_rows: List[Dict[str, Any]] = []
+        rows_by_month: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+        seen_slugs: Dict[Tuple[str, str], int] = {}
+
         for entry in self._collect_history():
             month_dir = historico_root / entry.month
             self._ensure_dir(month_dir)
 
-            month_html = month_dir / "index.html"
-            month_meta = data_history_root / f"{entry.month}.metadata.json"
-            shutil.copy2(entry.html_path, month_html)
-            month_tracker_css = month_dir / "tracker-ui.css"
+            run_slug = self._history_slug_for_entry(entry, seen_slugs)
+            run_dir = month_dir / run_slug
+            self._ensure_dir(run_dir)
+
+            run_html = run_dir / "index.html"
+            run_tracker_css = run_dir / "tracker-ui.css"
             source_tracker_css = entry.html_path.parent / "tracker-ui.css"
-            month_html_text = entry.html_path.read_text(encoding="utf-8")
-            expects_tracker_css = (
-                'href="./tracker-ui.css"' in month_html_text or "href='./tracker-ui.css'" in month_html_text
-            )
+            run_html_text = entry.html_path.read_text(encoding="utf-8")
+            expects_tracker_css = bool(_TRACKER_CSS_REF_RE.search(run_html_text))
+            run_html.write_text(self._normalize_tracker_css_ref(run_html_text), encoding="utf-8")
             if source_tracker_css.exists():
-                shutil.copy2(source_tracker_css, month_tracker_css)
+                shutil.copy2(source_tracker_css, run_tracker_css)
             elif expects_tracker_css:
-                month_tracker_css.write_text(get_tracker_css_bundle(), encoding="utf-8")
-            shutil.copy2(entry.metadata_path, month_meta)
+                run_tracker_css.write_text(get_tracker_css_bundle(), encoding="utf-8")
 
-            rows.append(
-                {
-                    "month": entry.month,
-                    "report_path": f"/historico/{entry.month}/",
-                    "metadata_path": f"/data/history/{entry.month}.metadata.json",
-                    "generated_at": entry.generated_at.strftime("%Y-%m-%d %H:%M:%S UTC"),
-                    "has_data": bool(entry.metadata.get("has_data", False)),
-                    "coverage_total_pct": (
-                        entry.metadata.get("coverage", {}).get("coverage_total_pct")
-                        if isinstance(entry.metadata.get("coverage"), dict)
-                        else None
-                    ),
-                    "is_partial": bool(
-                        entry.metadata.get("data_quality", {}).get("quality_flags", {}).get("is_partial", False)
-                        if isinstance(entry.metadata.get("data_quality"), dict)
-                        else False
-                    ),
-                    "quality_badge": (
-                        entry.metadata.get("data_quality", {}).get("quality_flags", {}).get("badge")
-                        if isinstance(entry.metadata.get("data_quality"), dict)
-                        else None
-                    ),
-                }
+            data_month_dir = data_history_root / entry.month
+            self._ensure_dir(data_month_dir)
+            run_meta = data_month_dir / f"{run_slug}.metadata.json"
+            shutil.copy2(entry.metadata_path, run_meta)
+
+            local_dt = self._to_history_tz(entry.generated_at)
+            coverage = (
+                entry.metadata.get("coverage", {}).get("coverage_total_pct")
+                if isinstance(entry.metadata.get("coverage"), dict)
+                else None
             )
+            is_partial = bool(
+                entry.metadata.get("data_quality", {}).get("quality_flags", {}).get("is_partial", False)
+                if isinstance(entry.metadata.get("data_quality"), dict)
+                else False
+            )
+            quality_badge = (
+                entry.metadata.get("data_quality", {}).get("quality_flags", {}).get("badge")
+                if isinstance(entry.metadata.get("data_quality"), dict)
+                else None
+            )
+            run_row = {
+                "month": entry.month,
+                "run_key": f"{entry.month}/{run_slug}",
+                "run_slug": run_slug,
+                "run_date_local": local_dt.strftime("%Y-%m-%d %H:%M:%S"),
+                "generated_at_utc": entry.generated_at.strftime("%Y-%m-%d %H:%M:%S UTC"),
+                "report_path": f"/historico/{entry.month}/{run_slug}/",
+                "metadata_path": f"/data/history/{entry.month}/{run_slug}.metadata.json",
+                "generated_at": entry.generated_at.strftime("%Y-%m-%d %H:%M:%S UTC"),
+                "has_data": bool(entry.metadata.get("has_data", False)),
+                "coverage_total_pct": coverage,
+                "is_partial": is_partial,
+                "quality_badge": quality_badge,
+                "history_timezone": self.history_timezone,
+            }
+            run_rows.append(run_row)
+            rows_by_month[entry.month].append(run_row)
 
-        list_rows = []
-        for item in rows:
+        run_rows.sort(key=lambda item: item.get("generated_at_utc", ""), reverse=True)
+        for month in rows_by_month:
+            rows_by_month[month].sort(key=lambda item: item.get("generated_at_utc", ""), reverse=True)
+
+        def _run_item_html(item: Dict[str, Any]) -> str:
             state = "partial" if item.get("is_partial") else "fresh"
             state_label = "Parcial" if item.get("is_partial") else "Completo"
             badge_classes = f"badge-mini {state}"
             coverage = item.get("coverage_total_pct")
             coverage_label = "N/D" if coverage is None else f"{float(coverage):.1f}%"
-            quality_badge = str(item.get("quality_badge") or "").strip() or "Sin badge"
-            row_title = f"{item['month']} | Calidad: {quality_badge}".replace("'", "&#39;")
-            list_rows.append(
-                "<a href='{path}' data-month='{month}' title='{row_title}'>"
+            run_key = str(item.get("run_key") or "")
+            row_title = f"{run_key} | Calidad: {str(item.get('quality_badge') or 'Sin badge')}".replace("'", "&#39;")
+            return (
+                "<a href='{path}' data-month='{month}' data-run='{run_key}' title='{row_title}'>"
                 "<div class='history-head'>"
-                "<strong>{month}</strong>"
+                "<strong>{run_local}</strong>"
                 "<span class='{badge_classes}'>{state_label}</span>"
                 "</div>"
                 "<div class='history-sub'>"
-                "<span>Generado: {generated}</span>"
+                "<span>Run: {run_key}</span>"
+                "<span>UTC: {generated}</span>"
                 "<span>Cobertura: {coverage_label}</span>"
                 "</div>"
-                "</a>".format(
-                    path=item["report_path"],
-                    month=item["month"],
-                    row_title=row_title,
-                    generated=item["generated_at"],
-                    badge_classes=badge_classes,
-                    state_label=state_label,
-                    coverage_label=coverage_label,
-                )
+                "</a>"
+            ).format(
+                path=item["report_path"],
+                month=item["month"],
+                run_key=run_key,
+                row_title=row_title,
+                run_local=item["run_date_local"],
+                badge_classes=badge_classes,
+                state_label=state_label,
+                generated=item["generated_at_utc"],
+                coverage_label=coverage_label,
             )
-        list_html = "".join(list_rows) if list_rows else "<p class='muted'>Sin reportes historicos disponibles.</p>"
 
-        html = f"""<!doctype html>
+        month_sections: List[str] = []
+        for month in sorted(rows_by_month.keys(), reverse=True):
+            items = rows_by_month[month]
+            runs_html = "".join(_run_item_html(item) for item in items)
+            month_sections.append(
+                "<section class='card'>"
+                f"<div class='history-head'><h2>{month}</h2><span class='status-chip'>{len(items)} runs</span></div>"
+                f"<div class='history-list'>{runs_html}</div>"
+                f"<p class='meta-line'><a href='/historico/{month}/'>Ver mes completo</a></p>"
+                "</section>"
+            )
+
+        list_html = "".join(month_sections) if month_sections else "<p class='muted'>Sin reportes historicos disponibles.</p>"
+
+        root_html = f"""<!doctype html>
 <html lang='es'>
 <head>
-{self._meta_head('Historico | La Anonima Tracker', 'Historico mensual de reportes publicados del tracker.', '/historico/')}
+{self._meta_head('Historico | La Anonima Tracker', 'Historico de corridas publicadas del tracker por mes y dia.', '/historico/')}
 {self._analytics_head_script()}
 </head>
 <body>
@@ -573,15 +640,13 @@ class StaticWebPublisher:
   {self._top_nav(active='historico')}
   <section class='card'>
     <h1>Historico de precios</h1>
-    <p class='muted'>Elige un mes para ver precios.</p>
+    <p class='muted'>Explora corridas por mes y fecha ({self.history_timezone}).</p>
     <div class='list-tools'>
-      <input id='history-search' type='search' placeholder='Filtrar por mes (YYYY-MM)'/>
-      <div class='status-chip'><span id='history-count'>{len(rows)}</span> periodos</div>
+      <input id='history-search' type='search' placeholder='Filtrar por mes o run (YYYY-MM / YYYY-MM-DD)'/>
+      <div class='status-chip'><span id='history-count'>{len(run_rows)}</span> runs</div>
     </div>
   </section>
-  <section class='card'>
-    <div id='history-list' class='history-list'>{list_html}</div>
-  </section>
+  <div id='history-list'>{list_html}</div>
 </main>
 {self._consent_banner_html()}
 {self._consent_script()}
@@ -591,14 +656,16 @@ class StaticWebPublisher:
   const container=document.getElementById('history-list');
   const count=document.getElementById('history-count');
   if(!input || !container || !count) return;
-  const rows=Array.from(container.querySelectorAll('a[data-month]'));
+  const rows=Array.from(container.querySelectorAll('a[data-run]'));
   const apply=()=>{{
     const q=String(input.value||'').trim().toLowerCase();
     let visible=0;
     rows.forEach((row)=>{{
       const month=String(row.getAttribute('data-month')||'').toLowerCase();
-      const match=!q || month.includes(q);
-      row.style.display=match?'flex':'none';
+      const run=String(row.getAttribute('data-run')||'').toLowerCase();
+      const text=String(row.textContent||'').toLowerCase();
+      const match=!q || month.includes(q) || run.includes(q) || text.includes(q);
+      row.style.display=match?'grid':'none';
       if(match) visible+=1;
     }});
     count.textContent=String(visible);
@@ -609,8 +676,38 @@ class StaticWebPublisher:
 </body>
 </html>
 """
-        (historico_root / "index.html").write_text(html, encoding="utf-8")
-        return rows
+        (historico_root / "index.html").write_text(root_html, encoding="utf-8")
+
+        for month, items in rows_by_month.items():
+            month_page_dir = historico_root / month
+            self._ensure_dir(month_page_dir)
+            month_list = "".join(_run_item_html(item) for item in items)
+            month_html = f"""<!doctype html>
+<html lang='es'>
+<head>
+{self._meta_head(f'Historico {month} | La Anonima Tracker', f'Corridas del mes {month}.', f'/historico/{month}/')}
+{self._analytics_head_script()}
+</head>
+<body>
+<main class='shell'>
+  {self._top_nav(active='historico')}
+  <section class='card'>
+    <h1>Historico {month}</h1>
+    <p class='muted'>Corridas publicadas ({self.history_timezone}).</p>
+    <div class='status-chip'>{len(items)} runs</div>
+  </section>
+  <section class='card'>
+    <div class='history-list'>{month_list}</div>
+  </section>
+</main>
+{self._consent_banner_html()}
+{self._consent_script()}
+</body>
+</html>
+"""
+            (month_page_dir / "index.html").write_text(month_html, encoding="utf-8")
+
+        return run_rows
 
     def build_manifest(self, latest: ReportEntry, history_rows: List[Dict[str, Any]]) -> Dict[str, Any]:
         web_status, is_stale = self._status_from_metadata(latest)
@@ -629,7 +726,7 @@ class StaticWebPublisher:
         )
 
         manifest = {
-            "version": 1,
+            "version": 2,
             "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
             "status": web_status,
             "latest_report_path": "/tracker/",
@@ -901,7 +998,7 @@ class StaticWebPublisher:
   Cache-Control: public, max-age=86400
 
 /assets/css/*
-  Cache-Control: public, max-age=604800
+  Cache-Control: public, max-age=31536000, immutable
 
 /assets/*
   Cache-Control: public, max-age=86400

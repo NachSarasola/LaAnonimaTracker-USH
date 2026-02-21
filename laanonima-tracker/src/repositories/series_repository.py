@@ -129,9 +129,13 @@ class SeriesRepository:
         """Return candidate low/mid/high rows for interactive report overlays."""
         query = (
             self.session.query(
+                PriceCandidate.run_id,
                 PriceCandidate.canonical_id,
                 PriceCandidate.basket_id,
+                PriceCandidate.product_id,
                 PriceCandidate.product_name,
+                PriceCandidate.candidate_name,
+                PriceCandidate.candidate_url,
                 PriceCandidate.tier,
                 PriceCandidate.candidate_rank,
                 PriceCandidate.candidate_price,

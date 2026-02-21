@@ -20,10 +20,11 @@ Unificar el estilo visual del sitio publico con una arquitectura CSS modular, si
 ## Publicacion
 - `web_publish.py` escribe `public/assets/css/shell-ui.css`.
 - Todas las paginas shell cargan:
-  - `<link rel="stylesheet" href="/assets/css/shell-ui.css">`
+  - `<link rel="stylesheet" href="/assets/css/shell-ui.css?v=<hash>">`
 - Tracker:
   - `offline_assets=embed`: CSS inline embebido para uso offline.
-  - `offline_assets=external`: `<link rel="stylesheet" href="./tracker-ui.css">` y archivo companion.
+  - `offline_assets=external`: `<link rel="stylesheet" href="./tracker-ui.css?v=<hash>">` y archivo companion.
+  - El hash viene de `web_styles.py` y permite cache largo sin stale visual.
 
 ## Reglas de mantenimiento
 - No agregar bloques CSS grandes inline dentro de templates Python.

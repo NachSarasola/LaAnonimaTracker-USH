@@ -1,4 +1,4 @@
-"""Economic interactive report generation for La Anonima Tracker."""
+﻿"""Economic interactive report generation for La Anonima Tracker."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ from sqlalchemy import func
 from src.config_loader import get_basket_items, load_config, resolve_canonical_category
 from src.models import Price, get_engine, get_session_factory
 from src.repositories import SeriesRepository
-from src.web_styles import get_tracker_css_bundle
+from src.web_styles import get_tracker_css_bundle, get_tracker_css_version
 
 
 @dataclass
@@ -1378,6 +1378,33 @@ class ReportGenerator:
         }
         return rows, summary
 
+    def _build_candidate_triplets_latest(self, candidate_df: pd.DataFrame) -> Dict[str, Dict[str, Any]]:
+        if candidate_df.empty:
+            return {}
+        work = candidate_df.copy()
+        work = work[work["tier"].astype(str).isin(["low", "mid", "high"])]
+        if work.empty:
+            return {}
+        work = work.sort_values("scraped_at")
+        latest = work.groupby(["canonical_id", "tier"], as_index=False).tail(1)
+        by_id: Dict[str, Dict[str, Any]] = {}
+        for _, row in latest.iterrows():
+            canonical_id = str(row.get("canonical_id") or "").strip()
+            tier = str(row.get("tier") or "").strip().lower()
+            if not canonical_id or tier not in {"low", "mid", "high"}:
+                continue
+            if canonical_id not in by_id:
+                by_id[canonical_id] = {}
+            by_id[canonical_id][tier] = {
+                "run_id": int(row.get("run_id")) if pd.notna(row.get("run_id")) else None,
+                "product_id": str(row.get("product_id") or "").strip() or None,
+                "candidate_name": str(row.get("candidate_name") or row.get("product_name") or "").strip() or None,
+                "candidate_url": str(row.get("candidate_url") or "").strip() or None,
+                "candidate_price": self._safe_float(row.get("candidate_price")),
+                "scraped_at": pd.Timestamp(row.get("scraped_at")).isoformat() if pd.notna(row.get("scraped_at")) else None,
+            }
+        return by_id
+
     def _build_interactive_payload(
         self,
         df: pd.DataFrame,
@@ -1443,6 +1470,7 @@ class ReportGenerator:
         coverage = self._coverage_metrics(df, from_month, to_month, basket_type)
         candidate_df = self._load_candidate_rows(from_month, to_month, basket_type)
         candidate_bands, candidate_band_summary = self._build_candidate_bands(candidate_df, pd.DataFrame())
+        candidate_triplets_latest = self._build_candidate_triplets_latest(candidate_df)
         scrape_quality = self._scrape_quality_summary(
             df,
             basket_type,
@@ -1568,6 +1596,7 @@ class ReportGenerator:
                 "scrape_quality": scrape_quality,
                 "candidate_bands": candidate_bands,
                 "candidate_band_summary": candidate_band_summary,
+                "candidate_triplets_latest_by_id": candidate_triplets_latest,
                 "ads": ads_payload,
                 "analytics": analytics_payload,
                 "premium_placeholders": premium_payload,
@@ -1618,6 +1647,7 @@ class ReportGenerator:
         snap_idx = real_df.groupby("canonical_id")["scraped_at"].idxmax()
         snapshot_df = real_df.loc[snap_idx].sort_values(["product_name", "canonical_id"])
         candidate_bands, candidate_band_summary = self._build_candidate_bands(candidate_df, snapshot_df)
+        candidate_triplets_latest = self._build_candidate_triplets_latest(candidate_df)
         scrape_quality = self._scrape_quality_summary(
             df,
             basket_type,
@@ -1824,6 +1854,7 @@ class ReportGenerator:
             "scrape_quality": scrape_quality,
             "candidate_bands": candidate_bands,
             "candidate_band_summary": candidate_band_summary,
+            "candidate_triplets_latest_by_id": candidate_triplets_latest,
             "ads": ads_payload,
             "analytics": analytics_payload,
             "premium_placeholders": premium_payload,
@@ -1875,7 +1906,7 @@ class ReportGenerator:
         tracker_style_block = f"<style>{get_tracker_css_bundle()}</style>"
         if offline_assets == "external":
             external_script = '<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>'
-            tracker_style_block = '<link rel="stylesheet" href="./tracker-ui.css"/>'
+            tracker_style_block = f'<link rel="stylesheet" href="./tracker-ui.css?v={get_tracker_css_version()}"/>'
         analytics_script = ""
         analytics_payload = payload.get("analytics", {}) if isinstance(payload.get("analytics"), dict) else {}
         analytics_enabled = bool(analytics_payload.get("enabled", False))
@@ -1933,7 +1964,7 @@ __TRACKER_STYLE_BLOCK__
       <h1 class="title">Tracker de precios</h1>
       <p class="meta">Actualizado: __GEN__</p>
       <p class="meta">Rango: __FROM__ a __TO__</p>
-      <p class="meta" id="freshness-meta" title="Proxima corrida: N/D">Estado: pendiente · Ultimo dato: N/D</p>
+      <p class="meta" id="freshness-meta" title="Proxima corrida: N/D">Estado: pendiente Â· Ultimo dato: N/D</p>
     </div>
     <div>
       <span id="quality-badge" class="badge">Completo</span>
@@ -2072,16 +2103,10 @@ __TRACKER_STYLE_BLOCK__
 
     <section class="workspace-grid">
       <div class="workspace-main">
-        <article class="card chart-card">
-          <h2>Comparativa de precios por producto</h2>
-          <div id="chart-main" class="chart"><div class="chart-empty">Sin datos para graficar</div></div>
-          <div id="legend-main" class="legend"></div>
-        </article>
-
         <section class="card table-section">
           <h2>Listado de productos</h2>
           <div class="table-toolbar">
-            <div id="table-meta" class="muted">0 resultados · 0 en grafico</div>
+            <div id="table-meta" class="muted">0 resultados Â· 0 en grafico</div>
             <div class="table-actions">
               <label for="page-size">Filas</label>
               <select id="page-size" class="page-size"></select>
@@ -2105,11 +2130,16 @@ __TRACKER_STYLE_BLOCK__
             </table>
           </div>
         </section>
+        <article class="card chart-card">
+          <h2>Comparativa de precios por producto</h2>
+          <div id="chart-main" class="chart"><div class="chart-empty">Sin datos para graficar</div></div>
+          <div id="legend-main" class="legend"></div>
+        </article>
       </div>
 
       <aside class="workspace-side">
         <section class="card chart-card" id="panel-bands">
-          <h2>Dispersión intra-producto (low/mid/high)</h2>
+          <h2>DispersiÃ³n intra-producto (low/mid/high)</h2>
           <div class="band-toolbar">
             <div class="band-select-wrap">
               <label for="band-product">Producto para banda</label>
@@ -2307,6 +2337,15 @@ const fmtAxisNum=v=>{
   const decimals=Math.abs(n)>=1000 ? 0 : 2;
   return new Intl.NumberFormat("es-AR",{maximumFractionDigits:decimals}).format(n);
 };
+const formatMetricValue=(value,kind="number")=>{
+  if(value==null||Number.isNaN(Number(value))) return "N/D";
+  const n=Number(value);
+  if(kind==="ars") return money(n);
+  if(kind==="pp") return `${fmtAxisNum(n)} pp`;
+  if(kind==="pct") return `${fmtAxisNum(n)}%`;
+  if(kind==="index") return fmtAxisNum(n);
+  return fmtAxisNum(n);
+};
 const fmtDate=v=>{
   const d=v instanceof Date ? v : new Date(v);
   if(Number.isNaN(d.getTime())) return "N/D";
@@ -2324,10 +2363,10 @@ const trendClass=v=>{
   return "var-flat";
 };
 const trendIcon=v=>{
-  if(v==null||Number.isNaN(Number(v))) return "·";
-  if(Number(v)>0) return "↑";
-  if(Number(v)<0) return "↓";
-  return "→";
+  if(v==null||Number.isNaN(Number(v))) return "\u00b7";
+  if(Number(v)>0) return "\u2191";
+  if(Number(v)<0) return "\u2193";
+  return "\u2192";
 };
 
 function normalizePresentation(value){
@@ -2520,6 +2559,7 @@ for(const b of (p.candidate_bands||[])){
   if(!bandById[b.canonical_id]) bandById[b.canonical_id]=[];
   bandById[b.canonical_id].push(b);
 }
+const candidateTripletsById=p.candidate_triplets_latest_by_id||{};
 let _rowsCacheKey="";
 let _rowsCacheValue=[];
 let _lastMainChartKey="";
@@ -2615,7 +2655,7 @@ function paginatedRows(rows){
 
 function updateTableMeta(total,totalPages){
   if(el.tableMeta){
-    el.tableMeta.textContent=`${total} resultados · ${st.selected_products.length} en grafico`;
+    el.tableMeta.textContent=`${total} resultados Â· ${st.selected_products.length} en grafico`;
   }
   if(el.pageInfo){
     el.pageInfo.textContent=`${st.current_page} / ${totalPages}`;
@@ -2713,6 +2753,135 @@ function toSeriesForMainChart(rows){
       color:COLORS[i%COLORS.length]
     };
   }).filter(s=>s.points.length>0);
+}
+
+function hasPlotly(){
+  return typeof window.Plotly==="object" && typeof window.Plotly.react==="function";
+}
+
+function niceStep(raw){
+  if(!Number.isFinite(raw) || raw<=0) return 1;
+  const power=Math.pow(10, Math.floor(Math.log10(raw)));
+  const normalized=raw/power;
+  if(normalized<=1) return 1*power;
+  if(normalized<=2) return 2*power;
+  if(normalized<=5) return 5*power;
+  return 10*power;
+}
+
+function niceRange(minVal,maxVal,targetTicks=6,padRatio=0.08){
+  if(!Number.isFinite(minVal) || !Number.isFinite(maxVal)){
+    return {min:0,max:1,dtick:0.2};
+  }
+  if(minVal===maxVal){
+    const abs=Math.abs(minVal)||1;
+    return {min:minVal-abs*0.2,max:maxVal+abs*0.2,dtick:abs*0.1};
+  }
+  const span=maxVal-minVal;
+  const paddedMin=minVal-(span*padRatio);
+  const paddedMax=maxVal+(span*padRatio);
+  const step=niceStep((paddedMax-paddedMin)/Math.max(2,targetTicks-1));
+  const niceMin=Math.floor(paddedMin/step)*step;
+  const niceMax=Math.ceil(paddedMax/step)*step;
+  return {min:niceMin,max:niceMax,dtick:step};
+}
+
+function drawPlotlyChart(container,legend,series,yLabel,xLabel="Tiempo",opts={}){
+  container.innerHTML="";
+  legend.innerHTML="";
+  if(!hasPlotly()){
+    return false;
+  }
+  const options=opts||{};
+  const normalizedSeries=(series||[]).map(s=>({
+    ...s,
+    points:(s.points||[]).map(pt=>({
+      x:pt?.x instanceof Date ? pt.x : new Date(pt?.x),
+      y:Number(pt?.y),
+    })).filter(pt=>Number.isFinite(pt.x.getTime()) && Number.isFinite(pt.y))
+  })).filter(s=>s.points.length>0);
+  if(!normalizedSeries.length){
+    return false;
+  }
+  const ys=normalizedSeries.flatMap(s=>s.points.map(pt=>pt.y)).filter(Number.isFinite);
+  if(!ys.length){
+    return false;
+  }
+  const yr=niceRange(Math.min(...ys), Math.max(...ys), Number(options.targetTicks||6), Number(options.padRatio||0.08));
+  const xTimes=normalizedSeries.flatMap(s=>s.points.map(pt=>pt.x.getTime())).filter(Number.isFinite);
+  const minX=xTimes.length?Math.min(...xTimes):NaN;
+  const maxX=xTimes.length?Math.max(...xTimes):NaN;
+  const daySpan=Number.isFinite(minX)&&Number.isFinite(maxX) ? ((maxX-minX)/86400000) : 0;
+  const xTickFormat=String(options.xTickFormat||(
+    daySpan<=45 ? "%d %b" :
+    daySpan<=420 ? "%b %Y" :
+    "%Y"
+  ));
+  const yAxisKind=String(options.yAxisKind||"number");
+  const yTickFormat=String(options.yTickFormat||(yAxisKind==="ars"?",.0f":",.2f"));
+  const yTickPrefix=String(options.yTickPrefix||(yAxisKind==="ars"?"$":""));
+  const yTickSuffix=String(options.yTickSuffix||(yAxisKind==="pp"?" pp":""));
+  const traces=normalizedSeries.map(s=>({
+    type:"scatter",
+    mode:"lines+markers",
+    name:s.name,
+    x:s.points.map(pt=>pt.x),
+    y:s.points.map(pt=>pt.y),
+    line:{color:s.color,width:2.4,shape:"spline",smoothing:0.35},
+    marker:{color:s.color,size:5},
+    customdata:s.points.map(pt=>formatMetricValue(pt.y, String(s.value_kind||options.valueKind||yAxisKind))),
+    hovertemplate:"%{x|%d/%m/%Y}<br>%{customdata}<extra>"+esc(s.name)+"</extra>",
+  }));
+  const layout={
+    paper_bgcolor:"#ffffff",
+    plot_bgcolor:"#ffffff",
+    margin:{l:78,r:20,t:20,b:56},
+    xaxis:{
+      title:{text:xLabel,font:{size:12,color:"#64748b"}},
+      type:"date",
+      tickformat:xTickFormat,
+      showgrid:true,
+      gridcolor:"#e5e7eb",
+      zeroline:false,
+      tickfont:{size:11,color:"#64748b"},
+    },
+    yaxis:{
+      title:{text:yLabel,font:{size:12,color:"#64748b"}},
+      showgrid:true,
+      gridcolor:"#e5e7eb",
+      zeroline:false,
+      range:[yr.min,yr.max],
+      dtick:yr.dtick,
+      tickfont:{size:11,color:"#64748b"},
+      tickformat:yTickFormat,
+      tickprefix:yTickPrefix,
+      ticksuffix:yTickSuffix,
+    },
+    hovermode:"x unified",
+    showlegend:false,
+    font:{family:"Inter, Segoe UI, sans-serif",color:"#1e293b"},
+  };
+  try{
+    window.Plotly.react(container, traces, layout, {
+      displayModeBar:false,
+      responsive:true,
+      staticPlot:false,
+    });
+  }catch(_e){
+    return false;
+  }
+
+  for(const s of normalizedSeries){
+    const latest=s.points[s.points.length-1];
+    const item=document.createElement("div");
+    item.className="item";
+    item.innerHTML=(
+      `<span class="dot" style="background:${s.color}"></span>${esc(s.name)}: `
+      + `<strong>${esc(formatMetricValue(latest?.y, String(s.value_kind||options.valueKind||yAxisKind)))}</strong>`
+    );
+    legend.appendChild(item);
+  }
+  return true;
 }
 
 function drawCanvasChart(container,legend,series,yLabel,xLabel="Tiempo"){
@@ -3002,7 +3171,15 @@ function drawMainChart(rows,force=false){
   _lastMainChartKey=chartKey;
   const series=toSeriesForMainChart(rows);
   const yLabel=st.price_mode==="real"?"Precio real (ARS constantes)":"Precio nominal (ARS)";
-  drawCanvasChart(el.chartMain,el.legendMain,series,yLabel);
+  if(!drawPlotlyChart(el.chartMain,el.legendMain,series,yLabel,"Fecha",{
+    yAxisKind:"ars",
+    yTickFormat:",.0f",
+    yTickPrefix:"$",
+    targetTicks:6,
+    padRatio:0.08
+  })){
+    drawCanvasChart(el.chartMain,el.legendMain,series,yLabel);
+  }
 }
 
 function safeText(value,fallback="N/D"){
@@ -3026,6 +3203,146 @@ function computeIndependentBase100(rows,indexKey){
     if(!Number.isFinite(value)) return null;
     return (value/base)*100;
   });
+}
+
+function drawSecondaryPlotly(container,legend,tracker,official,gap,regionLabel){
+  container.innerHTML="";
+  legend.innerHTML="";
+  if(!hasPlotly()){
+    return false;
+  }
+  const normalizePoints=(rows)=>(
+    (rows||[]).map(pt=>({
+      x:pt?.x instanceof Date ? pt.x : new Date(pt?.x),
+      y:Number(pt?.y),
+    })).filter(pt=>Number.isFinite(pt.x.getTime()) && Number.isFinite(pt.y))
+  );
+  const trackerPts=normalizePoints(tracker);
+  const officialPts=normalizePoints(official);
+  const gapPts=normalizePoints(gap);
+  if(!trackerPts.length && !officialPts.length && !gapPts.length){
+    return false;
+  }
+
+  const indexValues=[...trackerPts,...officialPts].map(pt=>pt.y).filter(Number.isFinite);
+  const gapValues=gapPts.map(pt=>pt.y).filter(Number.isFinite);
+  const yrIndex=indexValues.length ? niceRange(Math.min(...indexValues), Math.max(...indexValues), 6, 0.08) : {min:0,max:1,dtick:0.2};
+  const yrGap=gapValues.length ? niceRange(Math.min(...gapValues), Math.max(...gapValues), 6, 0.12) : null;
+  const xTimes=[...trackerPts,...officialPts,...gapPts].map(pt=>pt.x.getTime()).filter(Number.isFinite);
+  const daySpan=xTimes.length ? (Math.max(...xTimes)-Math.min(...xTimes))/86400000 : 0;
+  const xTickFormat=daySpan<=45 ? "%d %b" : (daySpan<=420 ? "%b %Y" : "%Y");
+
+  const traces=[];
+  if(trackerPts.length){
+    traces.push({
+      type:"scatter",
+      mode:"lines+markers",
+      name:"IPC propio base 100",
+      x:trackerPts.map(pt=>pt.x),
+      y:trackerPts.map(pt=>pt.y),
+      line:{color:"#005f73",width:2.4,shape:"spline",smoothing:0.3},
+      marker:{color:"#005f73",size:5},
+      customdata:trackerPts.map(pt=>formatMetricValue(pt.y,"index")),
+      hovertemplate:"%{x|%m/%Y}<br>%{customdata}<extra>IPC propio</extra>",
+      yaxis:"y",
+    });
+  }
+  if(officialPts.length){
+    traces.push({
+      type:"scatter",
+      mode:"lines+markers",
+      name:`IPC ${regionLabel} base 100`,
+      x:officialPts.map(pt=>pt.x),
+      y:officialPts.map(pt=>pt.y),
+      line:{color:"#ca6702",width:2.4,shape:"spline",smoothing:0.3},
+      marker:{color:"#ca6702",size:5},
+      customdata:officialPts.map(pt=>formatMetricValue(pt.y,"index")),
+      hovertemplate:"%{x|%m/%Y}<br>%{customdata}<extra>IPC oficial</extra>",
+      yaxis:"y",
+    });
+  }
+  if(gapPts.length){
+    traces.push({
+      type:"scatter",
+      mode:"lines+markers",
+      name:"Brecha (pp)",
+      x:gapPts.map(pt=>pt.x),
+      y:gapPts.map(pt=>pt.y),
+      line:{color:"#9b2226",width:2.1,dash:"dot"},
+      marker:{color:"#9b2226",size:5},
+      customdata:gapPts.map(pt=>formatMetricValue(pt.y,"pp")),
+      hovertemplate:"%{x|%m/%Y}<br>%{customdata}<extra>Brecha</extra>",
+      yaxis:"y2",
+    });
+  }
+
+  const layout={
+    paper_bgcolor:"#ffffff",
+    plot_bgcolor:"#ffffff",
+    margin:{l:78,r:gapPts.length?74:20,t:20,b:56},
+    xaxis:{
+      title:{text:"Mes",font:{size:12,color:"#64748b"}},
+      type:"date",
+      tickformat:xTickFormat,
+      showgrid:true,
+      gridcolor:"#e5e7eb",
+      zeroline:false,
+      tickfont:{size:11,color:"#64748b"},
+    },
+    yaxis:{
+      title:{text:"Indice base 100",font:{size:12,color:"#64748b"}},
+      showgrid:true,
+      gridcolor:"#e5e7eb",
+      zeroline:false,
+      range:[yrIndex.min,yrIndex.max],
+      dtick:yrIndex.dtick,
+      tickfont:{size:11,color:"#64748b"},
+      tickformat:",.2f",
+    },
+    hovermode:"x unified",
+    showlegend:false,
+    font:{family:"Inter, Segoe UI, sans-serif",color:"#1e293b"},
+  };
+  if(yrGap){
+    layout.yaxis2={
+      title:{text:"Brecha (pp)",font:{size:12,color:"#64748b"}},
+      overlaying:"y",
+      side:"right",
+      showgrid:false,
+      zeroline:false,
+      range:[yrGap.min,yrGap.max],
+      dtick:yrGap.dtick,
+      tickfont:{size:11,color:"#64748b"},
+      tickformat:",.2f",
+      ticksuffix:" pp",
+    };
+  }
+
+  try{
+    window.Plotly.react(container, traces, layout, {
+      displayModeBar:false,
+      responsive:true,
+      staticPlot:false,
+    });
+  }catch(_e){
+    return false;
+  }
+
+  traces.forEach((trace)=>{
+    const values=Array.isArray(trace.y)?trace.y:[];
+    const latestValue=values.length?values[values.length-1]:null;
+    const item=document.createElement("div");
+    item.className="item";
+    const color=trace?.line?.color||"#475569";
+    const kind=trace.name==="Brecha (pp)"?"pp":"index";
+    item.innerHTML=(
+      `<span class="dot" style="background:${color}"></span>${esc(trace.name)}: `
+      + `<strong>${esc(formatMetricValue(latestValue,kind))}</strong>`
+    );
+    legend.appendChild(item);
+  });
+
+  return true;
 }
 
 function drawSecondaryChart(force=false){
@@ -3156,11 +3473,13 @@ function drawSecondaryChart(force=false){
     .map(x=>({x:new Date(`${x.year_month}-01T00:00:00`),y:x.gap_index_points}))
     .filter(x=>x.y!=null);
   const series=[
-    {name:"IPC propio base 100",points:tracker,color:"#005f73"},
-    {name:`IPC ${regionLabel} base 100`,points:official,color:"#ca6702"},
-    {name:"Brecha (puntos)",points:gap,color:"#9b2226"}
+    {name:"IPC propio base 100",points:tracker,color:"#005f73",value_kind:"index"},
+    {name:`IPC ${regionLabel} base 100`,points:official,color:"#ca6702",value_kind:"index"},
+    {name:"Brecha (pp)",points:gap,color:"#9b2226",value_kind:"pp"}
   ].filter(s=>s.points.length>0);
-  drawCanvasChart(el.chartSecondary,el.legendSecondary,series,"Indice base 100 / brecha");
+  if(!drawSecondaryPlotly(el.chartSecondary,el.legendSecondary,tracker,official,gap,regionLabel)){
+    drawCanvasChart(el.chartSecondary,el.legendSecondary,series,"Indice base 100 / brecha");
+  }
 
   if(el.macroNotice){
     const latestTrackerMonth=safeText((p.publication_status_by_region?.[region]||{}).latest_tracker_month, null)
@@ -3192,7 +3511,7 @@ function drawSecondaryChart(force=false){
     const comparability=strictComparable ? "comparables" : "parcial";
     const originLabel=statusOrigin==="derived_from_series" ? "derivado de series" : "publicacion";
     el.macroStatus.textContent=
-      `Macro: ${regionLabel} · Tracker ${trackerMonth} · Oficial ${officialMonth} · ${comparability}`;
+      `Macro: ${regionLabel} | Tracker ${trackerMonth} | Oficial ${officialMonth} | ${comparability}`;
     if(el.macroDetailText){
       el.macroDetailText.textContent=
         `${macroLabel}. Estado tracker: ${trackerStatus}. Estado oficial: ${officialStatus}. `
@@ -3246,11 +3565,19 @@ function drawBandChart(rows){
   const mid=src.map(x=>({x:new Date(x.scraped_at),y:x.mid_price})).filter(x=>x.y!=null);
   const high=src.map(x=>({x:new Date(x.scraped_at),y:x.high_price})).filter(x=>x.y!=null);
   const series=[
-    {name:"Low",points:low,color:"#6c757d"},
-    {name:"Mid (representativo)",points:mid,color:"#005f73"},
-    {name:"High",points:high,color:"#ca6702"},
+    {name:"Low",points:low,color:"#6c757d",value_kind:"ars"},
+    {name:"Mid (representativo)",points:mid,color:"#005f73",value_kind:"ars"},
+    {name:"High",points:high,color:"#ca6702",value_kind:"ars"},
   ].filter(s=>s.points.length>0);
-  drawCanvasChart(el.chartBands,el.legendBands,series,"Precio nominal (ARS)");
+  if(!drawPlotlyChart(el.chartBands,el.legendBands,series,"Precio nominal (ARS)","Fecha",{
+    yAxisKind:"ars",
+    yTickFormat:",.0f",
+    yTickPrefix:"$",
+    targetTicks:6,
+    padRatio:0.08
+  })){
+    drawCanvasChart(el.chartBands,el.legendBands,series,"Precio nominal (ARS)");
+  }
 
   const latest=src[src.length-1]||{};
   if(el.bandMeta){
@@ -3271,6 +3598,7 @@ function drawTable(rows){
   }
   for(const r of pageRows){
     const tr=document.createElement("tr");
+    tr.className="row-main";
     const name=esc(r.product_name||r.canonical_id);
     const linked=r.product_url
       ? `<a href="${esc(r.product_url)}" target="_blank" rel="noopener noreferrer" title="${name}">${name}</a>`
@@ -3286,6 +3614,31 @@ function drawTable(rows){
       ${st.show_real_column?`<td class="num"><span class="${realCls}">${trendIcon(r.variation_real_pct)} ${pctSigned(r.variation_real_pct)}</span></td>`:""}
     `;
     el.tb.appendChild(tr);
+
+    const triplet=(candidateTripletsById||{})[r.canonical_id]||{};
+    ["low","mid","high"].forEach((tier)=>{
+      const candidate=triplet[tier]||null;
+      const candidateNameRaw=candidate?.candidate_name||"N/D";
+      const candidateName=esc(candidateNameRaw);
+      const candidateUrl=String(candidate?.candidate_url||"").trim();
+      const candidateLinked=(candidateUrl && candidateNameRaw!=="N/D")
+        ? `<a href="${esc(candidateUrl)}" target="_blank" rel="noopener noreferrer">${candidateName}</a>`
+        : `<span>${candidateName}</span>`;
+      const candidatePrice=(candidate?.candidate_price!=null) ? money(candidate.candidate_price) : "N/D";
+      const tierLabel=tier==="mid"?"Mid":"Low";
+      const tierFinal=tier==="high"?"High":tierLabel;
+      const tierClass=tier==="mid"?"tier-mid":(tier==="high"?"tier-high":"tier-low");
+      const sub=document.createElement("tr");
+      sub.className=`row-candidate ${tierClass}`;
+      sub.innerHTML=`
+        <td><span class="candidate-tier">${tierFinal}</span></td>
+        <td>${candidateLinked}</td>
+        <td class="num">${candidatePrice}</td>
+        <td class="num muted">-</td>
+        ${st.show_real_column?`<td class="num muted">-</td>`:""}
+      `;
+      el.tb.appendChild(sub);
+    });
   }
 }
 
@@ -3356,13 +3709,13 @@ function drawQuality(){
   if(el.qualityMacro){
     el.qualityMacro.textContent=
       `Tracker IPC: ${(trackerSeries[0]?.year_month)||"N/D"} a ${(latestTracker?.year_month)||"N/D"} `
-      + `· estado ${(safeText(latestTracker?.status) || "N/D")}.`;
+      + `Â· estado ${(safeText(latestTracker?.status) || "N/D")}.`;
   }
   el.qualityIpc.textContent=
-    `IPC oficial (${regionLabel}): ${(latestOfficial?.year_month)||"N/D"} · `
-    + `fuente ${(pub.official_source_effective)||pub.official_source||"N/D"} · `
+    `IPC oficial (${regionLabel}): ${(latestOfficial?.year_month)||"N/D"} Â· `
+    + `fuente ${(pub.official_source_effective)||pub.official_source||"N/D"} Â· `
     + `estado ${(pub.status)||"sin_publicacion"}`
-    + `${safeText(pub.status_origin,"publication_run")==="derived_from_series" ? " (derivado)." : ""} · `
+    + `${safeText(pub.status_origin,"publication_run")==="derived_from_series" ? " (derivado)." : ""} Â· `
     + `sin IPC: ${missingMonths.length? missingMonths.join(", ") : "ninguno"}.`;
   if(el.qualitySegments){
     el.qualitySegments.textContent=
@@ -3394,7 +3747,7 @@ function drawQuality(){
     const status=p.web_status||"partial";
     const nextRun=p.next_update_eta||"N/D";
     const lastData=p.last_data_timestamp?fmtDate(p.last_data_timestamp):"N/D";
-    el.freshnessMeta.textContent=`Estado: ${status} · Ultimo dato: ${lastData}`;
+    el.freshnessMeta.textContent=`Estado: ${status} Â· Ultimo dato: ${lastData}`;
     el.freshnessMeta.title=`Proxima corrida: ${nextRun}`;
   }
 }
@@ -4117,3 +4470,4 @@ def run_report(
             analysis_depth=analysis_depth,
             offline_assets=offline_assets,
         )
+

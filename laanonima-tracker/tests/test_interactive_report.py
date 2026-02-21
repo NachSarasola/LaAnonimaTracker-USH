@@ -8,7 +8,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.models import Price, Product, ScrapeRun, get_engine, get_session_factory, init_db
+from src.models import Price, PriceCandidate, Product, ScrapeRun, get_engine, get_session_factory, init_db
 from src.reporting import ReportGenerator
 
 
@@ -90,6 +90,49 @@ class TestInteractiveReport(unittest.TestCase):
                 ),
             ]
         )
+        self.session.add_all(
+            [
+                PriceCandidate(
+                    run_id=run.id,
+                    canonical_id="prod_1",
+                    basket_id="cba",
+                    product_id="cand-low-1",
+                    product_name="Leche Entera 1L",
+                    tier="low",
+                    candidate_rank=1,
+                    candidate_price=95,
+                    candidate_name="Leche Marca A 1L",
+                    candidate_url="https://www.laanonima.com.ar/producto/art_low_1",
+                    scraped_at=datetime(2024, 2, 5, 10, 0, 0),
+                ),
+                PriceCandidate(
+                    run_id=run.id,
+                    canonical_id="prod_1",
+                    basket_id="cba",
+                    product_id="cand-mid-1",
+                    product_name="Leche Entera 1L",
+                    tier="mid",
+                    candidate_rank=2,
+                    candidate_price=120,
+                    candidate_name="Leche Marca B 1L",
+                    candidate_url="https://www.laanonima.com.ar/producto/art_mid_1",
+                    scraped_at=datetime(2024, 2, 5, 10, 0, 0),
+                ),
+                PriceCandidate(
+                    run_id=run.id,
+                    canonical_id="prod_1",
+                    basket_id="cba",
+                    product_id="cand-high-1",
+                    product_name="Leche Entera 1L",
+                    tier="high",
+                    candidate_rank=3,
+                    candidate_price=139,
+                    candidate_name="Leche Marca C 1L",
+                    candidate_url="https://www.laanonima.com.ar/producto/art_high_1",
+                    scraped_at=datetime(2024, 2, 5, 10, 0, 0),
+                ),
+            ]
+        )
         self.session.commit()
 
     def test_payload_contract_contains_required_fields(self):
@@ -147,6 +190,47 @@ class TestInteractiveReport(unittest.TestCase):
         result = self.generator.generate(from_month="2024-01", to_month="2024-02", basket_type="all")
         html = Path(result["artifacts"]["html_path"]).read_text(encoding="utf-8")
         self.assertNotIn("https://cdn.plot.ly", html)
+
+    def test_payload_includes_candidate_triplets_latest_by_id(self):
+        self._seed()
+        df = self.generator._load_prices("2024-01", "2024-02", "all")
+        payload = self.generator._build_interactive_payload(df, "2024-01", "2024-02", "all")
+
+        triplets = payload.get("candidate_triplets_latest_by_id", {})
+        self.assertIn("prod_1", triplets)
+        self.assertIn("low", triplets["prod_1"])
+        self.assertIn("mid", triplets["prod_1"])
+        self.assertIn("high", triplets["prod_1"])
+        self.assertEqual(triplets["prod_1"]["low"]["candidate_name"], "Leche Marca A 1L")
+        self.assertIn("art_low_1", str(triplets["prod_1"]["low"]["candidate_url"]))
+
+    def test_render_contains_candidate_subrows_with_links(self):
+        self._seed()
+        df = self.generator._load_prices("2024-01", "2024-02", "all")
+        payload = self.generator._build_interactive_payload(df, "2024-01", "2024-02", "all")
+        html = self.generator._render_interactive_html(payload, "2026-02-21 00:00:00 UTC")
+
+        self.assertIn("candidateTripletsById", html)
+        self.assertIn("row-candidate", html)
+        self.assertIn("candidate-tier", html)
+        self.assertIn("target=\"_blank\" rel=\"noopener noreferrer\"", html)
+
+    def test_plotly_mode_uses_normalized_axis_config_and_canvas_fallback(self):
+        self._seed()
+        result = self.generator.generate(
+            from_month="2024-01",
+            to_month="2024-02",
+            basket_type="all",
+            offline_assets="external",
+        )
+        html = Path(result["artifacts"]["html_path"]).read_text(encoding="utf-8")
+
+        self.assertIn("function niceStep(raw)", html)
+        self.assertIn("function niceRange(minVal,maxVal,targetTicks=6,padRatio=0.08)", html)
+        self.assertIn("dtick:yr.dtick", html)
+        self.assertIn("drawSecondaryPlotly(", html)
+        self.assertIn("if(!hasPlotly())", html)
+        self.assertIn("drawCanvasChart(", html)
 
 
 if __name__ == "__main__":

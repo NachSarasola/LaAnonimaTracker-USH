@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from functools import lru_cache
 from pathlib import Path
 
@@ -36,6 +37,10 @@ def _build_bundle(*parts: str) -> str:
     return "\n\n".join(chunks) + "\n"
 
 
+def _bundle_version(css: str) -> str:
+    return hashlib.sha256(css.encode("utf-8")).hexdigest()[:12]
+
+
 @lru_cache(maxsize=1)
 def get_shell_css_bundle() -> str:
     return _build_bundle(*_BASE_PARTS, *_SHELL_PARTS, *_UTILITY_PARTS)
@@ -45,3 +50,12 @@ def get_shell_css_bundle() -> str:
 def get_tracker_css_bundle() -> str:
     return _build_bundle(*_BASE_PARTS, *_TRACKER_PARTS, *_UTILITY_PARTS)
 
+
+@lru_cache(maxsize=1)
+def get_shell_css_version() -> str:
+    return _bundle_version(get_shell_css_bundle())
+
+
+@lru_cache(maxsize=1)
+def get_tracker_css_version() -> str:
+    return _bundle_version(get_tracker_css_bundle())

@@ -493,6 +493,798 @@ baskets:
         quantity: 1
         matching: "loose"
 
+      - id: "ext_arroz_integral"
+        name: "Arroz integral"
+        keywords: ["arroz integral", "arroz integral largo"]
+        category: "legumbres"
+        unit: "kg"
+        quantity: 1
+        matching: "loose"
+
+      - id: "ext_arroz_parboil"
+        name: "Arroz parboil"
+        keywords: ["arroz parboil", "arroz fortificado"]
+        category: "legumbres"
+        unit: "kg"
+        quantity: 1
+        matching: "loose"
+
+      - id: "ext_arroz_yaman"
+        name: "Arroz yamaní"
+        keywords: ["arroz yamani", "arroz yamaní"]
+        category: "legumbres"
+        unit: "kg"
+        quantity: 1
+        matching: "loose"
+
+      - id: "ext_fideos_spaghetti"
+        name: "Fideos spaghetti"
+        keywords: ["fideos spaghetti", "spaghetti"]
+        category: "legumbres"
+        unit: "kg"
+        quantity: 1
+        matching: "loose"
+
+      - id: "ext_fideos_tallarines"
+        name: "Fideos tallarines"
+        keywords: ["fideos tallarines", "tallarines"]
+        category: "legumbres"
+        unit: "kg"
+        quantity: 1
+        matching: "loose"
+
+      - id: "ext_fideos_mono"
+        name: "Fideos moño"
+        keywords: ["fideos mono", "fideos moño", "fideos moñito"]
+        category: "legumbres"
+        unit: "kg"
+        quantity: 1
+        matching: "loose"
+
+      - id: "ext_fideos_codito"
+        name: "Fideos codito"
+        keywords: ["fideos codito", "codito"]
+        category: "legumbres"
+        unit: "kg"
+        quantity: 1
+        matching: "loose"
+
+      - id: "ext_salsa_filetto"
+        name: "Salsa filetto"
+        keywords: ["salsa filetto", "salsa de tomate filetto"]
+        category: "conservas"
+        unit: "unidad"
+        quantity: 2
+        matching: "loose"
+
+      - id: "ext_salsa_tuco"
+        name: "Salsa tuco"
+        keywords: ["salsa tuco", "tuco"]
+        category: "conservas"
+        unit: "unidad"
+        quantity: 2
+        matching: "loose"
+
+      - id: "ext_lentejas_secas"
+        name: "Lentejas secas"
+        keywords: ["lentejas secas", "lentejas"]
+        category: "legumbres"
+        unit: "kg"
+        quantity: 1
+        matching: "loose"
+
+      - id: "ext_garbanzos_secos"
+        name: "Garbanzos secos"
+        keywords: ["garbanzos secos", "garbanzos"]
+        category: "legumbres"
+        unit: "kg"
+        quantity: 1
+        matching: "loose"
+
+      - id: "ext_porotos_colorados"
+        name: "Porotos colorados"
+        keywords: ["porotos colorados", "porotos rojos"]
+        category: "legumbres"
+        unit: "kg"
+        quantity: 1
+        matching: "loose"
+
+      - id: "ext_pure_inst"
+        name: "Pure instantaneo"
+        keywords: ["pure instantaneo", "pure en escamas"]
+        category: "almacen"
+        unit: "unidad"
+        quantity: 1
+        matching: "loose"
+
+      - id: "ext_polenta"
+        name: "Polenta"
+        keywords: ["polenta", "harina de maiz polenta"]
+        category: "almacen"
+        unit: "kg"
+        quantity: 1
+        matching: "loose"
+
+      - id: "ext_semola"
+        name: "Semola"
+        keywords: ["semola", "sémola"]
+        category: "almacen"
+        unit: "kg"
+        quantity: 1
+        matching: "loose"
+
+      - id: "ext_pan_lactal"
+        name: "Pan lactal"
+        keywords: ["pan lactal", "pan de molde"]
+        category: "panaderia"
+        unit: "unidad"
+        quantity: 1
+        matching: "loose"
+
+      - id: "ext_pan_rallado"
+        name: "Pan rallado"
+        keywords: ["pan rallado"]
+        category: "panaderia"
+        unit: "unidad"
+        quantity: 1
+        matching: "loose"
+
+      - id: "ext_levadura"
+        name: "Levadura"
+        keywords: ["levadura", "levadura seca"]
+        category: "panaderia"
+        unit: "unidad"
+        quantity: 1
+        matching: "loose"
+
+      - id: "ext_cacao_polvo"
+        name: "Cacao en polvo"
+        keywords: ["cacao en polvo", "cacao polvo"]
+        category: "almacen"
+        unit: "unidad"
+        quantity: 1
+        matching: "loose"
+
+      - id: "ext_cereal_maiz"
+        name: "Cereal de maiz"
+        keywords: ["cereal maiz", "copos maiz"]
+        category: "almacen"
+        unit: "unidad"
+        quantity: 1
+        matching: "loose"
+
+      - id: "ext_avena"
+        name: "Avena"
+        keywords: ["avena", "avena instantanea"]
+        category: "almacen"
+        unit: "kg"
+        quantity: 1
+        matching: "loose"
+
+      - id: "ext_granola"
+        name: "Granola"
+        keywords: ["granola"]
+        category: "almacen"
+        unit: "unidad"
+        quantity: 1
+        matching: "loose"
+
+      - id: "ext_miel"
+        name: "Miel"
+        keywords: ["miel"]
+        category: "azucar"
+        unit: "unidad"
+        quantity: 1
+        matching: "loose"
+
+      - id: "ext_dulce_membrillo"
+        name: "Dulce de membrillo"
+        keywords: ["dulce de membrillo", "membrillo"]
+        category: "azucar"
+        unit: "unidad"
+        quantity: 1
+        matching: "loose"
+
+      - id: "ext_harina_leudante"
+        name: "Harina leudante"
+        keywords: ["harina leudante"]
+        category: "panaderia"
+        unit: "kg"
+        quantity: 1
+        matching: "loose"
+
+      - id: "ext_harina_maiz"
+        name: "Harina de maiz"
+        keywords: ["harina maiz", "harina de maiz"]
+        category: "panaderia"
+        unit: "kg"
+        quantity: 1
+        matching: "loose"
+
+      - id: "ext_sal_gruesa"
+        name: "Sal gruesa"
+        keywords: ["sal gruesa", "sal parrillera"]
+        category: "condimentos"
+        unit: "kg"
+        quantity: 1
+        matching: "loose"
+
+      - id: "ext_pimienta_molida"
+        name: "Pimienta molida"
+        keywords: ["pimienta molida", "pimienta"]
+        category: "condimentos"
+        unit: "unidad"
+        quantity: 1
+        matching: "loose"
+
+      - id: "ext_oregano"
+        name: "Oregano"
+        keywords: ["oregano", "orégano"]
+        category: "condimentos"
+        unit: "unidad"
+        quantity: 1
+        matching: "loose"
+
+      - id: "ext_vinagre_alcohol"
+        name: "Vinagre de alcohol"
+        keywords: ["vinagre alcohol", "vinagre de alcohol"]
+        category: "condimentos"
+        unit: "litro"
+        quantity: 1
+        matching: "loose"
+
+      - id: "ext_ketchup"
+        name: "Ketchup"
+        keywords: ["ketchup", "catsup"]
+        category: "condimentos"
+        unit: "unidad"
+        quantity: 1
+        matching: "loose"
+
+      - id: "ext_mostaza"
+        name: "Mostaza"
+        keywords: ["mostaza"]
+        category: "condimentos"
+        unit: "unidad"
+        quantity: 1
+        matching: "loose"
+
+      - id: "ext_salsa_soja"
+        name: "Salsa de soja"
+        keywords: ["salsa soja", "salsa de soja"]
+        category: "condimentos"
+        unit: "unidad"
+        quantity: 1
+        matching: "loose"
+
+      - id: "ext_mani_tostado"
+        name: "Mani tostado"
+        keywords: ["mani tostado", "mani"]
+        category: "almacen"
+        unit: "unidad"
+        quantity: 1
+        matching: "loose"
+
+      - id: "ext_papas_snack"
+        name: "Papas snack"
+        keywords: ["papas snack", "papas fritas"]
+        category: "almacen"
+        unit: "unidad"
+        quantity: 1
+        matching: "loose"
+
+      - id: "ext_barra_cereal"
+        name: "Barra de cereal"
+        keywords: ["barra cereal", "barra de cereal"]
+        category: "almacen"
+        unit: "unidad"
+        quantity: 2
+        matching: "loose"
+
+      - id: "ext_galletas_saladas"
+        name: "Galletas saladas"
+        keywords: ["galletas saladas", "galletitas saladas"]
+        category: "panaderia"
+        unit: "unidad"
+        quantity: 2
+        matching: "loose"
+
+      - id: "ext_crackers_integrales"
+        name: "Crackers integrales"
+        keywords: ["crackers integrales", "galletitas integrales"]
+        category: "panaderia"
+        unit: "unidad"
+        quantity: 2
+        matching: "loose"
+
+      - id: "ext_tostadas"
+        name: "Tostadas"
+        keywords: ["tostadas", "tostadas integrales"]
+        category: "panaderia"
+        unit: "unidad"
+        quantity: 2
+        matching: "loose"
+
+      - id: "ext_tapas_empanadas"
+        name: "Tapas para empanadas"
+        keywords: ["tapas empanadas", "tapas para empanadas"]
+        category: "panaderia"
+        unit: "unidad"
+        quantity: 1
+        matching: "loose"
+
+      - id: "ext_tapas_pascualina"
+        name: "Tapas para pascualina"
+        keywords: ["tapas pascualina", "tapas para pascualina"]
+        category: "panaderia"
+        unit: "unidad"
+        quantity: 1
+        matching: "loose"
+
+      - id: "ext_aceitunas_verdes"
+        name: "Aceitunas verdes"
+        keywords: ["aceitunas verdes", "aceitunas"]
+        category: "conservas"
+        unit: "unidad"
+        quantity: 1
+        matching: "loose"
+
+      - id: "ext_palmitos"
+        name: "Palmitos"
+        keywords: ["palmitos"]
+        category: "conservas"
+        unit: "unidad"
+        quantity: 1
+        matching: "loose"
+
+      - id: "ext_jardinera_lata"
+        name: "Jardinera en lata"
+        keywords: ["jardinera lata", "jardinera en lata"]
+        category: "conservas"
+        unit: "unidad"
+        quantity: 1
+        matching: "loose"
+
+      - id: "ext_sardinas_lata"
+        name: "Sardinas en lata"
+        keywords: ["sardinas lata", "sardinas en lata"]
+        category: "conservas"
+        unit: "unidad"
+        quantity: 1
+        matching: "loose"
+
+      - id: "ext_caballa_lata"
+        name: "Caballa en lata"
+        keywords: ["caballa lata", "caballa en lata"]
+        category: "conservas"
+        unit: "unidad"
+        quantity: 1
+        matching: "loose"
+
+      - id: "ext_lentejas_lata"
+        name: "Lentejas en lata"
+        keywords: ["lentejas lata", "lentejas en lata"]
+        category: "conservas"
+        unit: "unidad"
+        quantity: 1
+        matching: "loose"
+
+      - id: "ext_ensalada_frutas_lata"
+        name: "Ensalada de frutas en lata"
+        keywords: ["ensalada frutas lata", "ensalada de frutas en lata"]
+        category: "conservas"
+        unit: "unidad"
+        quantity: 1
+        matching: "loose"
+
+      - id: "ext_anana_lata"
+        name: "Anana en lata"
+        keywords: ["anana lata", "ananá en lata", "piña en lata"]
+        category: "conservas"
+        unit: "unidad"
+        quantity: 1
+        matching: "loose"
+
+      - id: "ext_durazno_lata"
+        name: "Durazno en lata"
+        keywords: ["durazno lata", "durazno en lata"]
+        category: "conservas"
+        unit: "unidad"
+        quantity: 1
+        matching: "loose"
+
+      - id: "ext_agua_sin_gas"
+        name: "Agua mineral sin gas"
+        keywords: ["agua sin gas", "agua mineral sin gas"]
+        category: "bebidas"
+        unit: "litro"
+        quantity: 6
+        matching: "loose"
+
+      - id: "ext_agua_con_gas"
+        name: "Agua mineral con gas"
+        keywords: ["agua con gas", "agua mineral con gas"]
+        category: "bebidas"
+        unit: "litro"
+        quantity: 4
+        matching: "loose"
+
+      - id: "ext_agua_saborizada"
+        name: "Agua saborizada"
+        keywords: ["agua saborizada"]
+        category: "bebidas"
+        unit: "litro"
+        quantity: 3
+        matching: "loose"
+
+      - id: "ext_gaseosa_cola"
+        name: "Gaseosa cola"
+        keywords: ["gaseosa cola", "cola"]
+        category: "bebidas"
+        unit: "litro"
+        quantity: 2
+        matching: "loose"
+
+      - id: "ext_gaseosa_limon"
+        name: "Gaseosa limon"
+        keywords: ["gaseosa limon", "gaseosa limón", "limonada gasificada"]
+        category: "bebidas"
+        unit: "litro"
+        quantity: 2
+        matching: "loose"
+
+      - id: "ext_gaseosa_naranja"
+        name: "Gaseosa naranja"
+        keywords: ["gaseosa naranja", "naranja gasificada"]
+        category: "bebidas"
+        unit: "litro"
+        quantity: 2
+        matching: "loose"
+
+      - id: "ext_jugo_tetra"
+        name: "Jugo en tetra"
+        keywords: ["jugo tetra", "jugo en caja"]
+        category: "bebidas"
+        unit: "litro"
+        quantity: 3
+        matching: "loose"
+
+      - id: "ext_jugo_listo"
+        name: "Jugo listo para tomar"
+        keywords: ["jugo listo", "jugo listo para tomar"]
+        category: "bebidas"
+        unit: "litro"
+        quantity: 2
+        matching: "loose"
+
+      - id: "ext_energizante"
+        name: "Bebida energizante"
+        keywords: ["energizante", "bebida energizante"]
+        category: "bebidas"
+        unit: "unidad"
+        quantity: 2
+        matching: "loose"
+
+      - id: "ext_isotonica"
+        name: "Bebida isotonic"
+        keywords: ["isotonica", "isotónica", "bebida isotónica"]
+        category: "bebidas"
+        unit: "unidad"
+        quantity: 2
+        matching: "loose"
+
+      - id: "ext_agua_tonica"
+        name: "Agua tonica"
+        keywords: ["agua tonica", "agua tónica"]
+        category: "bebidas"
+        unit: "litro"
+        quantity: 2
+        matching: "loose"
+
+      - id: "ext_soda_sifon"
+        name: "Soda sifon"
+        keywords: ["soda sifon", "soda sifón"]
+        category: "bebidas"
+        unit: "litro"
+        quantity: 2
+        matching: "loose"
+
+      - id: "ext_cerveza_lager"
+        name: "Cerveza lager"
+        keywords: ["cerveza lager", "cerveza rubia"]
+        category: "bebidas_alcoholicas"
+        unit: "unidad"
+        quantity: 6
+        matching: "loose"
+
+      - id: "ext_cerveza_sin_alcohol"
+        name: "Cerveza sin alcohol"
+        keywords: ["cerveza sin alcohol"]
+        category: "bebidas_alcoholicas"
+        unit: "unidad"
+        quantity: 4
+        matching: "loose"
+
+      - id: "ext_vino_tinto_fino"
+        name: "Vino tinto fino"
+        keywords: ["vino tinto fino", "vino tinto joven"]
+        category: "bebidas_alcoholicas"
+        unit: "litro"
+        quantity: 2
+        matching: "loose"
+
+      - id: "ext_vino_blanco_fino"
+        name: "Vino blanco fino"
+        keywords: ["vino blanco fino", "vino blanco joven"]
+        category: "bebidas_alcoholicas"
+        unit: "litro"
+        quantity: 2
+        matching: "loose"
+
+      - id: "ext_cafe_instantaneo"
+        name: "Cafe instantaneo"
+        keywords: ["cafe instantaneo", "café instantáneo"]
+        category: "bebidas"
+        unit: "unidad"
+        quantity: 1
+        matching: "loose"
+
+      - id: "ext_mate_cocido"
+        name: "Mate cocido"
+        keywords: ["mate cocido", "saquitos mate cocido"]
+        category: "bebidas"
+        unit: "unidad"
+        quantity: 1
+        matching: "loose"
+
+      - id: "ext_leche_descremada"
+        name: "Leche descremada"
+        keywords: ["leche descremada", "leche descremada fluida"]
+        category: "lacteos"
+        unit: "litro"
+        quantity: 4
+        matching: "loose"
+
+      - id: "ext_leche_larga_vida"
+        name: "Leche larga vida"
+        keywords: ["leche larga vida", "leche uat"]
+        category: "lacteos"
+        unit: "litro"
+        quantity: 4
+        matching: "loose"
+
+      - id: "ext_leche_polvo"
+        name: "Leche en polvo"
+        keywords: ["leche en polvo"]
+        category: "lacteos"
+        unit: "unidad"
+        quantity: 1
+        matching: "loose"
+
+      - id: "ext_yogur_firme"
+        name: "Yogur firme"
+        keywords: ["yogur firme", "yogurt firme"]
+        category: "lacteos"
+        unit: "unidad"
+        quantity: 4
+        matching: "loose"
+
+      - id: "ext_yogur_griego"
+        name: "Yogur griego"
+        keywords: ["yogur griego", "yogurt griego"]
+        category: "lacteos"
+        unit: "unidad"
+        quantity: 2
+        matching: "loose"
+
+      - id: "ext_queso_portsalut"
+        name: "Queso port salut"
+        keywords: ["queso port salut", "port salut"]
+        category: "lacteos"
+        unit: "kg"
+        quantity: 1
+        matching: "loose"
+
+      - id: "ext_queso_mozzarella"
+        name: "Queso mozzarella"
+        keywords: ["queso mozzarella", "muzzarella"]
+        category: "lacteos"
+        unit: "kg"
+        quantity: 1
+        matching: "loose"
+
+      - id: "ext_queso_barra"
+        name: "Queso barra"
+        keywords: ["queso barra"]
+        category: "lacteos"
+        unit: "kg"
+        quantity: 1
+        matching: "loose"
+
+      - id: "ext_crema_leche"
+        name: "Crema de leche"
+        keywords: ["crema de leche", "crema lactea"]
+        category: "lacteos"
+        unit: "unidad"
+        quantity: 2
+        matching: "loose"
+
+      - id: "ext_margarina"
+        name: "Margarina"
+        keywords: ["margarina"]
+        category: "lacteos"
+        unit: "unidad"
+        quantity: 1
+        matching: "loose"
+
+      - id: "ext_huevos_color"
+        name: "Huevos color"
+        keywords: ["huevos color", "huevo color"]
+        category: "huevos"
+        unit: "docena"
+        quantity: 2
+        matching: "loose"
+
+      - id: "ext_hamburguesas_congeladas"
+        name: "Hamburguesas congeladas"
+        keywords: ["hamburguesas congeladas", "medallones carne"]
+        category: "congelados"
+        unit: "unidad"
+        quantity: 2
+        matching: "loose"
+
+      - id: "ext_milanesas_pollo"
+        name: "Milanesas de pollo"
+        keywords: ["milanesas de pollo", "supremas rebozadas"]
+        category: "congelados"
+        unit: "unidad"
+        quantity: 2
+        matching: "loose"
+
+      - id: "ext_medallones_soja"
+        name: "Medallones de soja"
+        keywords: ["medallones soja", "hamburguesas soja"]
+        category: "congelados"
+        unit: "unidad"
+        quantity: 2
+        matching: "loose"
+
+      - id: "ext_papas_congeladas"
+        name: "Papas congeladas"
+        keywords: ["papas congeladas", "papas prefritas"]
+        category: "congelados"
+        unit: "unidad"
+        quantity: 2
+        matching: "loose"
+
+      - id: "ext_verduras_congeladas"
+        name: "Verduras congeladas"
+        keywords: ["verduras congeladas", "mix verduras congeladas"]
+        category: "congelados"
+        unit: "unidad"
+        quantity: 2
+        matching: "loose"
+
+      - id: "ext_pizza_congelada"
+        name: "Pizza congelada"
+        keywords: ["pizza congelada"]
+        category: "congelados"
+        unit: "unidad"
+        quantity: 2
+        matching: "loose"
+
+      - id: "ext_helado_pote"
+        name: "Helado en pote"
+        keywords: ["helado pote", "helado en pote"]
+        category: "congelados"
+        unit: "unidad"
+        quantity: 1
+        matching: "loose"
+
+      - id: "ext_manzana_kg"
+        name: "Manzana por kilo"
+        keywords: ["manzana kg", "manzana roja"]
+        category: "frutas"
+        unit: "kg"
+        quantity: 2
+        matching: "loose"
+
+      - id: "ext_naranja_kg"
+        name: "Naranja por kilo"
+        keywords: ["naranja kg", "naranja jugo"]
+        category: "frutas"
+        unit: "kg"
+        quantity: 2
+        matching: "loose"
+
+      - id: "ext_banana_kg"
+        name: "Banana por kilo"
+        keywords: ["banana kg", "banana ecuador"]
+        category: "frutas"
+        unit: "kg"
+        quantity: 2
+        matching: "loose"
+
+      - id: "ext_tomate_perita"
+        name: "Tomate perita"
+        keywords: ["tomate perita", "tomate"]
+        category: "verduras"
+        unit: "kg"
+        quantity: 2
+        matching: "loose"
+
+      - id: "ext_papa_negra"
+        name: "Papa negra"
+        keywords: ["papa negra", "papas negras"]
+        category: "verduras"
+        unit: "kg"
+        quantity: 2
+        matching: "loose"
+
+      - id: "ext_cebolla_morada"
+        name: "Cebolla morada"
+        keywords: ["cebolla morada", "cebolla roja"]
+        category: "verduras"
+        unit: "kg"
+        quantity: 1
+        matching: "loose"
+
+      - id: "ext_zapallo"
+        name: "Zapallo"
+        keywords: ["zapallo", "zapallo anco"]
+        category: "verduras"
+        unit: "kg"
+        quantity: 1
+        matching: "loose"
+
+      - id: "ext_lechuga_mantecosa"
+        name: "Lechuga mantecosa"
+        keywords: ["lechuga mantecosa", "lechuga"]
+        category: "verduras"
+        unit: "kg"
+        quantity: 1
+        matching: "loose"
+
+      - id: "ext_suavizante"
+        name: "Suavizante para ropa"
+        keywords: ["suavizante ropa", "suavizante"]
+        category: "limpieza"
+        unit: "litro"
+        quantity: 1
+        matching: "loose"
+
+      - id: "ext_jabon_polvo"
+        name: "Jabon en polvo"
+        keywords: ["jabon en polvo", "detergente ropa polvo"]
+        category: "limpieza"
+        unit: "unidad"
+        quantity: 1
+        matching: "loose"
+
+      - id: "ext_toallas_femeninas"
+        name: "Toallas femeninas"
+        keywords: ["toallas femeninas", "toallitas femeninas"]
+        category: "higiene"
+        unit: "unidad"
+        quantity: 1
+        matching: "loose"
+
+      - id: "ext_alimento_perro"
+        name: "Alimento para perro"
+        keywords: ["alimento perro", "balanceado perro"]
+        category: "mascotas"
+        unit: "kg"
+        quantity: 2
+        matching: "loose"
+
+      - id: "ext_alimento_gato"
+        name: "Alimento para gato"
+        keywords: ["alimento gato", "balanceado gato"]
+        category: "mascotas"
+        unit: "kg"
+        quantity: 2
+        matching: "loose"
+
 # Storage Configuration
 # ---------------------
 storage:
@@ -551,13 +1343,21 @@ scraping:
   # Deterministic basket planning for efficient runs
   planning:
     profile_default: "balanced"          # balanced|full|cba_only
-    runtime_budget_minutes: 20
-    rotation_items_default: 4
+    runtime_budget_minutes: 24
+    rotation_items_default: 10
     lookback_runs: 10
     overhead_seconds: 90
     daily_core_ids:
       - "ext_harina"
+      - "ext_arroz_integral"
+      - "ext_fideos_spaghetti"
       - "ext_pure_tomate"
+      - "ext_aceite_oliva"
+      - "ext_azucar_morena"
+      - "ext_leche_descremada"
+      - "ext_yogur_firme"
+      - "ext_huevos_color"
+      - "ext_agua_sin_gas"
       - "ext_atun"
       - "ext_gaseosa"
       - "ext_shampoo"
@@ -566,13 +1366,83 @@ scraping:
       - "ext_papel_higienico"
       - "ext_detergente"
       - "ext_lavandina"
+      - "ext_suavizante"
+      - "ext_toallas_femeninas"
+      - "ext_alimento_perro"
+      - "ext_alimento_gato"
     daily_rotation_ids:
-      - "ext_aceite_oliva"
-      - "ext_azucar_morena"
+      - "ext_arroz_parboil"
+      - "ext_arroz_yaman"
+      - "ext_fideos_tallarines"
+      - "ext_fideos_mono"
+      - "ext_fideos_codito"
       - "ext_galletas_dulces"
+      - "ext_galletas_saladas"
+      - "ext_crackers_integrales"
+      - "ext_tostadas"
+      - "ext_tapas_empanadas"
+      - "ext_tapas_pascualina"
+      - "ext_lentejas_secas"
+      - "ext_garbanzos_secos"
+      - "ext_porotos_colorados"
+      - "ext_polenta"
+      - "ext_semola"
+      - "ext_harina_leudante"
+      - "ext_harina_maiz"
+      - "ext_sal_gruesa"
+      - "ext_oregano"
+      - "ext_pimienta_molida"
+      - "ext_vinagre_alcohol"
+      - "ext_ketchup"
+      - "ext_mostaza"
+      - "ext_salsa_soja"
       - "ext_jugo"
+      - "ext_jugo_tetra"
+      - "ext_jugo_listo"
+      - "ext_agua_con_gas"
+      - "ext_agua_saborizada"
+      - "ext_agua_tonica"
+      - "ext_soda_sifon"
+      - "ext_gaseosa_cola"
+      - "ext_gaseosa_limon"
+      - "ext_gaseosa_naranja"
+      - "ext_cerveza_lager"
+      - "ext_cerveza_sin_alcohol"
+      - "ext_vino_tinto_fino"
+      - "ext_vino_blanco_fino"
+      - "ext_cafe_instantaneo"
+      - "ext_mate_cocido"
+      - "ext_leche_larga_vida"
+      - "ext_leche_polvo"
+      - "ext_yogur_griego"
+      - "ext_queso_portsalut"
+      - "ext_queso_mozzarella"
+      - "ext_queso_barra"
+      - "ext_crema_leche"
+      - "ext_margarina"
+      - "ext_papas_congeladas"
+      - "ext_verduras_congeladas"
+      - "ext_hamburguesas_congeladas"
+      - "ext_milanesas_pollo"
+      - "ext_medallones_soja"
+      - "ext_pizza_congelada"
+      - "ext_helado_pote"
       - "ext_arvejas"
       - "ext_choclo"
+      - "ext_aceitunas_verdes"
+      - "ext_palmitos"
+      - "ext_sardinas_lata"
+      - "ext_caballa_lata"
+      - "ext_lentejas_lata"
+      - "ext_jardinera_lata"
+      - "ext_manzana_kg"
+      - "ext_naranja_kg"
+      - "ext_banana_kg"
+      - "ext_tomate_perita"
+      - "ext_papa_negra"
+      - "ext_cebolla_morada"
+      - "ext_zapallo"
+      - "ext_lechuga_mantecosa"
       - "ext_desodorante"
   
   # Browser settings
@@ -702,6 +1572,8 @@ deployment:
   contact_email: "${PUBLIC_CONTACT_EMAIL:hola@preciosushuaia.com}"
   default_region: "patagonia"
   keep_history_months: 24
+  keep_history_runs: 180
+  history_timezone: "America/Argentina/Ushuaia"
   fresh_max_hours: 36
   # Daily run reference time in UTC (06:10 ART ~= 09:10 UTC)
   schedule_utc: "09:10"

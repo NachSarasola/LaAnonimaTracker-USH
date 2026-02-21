@@ -28,7 +28,7 @@ Usa estos valores en el wizard:
 Luego, al terminar import:
 1. Ir a Pages > `preciosushuaia` > Settings > Builds & deployments.
 2. Desactivar Auto deployments si aparece la opcion.
-   - Si no aparece, no pasa nada: el deploy real igual lo empuja GitHub Action con `cloudflare/pages-action`.
+   - Si no aparece, no pasa nada: el deploy real igual lo empuja GitHub Action con `cloudflare/wrangler-action` (Wrangler v4).
 3. Verificar que el proyecto existe y copiar exactamente su nombre para secret `CLOUDFLARE_PROJECT_NAME`.
 
 ## 2) Secrets en GitHub (Repository Secrets)
@@ -87,6 +87,7 @@ python scripts/prelaunch_check.py --expected-base-url https://preciosushuaia.com
 ```
 
 2. Confirmar deployment exitoso en Pages.
+   - El workflow usa `wrangler pages deploy` (Wrangler v4), evitando warnings deprecados de Wrangler v2.
 3. Smoke test HTTP:
 
 ```bash
@@ -137,3 +138,16 @@ python -m src.cli publish-web --basket all --skip-report --from YYYY-MM --to YYY
 ```
 
 3. Redeploy a Pages y validar endpoints criticos.
+
+## 8) Deploy manual local (opcional)
+
+Si necesitas publicar manualmente desde tu maquina:
+
+```bash
+cd laanonima-tracker
+npx wrangler@4 pages deploy public --project-name preciosushuaia --branch main
+```
+
+Notas:
+- Reemplaza `preciosushuaia` por tu `CLOUDFLARE_PROJECT_NAME` real.
+- Autentica antes con `npx wrangler@4 login` o exporta `CLOUDFLARE_API_TOKEN` y `CLOUDFLARE_ACCOUNT_ID`.

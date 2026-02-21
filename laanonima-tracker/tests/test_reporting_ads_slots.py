@@ -128,7 +128,7 @@ class TestReportingAdsSlots(unittest.TestCase):
         html = html_path.read_text(encoding="utf-8")
         css_path = html_path.parent / "tracker-ui.css"
 
-        self.assertIn('<link rel="stylesheet" href="./tracker-ui.css"/>', html)
+        self.assertIn('<link rel="stylesheet" href="./tracker-ui.css?v=', html)
         self.assertTrue(css_path.exists())
         self.assertGreater(len(css_path.read_text(encoding="utf-8").strip()), 1000)
 

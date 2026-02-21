@@ -34,7 +34,7 @@ concurrency:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 55
+    timeout-minutes: 90
     permissions:
       contents: read
       deployments: write
@@ -129,6 +129,7 @@ jobs:
             --offline-assets external \
             --pdf-policy on_new_month \
             --scrape-failure-mode fallback_skip_if_blocked \
+            --scrape-splits 2 \
             --scrape-block-retries "${BLOCK_RETRIES}" \
             --scrape-block-retry-delay-seconds 45 \
             --max-data-staleness-days "${STALENESS_DAYS}" \
@@ -157,14 +158,15 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      - name: Deploy to Cloudflare Pages
+      - name: Deploy to Cloudflare Pages (Wrangler v4)
         if: ${{ env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != '' && env.CLOUDFLARE_PROJECT_NAME != '' }}
-        uses: cloudflare/pages-action@v1
+        id: cf-pages-deploy
+        uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ env.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
-          projectName: ${{ env.CLOUDFLARE_PROJECT_NAME }}
-          directory: laanonima-tracker/public
+          wranglerVersion: "4"
+          command: pages deploy laanonima-tracker/public --project-name=${{ env.CLOUDFLARE_PROJECT_NAME }} --branch=${{ github.ref_name }}
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Warn if Cloudflare secrets are missing

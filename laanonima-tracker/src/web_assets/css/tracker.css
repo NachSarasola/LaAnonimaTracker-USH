@@ -332,7 +332,7 @@ button.soft:hover{background:#f1f5f9}
 .workspace-grid{
   display:grid;
   gap:16px;
-  grid-template-columns:minmax(0,1.45fr) minmax(320px,.95fr);
+  grid-template-columns:minmax(0,1.75fr) minmax(300px,.75fr);
   align-items:start;
 }
 .workspace-main,.workspace-side{display:grid;gap:16px}
@@ -488,12 +488,13 @@ button.soft:hover{background:#f1f5f9}
   overflow-x:auto;
   border:1px solid var(--line);
   border-radius:14px;
+  background:#fff;
 }
 table{width:100%;border-collapse:separate;border-spacing:0;min-width:720px}
 th,td{
-  padding:9px 7px;
+  padding:10px 8px;
   border-bottom:1px solid #edf2f7;
-  text-align:center;
+  text-align:left;
   font-size:.9rem;
   vertical-align:middle;
 }
@@ -504,21 +505,67 @@ th{
   letter-spacing:.06em;
   background:#f8fafc;
   border-bottom:1px solid var(--line);
+  text-align:left;
 }
 thead th{position:sticky;top:0;z-index:1;backdrop-filter:blur(3px)}
-td:nth-child(2),th:nth-child(2){text-align:center}
-tbody tr:nth-child(even){background:#fbfdff}
+td:nth-child(2),th:nth-child(2){text-align:left}
+tbody tr:nth-child(even){background:#fcfdff}
 tbody tr:hover{background:#f8fafc}
-td.num{text-align:center;font-variant-numeric:tabular-nums;white-space:nowrap}
+td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 a{color:var(--primary);text-decoration:none}
 a:hover{text-decoration:underline;text-decoration-thickness:1.5px}
 td:first-child a{
   display:inline-block;
-  max-width:380px;
+  max-width:460px;
   overflow:hidden;
   text-overflow:ellipsis;
   white-space:nowrap;
   vertical-align:bottom;
+}
+.row-main td:first-child{
+  font-weight:700;
+  color:#0f172a;
+}
+.row-main td{
+  border-bottom:1px solid #e5e7eb;
+}
+.row-candidate td{
+  font-size:.82rem;
+  color:#475569;
+  background:#f8fafc;
+  border-bottom:1px solid #edf2f7;
+}
+.row-candidate td:first-child{
+  padding-left:18px;
+}
+.candidate-tier{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width:46px;
+  padding:2px 8px;
+  border-radius:999px;
+  border:1px solid #dbe2ea;
+  background:#fff;
+  font-size:.72rem;
+  font-weight:700;
+  letter-spacing:.03em;
+  text-transform:uppercase;
+  color:#475569;
+}
+.row-candidate.tier-low .candidate-tier{
+  border-color:#cbd5e1;
+  color:#475569;
+}
+.row-candidate.tier-mid .candidate-tier{
+  border-color:#bfdbfe;
+  color:#1d4ed8;
+  background:#eff6ff;
+}
+.row-candidate.tier-high .candidate-tier{
+  border-color:#fed7aa;
+  color:#9a3412;
+  background:#fff7ed;
 }
 .muted{color:var(--muted)}
 .sr{position:absolute;left:-9999px}

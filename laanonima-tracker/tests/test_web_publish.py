@@ -5,6 +5,7 @@ import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from src.web_publish import StaticWebPublisher
 
@@ -115,6 +116,7 @@ class TestWebPublish(unittest.TestCase):
         self.assertEqual(manifest["status"], "fresh")
         self.assertEqual(manifest["latest_report_path"], "/tracker/")
         self.assertGreaterEqual(len(manifest["history"]), 2)
+        self.assertEqual(manifest["version"], 2)
         self.assertTrue(manifest["ads"]["enabled"])
         self.assertTrue(manifest["premium_placeholders"]["enabled"])
         self.assertEqual(manifest["latest"]["from_month"], "2026-01")
@@ -123,6 +125,10 @@ class TestWebPublish(unittest.TestCase):
         self.assertEqual(manifest["latest"]["web_status"], "fresh")
         self.assertEqual(manifest["publication_policy"], "publish_with_alert_on_partial")
         self.assertIn("publication_policy_summary", manifest)
+        self.assertIn("run_key", manifest["history"][0])
+        self.assertIn("run_date_local", manifest["history"][0])
+        self.assertIn("generated_at_utc", manifest["history"][0])
+        self.assertTrue(str(manifest["history"][0]["report_path"]).startswith("/historico/"))
 
         latest_meta_public = json.loads((self.output_dir / "data" / "latest.metadata.json").read_text(encoding="utf-8"))
         self.assertEqual(latest_meta_public.get("from_month"), "2026-01")
@@ -206,9 +212,9 @@ class TestWebPublish(unittest.TestCase):
         contacto_html = (self.output_dir / "contacto" / "index.html").read_text(encoding="utf-8")
         shell_css = (self.output_dir / "assets" / "css" / "shell-ui.css").read_text(encoding="utf-8")
 
-        self.assertIn("href='/assets/css/shell-ui.css'", home_html)
-        self.assertIn("href='/assets/css/shell-ui.css'", historico_html)
-        self.assertIn("href='/assets/css/shell-ui.css'", contacto_html)
+        self.assertIn("href='/assets/css/shell-ui.css?v=", home_html)
+        self.assertIn("href='/assets/css/shell-ui.css?v=", historico_html)
+        self.assertIn("href='/assets/css/shell-ui.css?v=", contacto_html)
         self.assertNotIn("<style>", home_html)
         self.assertGreater(len(shell_css.strip()), 1000)
 
@@ -221,7 +227,7 @@ class TestWebPublish(unittest.TestCase):
 
         headers = (self.output_dir / "_headers").read_text(encoding="utf-8")
         self.assertIn("/assets/css/*", headers)
-        self.assertIn("max-age=604800", headers)
+        self.assertIn("max-age=31536000, immutable", headers)
 
     def test_web_publish_copies_tracker_css_companion(self):
         now = datetime.now(timezone.utc)
@@ -234,10 +240,10 @@ class TestWebPublish(unittest.TestCase):
         publisher.publish(preferred_html=str(html_path), preferred_metadata=str(metadata_path))
 
         tracker_css = self.output_dir / "tracker" / "tracker-ui.css"
-        month_css = self.output_dir / "historico" / "2026-02" / "tracker-ui.css"
+        month_run_css = list((self.output_dir / "historico" / "2026-02").glob("*/tracker-ui.css"))
 
         self.assertTrue(tracker_css.exists())
-        self.assertTrue(month_css.exists())
+        self.assertTrue(month_run_css)
         self.assertEqual(tracker_css.read_text(encoding="utf-8"), "body{background:#fff;}")
 
     def test_web_publish_writes_tracker_css_fallback_when_companion_missing(self):
@@ -253,10 +259,98 @@ class TestWebPublish(unittest.TestCase):
         publisher.publish(preferred_html=str(html_path), preferred_metadata=str(metadata_path))
 
         tracker_css = self.output_dir / "tracker" / "tracker-ui.css"
-        month_css = self.output_dir / "historico" / "2026-02" / "tracker-ui.css"
+        month_run_css = list((self.output_dir / "historico" / "2026-02").glob("*/tracker-ui.css"))
         self.assertTrue(tracker_css.exists())
-        self.assertTrue(month_css.exists())
+        self.assertTrue(month_run_css)
         self.assertGreater(len(tracker_css.read_text(encoding="utf-8").strip()), 1000)
+
+    def test_web_publish_detects_tracker_css_link_with_query_string(self):
+        now = datetime.now(timezone.utc)
+        html_path, metadata_path = self._write_report("2026-01", "2026-02", now)
+        html_path.write_text(
+            "<!doctype html><html><head><link rel=\"stylesheet\" href=\"./tracker-ui.css?v=123\"/></head><body>report</body></html>",
+            encoding="utf-8",
+        )
+
+        publisher = StaticWebPublisher(self.config)
+        publisher.report_dir = self.report_dir
+        publisher.publish(preferred_html=str(html_path), preferred_metadata=str(metadata_path))
+
+        tracker_css = self.output_dir / "tracker" / "tracker-ui.css"
+        month_run_css = list((self.output_dir / "historico" / "2026-02").glob("*/tracker-ui.css"))
+        self.assertTrue(tracker_css.exists())
+        self.assertTrue(month_run_css)
+        self.assertGreater(len(tracker_css.read_text(encoding="utf-8").strip()), 1000)
+
+    def test_web_publish_normalizes_tracker_css_href_with_version(self):
+        now = datetime.now(timezone.utc)
+        html_path, metadata_path = self._write_report("2026-01", "2026-02", now)
+        html_path.write_text(
+            "<!doctype html><html><head><link rel=\"stylesheet\" href=\"./tracker-ui.css\"/></head><body>report</body></html>",
+            encoding="utf-8",
+        )
+        tracker_css_source = self.report_dir / "tracker-ui.css"
+        tracker_css_source.write_text("body{background:#fff;}", encoding="utf-8")
+
+        publisher = StaticWebPublisher(self.config)
+        publisher.report_dir = self.report_dir
+        publisher.publish(preferred_html=str(html_path), preferred_metadata=str(metadata_path))
+
+        tracker_html = (self.output_dir / "tracker" / "index.html").read_text(encoding="utf-8")
+        month_run_html = list((self.output_dir / "historico" / "2026-02").glob("*/index.html"))[0].read_text(encoding="utf-8")
+        self.assertIn('href="./tracker-ui.css?v=', tracker_html)
+        self.assertIn('href="./tracker-ui.css?v=', month_run_html)
+
+    def test_history_keeps_multiple_runs_same_month(self):
+        now = datetime.now(timezone.utc)
+        html_a, meta_a = self._write_report("2026-01", "2026-02", now - timedelta(hours=2))
+        html_b, meta_b = self._write_report("2026-01", "2026-02", now - timedelta(hours=1))
+
+        publisher = StaticWebPublisher(self.config)
+        publisher.report_dir = self.report_dir
+        publisher.publish(preferred_html=str(html_b), preferred_metadata=str(meta_b))
+
+        run_dirs = [p for p in (self.output_dir / "historico" / "2026-02").iterdir() if p.is_dir()]
+        self.assertGreaterEqual(len(run_dirs), 2)
+        self.assertTrue((self.output_dir / "historico" / "2026-02" / "index.html").exists())
+        manifest = json.loads((self.output_dir / "data" / "manifest.json").read_text(encoding="utf-8"))
+        feb_runs = [row for row in manifest.get("history", []) if row.get("month") == "2026-02"]
+        self.assertGreaterEqual(len(feb_runs), 2)
+
+    def test_history_uses_ushuaia_local_datetime_labels(self):
+        generated = datetime(2026, 2, 21, 12, 30, 0, tzinfo=timezone.utc)
+        html_path, metadata_path = self._write_report("2026-01", "2026-02", generated)
+
+        publisher = StaticWebPublisher(self.config)
+        publisher.report_dir = self.report_dir
+        publisher.publish(preferred_html=str(html_path), preferred_metadata=str(metadata_path))
+
+        manifest = json.loads((self.output_dir / "data" / "manifest.json").read_text(encoding="utf-8"))
+        row = next(item for item in manifest["history"] if item["month"] == "2026-02")
+        expected_local = generated.astimezone(ZoneInfo("America/Argentina/Ushuaia")).strftime("%Y-%m-%d %H:%M:%S")
+        self.assertEqual(row.get("run_date_local"), expected_local)
+        self.assertEqual(row.get("history_timezone"), "America/Argentina/Ushuaia")
+
+    def test_history_generates_month_index_and_run_paths(self):
+        generated = datetime(2026, 2, 21, 12, 30, 0, tzinfo=timezone.utc)
+        html_path, metadata_path = self._write_report("2026-01", "2026-02", generated)
+
+        publisher = StaticWebPublisher(self.config)
+        publisher.report_dir = self.report_dir
+        publisher.publish(preferred_html=str(html_path), preferred_metadata=str(metadata_path))
+
+        manifest = json.loads((self.output_dir / "data" / "manifest.json").read_text(encoding="utf-8"))
+        row = next(item for item in manifest["history"] if item["month"] == "2026-02")
+        self.assertTrue(str(row.get("report_path", "")).startswith("/historico/2026-02/"))
+        self.assertIn("run_key", row)
+        self.assertIn("generated_at_utc", row)
+        self.assertIn("metadata_path", row)
+
+        run_slug = str(row["run_slug"])
+        run_dir = self.output_dir / "historico" / "2026-02" / run_slug
+        self.assertTrue((self.output_dir / "historico" / "2026-02" / "index.html").exists())
+        self.assertTrue((run_dir / "index.html").exists())
+        self.assertTrue((self.output_dir / "data" / "history" / "2026-02" / f"{run_slug}.metadata.json").exists())
 
 
 if __name__ == "__main__":

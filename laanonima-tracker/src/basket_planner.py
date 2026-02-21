@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 import random
+import zlib
 from dataclasses import dataclass
 from datetime import datetime
 from statistics import median
@@ -126,6 +127,13 @@ def _segment_counts(items: Sequence[Dict[str, Any]]) -> Dict[str, int]:
     return counts
 
 
+def _partition_matches(item_id: str, partition_count: int, partition_index: int) -> bool:
+    if partition_count <= 1:
+        return True
+    bucket = zlib.crc32(item_id.encode("utf-8")) % partition_count
+    return bucket == partition_index
+
+
 def build_scrape_plan(
     config: Dict[str, Any],
     session: Session,
@@ -135,10 +143,18 @@ def build_scrape_plan(
     rotation_items: Optional[int] = None,
     limit: Optional[int] = None,
     sample_random: bool = False,
+    partition_count: int = 1,
+    partition_index: int = 0,
 ) -> ScrapePlan:
     profile = (profile or "balanced").lower()
     if profile not in {"balanced", "full", "cba_only"}:
         raise ValueError("profile invalido: use balanced, full o cba_only")
+    partition_count = int(partition_count)
+    partition_index = int(partition_index)
+    if partition_count < 1:
+        raise ValueError("partition_count debe ser >= 1")
+    if partition_index < 0 or partition_index >= partition_count:
+        raise ValueError("partition_index fuera de rango para partition_count")
 
     planning_cfg = _get_planning_cfg(config)
     runtime_budget = _safe_positive_int(
@@ -229,6 +245,17 @@ def build_scrape_plan(
         planned_items = random_pool
         mandatory_ids = set()
 
+    if partition_count > 1:
+        partitioned_items: List[Dict[str, Any]] = []
+        for item in planned_items:
+            item_id = _item_id(item)
+            if not item_id:
+                continue
+            if _partition_matches(item_id, partition_count, partition_index):
+                partitioned_items.append(item)
+        planned_items = partitioned_items
+        mandatory_ids = {item_id for item_id in mandatory_ids if _partition_matches(item_id, partition_count, partition_index)}
+
     if limit is not None:
         if limit <= 0:
             raise ValueError("limit debe ser mayor a 0")
@@ -259,6 +286,8 @@ def build_scrape_plan(
         "estimated_duration_seconds": estimated_duration_seconds,
         "overhead_seconds": overhead_seconds,
         "capacity_items_estimate": capacity_items,
+        "partition_count": partition_count,
+        "partition_index": partition_index,
     }
     budget = {
         "runtime_budget_minutes": runtime_budget,

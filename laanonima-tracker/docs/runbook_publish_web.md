@@ -13,7 +13,7 @@ Single-command public build (recommended):
 
 ```bash
 cd laanonima-tracker
-python -m src.cli publish-web --basket all --view analyst --benchmark ipc --offline-assets external
+python -m src.cli publish-web --basket all --view executive --benchmark ipc --offline-assets external
 ```
 
 ## First Real Launch (new production DB, no test carry-over)
@@ -49,7 +49,7 @@ python scripts/bootstrap_first_real_run.py
 Recommended daily pipeline (production parity):
 
 ```bash
-python scripts/run_data_pipeline.py --basket all --view analyst --benchmark ipc --offline-assets external --pdf-policy on_new_month
+python scripts/run_data_pipeline.py --basket all --view executive --benchmark ipc --offline-assets external --pdf-policy on_new_month
 ```
 
 Anti-bot hardened pipeline (reintento + fallback controlado):
@@ -57,7 +57,7 @@ Anti-bot hardened pipeline (reintento + fallback controlado):
 ```bash
 python scripts/run_data_pipeline.py \
   --basket all \
-  --view analyst \
+  --view executive \
   --benchmark ipc \
   --offline-assets external \
   --pdf-policy on_new_month \
@@ -83,7 +83,7 @@ python scripts/daily_real_run.py --pdf-policy on_new_month
 Range-locked rebuild (for audits):
 
 ```bash
-python -m src.cli publish-web --basket all --from 2026-01 --to 2026-02 --view analyst --offline-assets external
+python -m src.cli publish-web --basket all --from 2026-01 --to 2026-02 --view executive --offline-assets external
 ```
 
 Manual recovery from existing artifacts (no report rebuild):

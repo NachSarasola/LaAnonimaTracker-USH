@@ -186,6 +186,20 @@ def cli(ctx, config: Optional[str], verbose: bool):
     default=None,
     help="Branch selection strategy override (optional)",
 )
+@click.option(
+    "--partition-count",
+    type=int,
+    default=1,
+    show_default=True,
+    help="Number of deterministic scrape partitions",
+)
+@click.option(
+    "--partition-index",
+    type=int,
+    default=0,
+    show_default=True,
+    help="Partition index to execute (0-based)",
+)
 @click.pass_context
 def scrape(
     ctx,
@@ -205,6 +219,8 @@ def scrape(
     fail_fast_min_attempts: Optional[int],
     fail_fast_fail_ratio: Optional[float],
     branch_strategy: Optional[str],
+    partition_count: int,
+    partition_index: int,
 ):
     """Run price scraping for the configured basket."""
     config = ctx.obj["config"]
@@ -214,7 +230,7 @@ def scrape(
         "Starting scrape: basket={}, headless={}, backend={}, limit={}, profile={}, budget_min={}, "
         "rotation_items={}, sample_random={}, dry_plan={}, candidate_storage={}, observation_policy={}, "
         "commit_batch_size={}, base_request_delay_ms={}, fail_fast_min_attempts={}, fail_fast_fail_ratio={}, "
-        "branch_strategy={}",
+        "branch_strategy={}, partition_count={}, partition_index={}",
         basket,
         headless,
         backend,
@@ -231,6 +247,8 @@ def scrape(
         fail_fast_min_attempts,
         fail_fast_fail_ratio,
         branch_strategy,
+        partition_count,
+        partition_index,
     )
 
     try:
@@ -252,6 +270,8 @@ def scrape(
             fail_fast_min_attempts=fail_fast_min_attempts,
             fail_fast_fail_ratio=fail_fast_fail_ratio,
             branch_strategy=branch_strategy,
+            partition_count=partition_count,
+            partition_index=partition_index,
         )
 
         click.echo(f"\n{'='*70}")
