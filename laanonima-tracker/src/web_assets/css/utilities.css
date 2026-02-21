@@ -1,0 +1,15 @@
+@layer utilities {
+  .muted {
+    color: var(--muted);
+  }
+
+  .sr {
+    position: absolute;
+    left: -9999px;
+  }
+
+  .num,
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}

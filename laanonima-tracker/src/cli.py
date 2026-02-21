@@ -669,7 +669,7 @@ def app(
     "--view",
     "analysis_depth",
     type=click.Choice(["executive", "intermediate", "analyst"], case_sensitive=False),
-    default="analyst",
+    default="executive",
     show_default=True,
     help="Profundidad visual de reporte para sitio publico",
 )

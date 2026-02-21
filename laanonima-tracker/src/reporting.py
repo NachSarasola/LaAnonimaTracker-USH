@@ -18,6 +18,7 @@ from sqlalchemy import func
 from src.config_loader import get_basket_items, load_config, resolve_canonical_category
 from src.models import Price, get_engine, get_session_factory
 from src.repositories import SeriesRepository
+from src.web_styles import get_tracker_css_bundle
 
 
 @dataclass
@@ -1871,8 +1872,10 @@ class ReportGenerator:
     ) -> str:
         payload_json = json.dumps(payload, ensure_ascii=False).replace("</", "<\\/")
         external_script = ""
+        tracker_style_block = f"<style>{get_tracker_css_bundle()}</style>"
         if offline_assets == "external":
             external_script = '<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>'
+            tracker_style_block = '<link rel="stylesheet" href="./tracker-ui.css"/>'
         analytics_script = ""
         analytics_payload = payload.get("analytics", {}) if isinstance(payload.get("analytics"), dict) else {}
         analytics_enabled = bool(analytics_payload.get("enabled", False))
@@ -1914,637 +1917,7 @@ class ReportGenerator:
      crossorigin="anonymous"></script>
 __EXTERNAL_SCRIPT__
 __ANALYTICS_SCRIPT__
-<style>
-:root{
-  --bg:#f9fafb;
-  --panel:#ffffff;
-  --panel-soft:#f8fafc;
-  --text:#1e293b;
-  --muted:#64748b;
-  --line:#e5e7eb;
-  --line-strong:#dbe2ea;
-  --primary:#1d4ed8;
-  --primary-strong:#1e3a8a;
-  --accent:#1d4ed8;
-  --danger:#b91c1c;
-  --ok:#047857;
-  --warn:#b45309;
-  --pos:#047857;
-  --neg:#b91c1c;
-  --focus:rgba(29,78,216,.25);
-  --shadow-sm:0 1px 2px rgba(15,23,42,.04), 0 10px 24px rgba(15,23,42,.05);
-  --shadow-lg:0 2px 10px rgba(15,23,42,.08), 0 18px 38px rgba(15,23,42,.08);
-  --radius:16px;
-  --radius-sm:10px;
-  --font-body:"Inter","Segoe UI","Roboto","Helvetica Neue",Arial,sans-serif;
-}
-*{box-sizing:border-box}
-html,body{
-  margin:0;
-  padding:0;
-  color:var(--text);
-  font-family:var(--font-body);
-  font-size:16px;
-  line-height:1.5;
-}
-html{scroll-behavior:smooth}
-body{
-  background:
-    radial-gradient(980px 340px at 20% -16%, rgba(29,78,216,.08) 0%, rgba(29,78,216,0) 58%),
-    var(--bg);
-}
-.card,.kpi,.ad-slot,.pill,button,input,select,.head-links a{
-  transition:box-shadow .2s ease, border-color .2s ease, background-color .2s ease, transform .2s ease, color .2s ease;
-}
-@media (hover:hover){
-  .card:hover{box-shadow:var(--shadow-lg)}
-  .kpi:hover{transform:translateY(-1px)}
-}
-@media (prefers-reduced-motion:reduce){
-  *{
-    animation:none !important;
-    transition:none !important;
-    scroll-behavior:auto !important;
-  }
-}
-.wrap{max-width:1460px;margin:0 auto;padding:24px}
-.stack{display:grid;gap:16px}
-.card{
-  background:var(--panel);
-  border:1px solid var(--line);
-  border-radius:var(--radius);
-  padding:24px;
-  box-shadow:var(--shadow-sm);
-  overflow:hidden;
-}
-.card h2{margin:0 0 10px 0;font-size:1.06rem;line-height:1.35;letter-spacing:-.01em}
-.header{
-  background:#fff;
-  border-color:var(--line);
-  display:grid;
-  grid-template-columns:minmax(0,1fr) auto;
-  gap:16px;
-  align-items:center;
-  padding-top:16px;
-  padding-bottom:16px;
-}
-.head-links{
-  display:flex;
-  gap:10px;
-  flex-wrap:wrap;
-  margin:0 0 10px 0;
-}
-.head-links a{
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  min-height:36px;
-  padding:8px 14px;
-  border-radius:999px;
-  border:1px solid transparent;
-  background:#f1f5f9;
-  color:#475569;
-  font-size:.82rem;
-  font-weight:600;
-  text-decoration:none;
-}
-.head-links a:hover{
-  background:#e8edf4;
-  color:#334155;
-  text-decoration:none;
-}
-.head-links a.active{
-  background:#0f172a;
-  border-color:#0f172a;
-  color:#fff;
-  text-decoration:none;
-}
-.title{
-  margin:0 0 3px 0;
-  font-size:clamp(1.35rem,2.4vw,1.85rem);
-  line-height:1.18;
-  letter-spacing:-.01em;
-}
-.meta{color:var(--muted);font-size:.92rem;margin:0 0 3px 0}
-.badge{
-  display:inline-flex;
-  align-items:center;
-  padding:6px 11px;
-  border-radius:999px;
-  font-size:.72rem;
-  font-weight:700;
-  letter-spacing:.045em;
-  text-transform:uppercase;
-  background:#ecfdf5;
-  color:var(--ok);
-  border:1px solid #bbf7d0;
-}
-.badge.warn{background:#fff7ed;color:#9a3412;border-color:#fed7aa}
-.badge.stale{background:#fef2f2;color:#991b1b;border-color:#fecaca}
-.ui-version{margin-top:7px;text-align:right;font-weight:700}
-.method{font-size:.8rem;color:var(--muted);margin:0}
-.helper{
-  display:grid;
-  gap:10px;
-  border-color:var(--line);
-  background:#fff;
-}
-.guide-title{font-weight:800;font-size:1rem}
-.pills{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-.pill{
-  display:inline-flex;
-  align-items:center;
-  gap:6px;
-  border:1px solid var(--line);
-  background:#fff;
-  border-radius:999px;
-  padding:6px 12px;
-  color:#475569;
-  font-size:.78rem;
-}
-.pill-info{font-weight:700}
-.pill-action{
-  cursor:pointer;
-  transition:all .16s ease;
-}
-.pill-action:hover{
-  border-color:#cfd8e3;
-  background:#f8fafc;
-}
-.pill-action span{
-  font-weight:700;
-  color:#64748b;
-}
-.kpis{display:grid;gap:12px;grid-template-columns:repeat(6,minmax(136px,1fr))}
-.kpi{
-  background:#fff;
-  border:1px solid var(--line);
-  border-radius:14px;
-  padding:16px;
-  text-align:center;
-  display:flex;
-  flex-direction:column;
-  justify-content:center;
-  align-items:center;
-  min-height:122px;
-  gap:6px;
-}
-.kpi .label{
-  font-size:.72rem;
-  color:var(--muted);
-  text-transform:uppercase;
-  letter-spacing:.08em;
-  font-weight:600;
-}
-.kpi .value{
-  font-size:clamp(1.28rem,2.8vw,2rem);
-  line-height:1.1;
-  font-weight:700;
-  font-variant-numeric:tabular-nums;
-  color:var(--text);
-}
-.kpi .sub{font-size:.75rem;color:var(--muted)}
-.kpi.good .value{color:var(--pos)}
-.kpi.bad .value{color:var(--neg)}
-.kpi.warn .value{color:var(--warn)}
-details.filters{
-  position:relative;
-  z-index:1;
-  background:var(--panel);
-  border:1px solid var(--line);
-  border-radius:var(--radius);
-  box-shadow:var(--shadow-sm);
-}
-details.filters>summary{
-  cursor:pointer;
-  list-style:none;
-  padding:14px 16px;
-  font-weight:700;
-  display:flex;
-  align-items:center;
-  gap:9px;
-}
-details.filters>summary::-webkit-details-marker{display:none}
-details.filters>summary::before{
-  content:"";
-  width:8px;
-  height:8px;
-  border-right:2px solid #64748b;
-  border-bottom:2px solid #64748b;
-  transform:rotate(-45deg);
-  margin-top:-1px;
-  transition:transform .18s ease;
-}
-details.filters[open]>summary::before{transform:rotate(45deg)}
-.filters-grid{
-  display:grid;
-  gap:12px;
-  padding:0 16px 16px 16px;
-  grid-template-columns:repeat(12,minmax(0,1fr));
-}
-.filter-field{
-  background:#fff;
-  border:1px solid var(--line);
-  border-radius:12px;
-  padding:11px 12px;
-  min-height:92px;
-  display:flex;
-  flex-direction:column;
-  justify-content:flex-start;
-  gap:6px;
-  grid-column:span 2;
-}
-.filter-field.span-3{grid-column:span 3}
-.filter-field.span-4{grid-column:span 4}
-.filter-field.span-6{grid-column:span 6}
-label{
-  display:block;
-  font-size:.72rem;
-  color:var(--muted);
-  margin-bottom:2px;
-  text-transform:uppercase;
-  letter-spacing:.06em;
-  font-weight:600;
-}
-input,select,button{
-  width:100%;
-  min-height:40px;
-  padding:8px 12px;
-  border:1px solid var(--line);
-  border-radius:var(--radius-sm);
-  background:#fff;
-  color:var(--text);
-  font:inherit;
-}
-input,select{box-shadow:none}
-input:hover,select:hover{border-color:#cfd8e3}
-input:focus,select:focus{
-  outline:2px solid var(--focus);
-  outline-offset:1px;
-  border-color:#93c5fd;
-}
-button:focus-visible,
-a:focus-visible{
-  outline:2px solid rgba(29,78,216,.35);
-  outline-offset:2px;
-}
-button{
-  cursor:pointer;
-  font-weight:600;
-  transition:all .16s ease;
-}
-button:active{transform:translateY(1px)}
-button:disabled{
-  cursor:not-allowed;
-  opacity:.58;
-}
-button.primary{
-  background:var(--primary);
-  color:#fff;
-  border-color:var(--primary);
-}
-button.primary:hover{background:var(--primary-strong);border-color:var(--primary-strong)}
-button.ghost{background:#fff}
-button.ghost:hover{background:#f8fafc}
-button.soft{
-  background:#f8fafc;
-  border-color:var(--line);
-  color:#334155;
-}
-button.soft:hover{background:#f1f5f9}
-.search-wrap{
-  display:flex;
-  align-items:center;
-  gap:8px;
-}
-.search-wrap input{flex:1}
-.search-wrap button{width:auto;min-width:92px}
-.switchers{display:flex;gap:7px;flex-wrap:wrap}
-.switchers button{width:auto;padding:7px 11px;min-height:36px}
-.switchers button.active{
-  background:#0f172a;
-  border-color:#0f172a;
-  color:#fff;
-}
-.inline-toggle{display:flex;align-items:center;gap:8px;min-height:34px}
-.inline-toggle input{width:auto;accent-color:var(--primary)}
-#sel{min-height:126px}
-#sel option{padding:2px 4px}
-.field-meta{
-  margin-top:2px;
-  font-size:.75rem;
-  color:var(--muted);
-}
-.filter-actions{
-  justify-content:flex-end;
-  gap:8px;
-}
-.filter-actions .switchers{width:100%}
-.btn-inline{width:auto}
-.copy-status{
-  min-height:16px;
-  text-align:left;
-}
-.copy-status.error{color:var(--danger)}
-.workspace-grid{
-  display:grid;
-  gap:16px;
-  grid-template-columns:minmax(0,1.45fr) minmax(320px,.95fr);
-  align-items:start;
-}
-.workspace-main,.workspace-side{display:grid;gap:16px}
-.chart-card h2{text-align:left}
-.chart{
-  border:1px solid var(--line);
-  border-radius:14px;
-  background:#fff;
-  position:relative;
-  min-height:360px;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  box-shadow:inset 0 0 0 1px rgba(255,255,255,.7);
-}
-.chart.small{min-height:250px}
-.chart canvas{width:100%;height:360px;display:block;margin:0 auto}
-.chart.small canvas{height:250px}
-.chart-empty{
-  position:absolute;
-  inset:0;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  color:var(--muted);
-  font-size:.9rem;
-}
-.chart-tooltip{
-  position:absolute;
-  pointer-events:none;
-  display:none;
-  min-width:160px;
-  max-width:260px;
-  padding:8px 10px;
-  border-radius:10px;
-  border:1px solid var(--line);
-  background:rgba(255,255,255,.98);
-  box-shadow:0 10px 20px rgba(15,23,42,.12);
-  font-size:.77rem;
-  color:#334155;
-  z-index:2;
-}
-.chart-tooltip.visible{display:block}
-.chart-tooltip strong{
-  display:block;
-  margin-bottom:5px;
-  color:#1e293b;
-}
-.legend{
-  display:flex;
-  gap:8px;
-  flex-wrap:wrap;
-  padding-top:9px;
-  font-size:.78rem;
-  color:var(--muted);
-  justify-content:flex-start;
-}
-.legend .item{
-  display:flex;
-  align-items:center;
-  gap:6px;
-  padding:4px 8px;
-  border:1px solid var(--line);
-  border-radius:999px;
-  background:#fff;
-}
-.dot{width:10px;height:10px;border-radius:999px;display:inline-block}
-.band-toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
-.band-select-wrap{min-width:260px;flex:1}
-.macro-note{
-  border:1px solid #fcd9bd;
-  background:#fff7ed;
-  color:#9a3412;
-  border-radius:12px;
-  padding:8px 10px;
-  font-size:.8rem;
-  line-height:1.35;
-  margin-bottom:8px;
-}
-.quality{
-  display:grid;
-  gap:8px;
-  background:#fff;
-}
-.quality strong{display:block;margin-bottom:2px}
-.quality-item{
-  font-size:.84rem;
-  color:var(--muted);
-  padding:6px 9px;
-  border:1px solid var(--line);
-  border-radius:10px;
-  background:#f8fafc;
-}
-.warn-list{
-  margin:6px 0 0 18px;
-  padding:0;
-  color:#9a3412;
-  font-size:.82rem;
-}
-.table-section h2{margin-bottom:8px}
-.table-toolbar{
-  display:flex;
-  gap:10px;
-  align-items:center;
-  justify-content:space-between;
-  flex-wrap:wrap;
-  margin-bottom:8px;
-}
-.table-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.table-actions label{margin:0}
-.table-actions .btn-inline{width:auto}
-.table-actions .page-size{width:auto;min-width:88px}
-.page-info{
-  min-width:92px;
-  text-align:center;
-  border:1px solid var(--line);
-  border-radius:999px;
-  padding:6px 8px;
-  background:#f8fafc;
-}
-.table-wrap{
-  overflow-x:auto;
-  border:1px solid var(--line);
-  border-radius:14px;
-}
-table{width:100%;border-collapse:separate;border-spacing:0;min-width:720px}
-th,td{
-  padding:9px 7px;
-  border-bottom:1px solid #edf2f7;
-  text-align:center;
-  font-size:.9rem;
-  vertical-align:middle;
-}
-th{
-  font-size:.74rem;
-  color:#64748b;
-  text-transform:uppercase;
-  letter-spacing:.06em;
-  background:#f8fafc;
-  border-bottom:1px solid var(--line);
-}
-thead th{position:sticky;top:0;z-index:1;backdrop-filter:blur(3px)}
-td:nth-child(2),th:nth-child(2){text-align:center}
-tbody tr:nth-child(even){background:#fbfdff}
-tbody tr:hover{background:#f8fafc}
-td.num{text-align:center;font-variant-numeric:tabular-nums;white-space:nowrap}
-a{color:var(--primary);text-decoration:none}
-a:hover{text-decoration:underline;text-decoration-thickness:1.5px}
-td:first-child a{
-  display:inline-block;
-  max-width:380px;
-  overflow:hidden;
-  text-overflow:ellipsis;
-  white-space:nowrap;
-  vertical-align:bottom;
-}
-.muted{color:var(--muted)}
-.sr{position:absolute;left:-9999px}
-.var-up{color:var(--neg);font-weight:700}
-.var-down{color:var(--pos);font-weight:700}
-.var-flat{color:var(--muted);font-weight:700}
-.empty-title{margin:0 0 8px 0}
-.empty-text{margin:0 0 8px 0}
-.ad-panel,.premium-panel{display:none}
-.ad-grid{
-  display:grid;
-  grid-template-columns:repeat(2,minmax(0,1fr));
-  gap:12px;
-}
-.ad-slot{
-  border:1px dashed #93a8c0;
-  border-radius:12px;
-  min-height:90px;
-  background:#f8fafc;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  color:#334155;
-  font-weight:600;
-}
-.premium-list{
-  margin:0;
-  padding-left:18px;
-  color:var(--muted);
-}
-.premium-list li{margin:6px 0}
-.onboarding-mobile{
-  position:fixed;
-  left:12px;
-  right:12px;
-  bottom:106px;
-  z-index:54;
-  background:#0f172a;
-  color:#e2e8f0;
-  border:1px solid #334155;
-  border-radius:12px;
-  padding:11px 12px;
-  box-shadow:0 10px 28px rgba(0,0,0,.24);
-  display:grid;
-  gap:8px;
-}
-.onboarding-mobile[hidden]{display:none}
-.onboarding-title{
-  font-size:.88rem;
-  font-weight:780;
-}
-.onboarding-actions{
-  display:flex;
-  gap:8px;
-  flex-wrap:wrap;
-}
-.onboarding-actions button{
-  width:auto;
-  min-height:32px;
-  border:1px solid #475569;
-  background:#1e293b;
-  color:#e2e8f0;
-  border-radius:8px;
-  padding:7px 10px;
-}
-.onboarding-actions button.primary{
-  background:var(--primary);
-  border-color:var(--primary);
-  color:#fff;
-}
-.cookie-banner{
-  position:fixed;
-  left:12px;
-  right:12px;
-  bottom:12px;
-  z-index:55;
-  background:#fff;
-  color:var(--text);
-  border-radius:14px;
-  border:1px solid var(--line);
-  padding:12px;
-  box-shadow:var(--shadow-sm);
-}
-.cookie-grid{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:12px;
-  flex-wrap:wrap;
-}
-.cookie-actions{display:flex;gap:8px}
-.cookie-actions button{
-  border:1px solid var(--line);
-  background:#fff;
-  color:var(--text);
-  border-radius:8px;
-  padding:7px 10px;
-  cursor:pointer;
-  font:inherit;
-  font-weight:600;
-}
-.cookie-actions button.primary{
-  background:var(--primary);
-  border-color:var(--primary);
-  color:#fff;
-}
-@media (max-width:1320px){
-  .workspace-grid{grid-template-columns:1fr}
-}
-@media (min-width:761px){
-  .onboarding-mobile{display:none !important}
-}
-@media (max-width:1060px){
-  .kpis{grid-template-columns:repeat(3,minmax(120px,1fr))}
-  .filters-grid{grid-template-columns:repeat(6,minmax(0,1fr))}
-  .filter-field,.filter-field.span-3,.filter-field.span-4,.filter-field.span-6{grid-column:span 2}
-  .filter-field.span-6{grid-column:span 6}
-}
-@media (max-width:760px){
-  .wrap{padding:12px}
-  .card{padding:16px}
-  .header{grid-template-columns:1fr}
-  .head-links a{
-    flex:1 1 calc(50% - 6px);
-    justify-content:center;
-  }
-  .ui-version{text-align:left}
-  .title{font-size:1.2rem}
-  .kpis{grid-template-columns:repeat(2,minmax(120px,1fr))}
-  .filters-grid{grid-template-columns:1fr}
-  .filter-field,.filter-field.span-3,.filter-field.span-4,.filter-field.span-6{grid-column:span 1;min-height:auto}
-  .search-wrap{flex-direction:column}
-  .search-wrap button{width:100%}
-  .switchers button{width:100%}
-  table{min-width:640px}
-  .ad-grid{grid-template-columns:1fr}
-  .onboarding-mobile{left:8px;right:8px;bottom:104px}
-  .cookie-banner{left:8px;right:8px;bottom:8px}
-}
-</style>
+__TRACKER_STYLE_BLOCK__
 </head>
 <body>
 <div class="wrap stack">
@@ -2557,20 +1930,19 @@ td:first-child a{
         <a href="/metodologia/">Metodologia</a>
         <a href="/contacto/">Contacto</a>
       </nav>
-      <h1 class="title">La Anonima Tracker: precios para decidir mejor</h1>
-      <p class="meta">Generado: __GEN__ | Rango: __FROM__ a __TO__ | Canasta: __BASKET__</p>
-      <p class="meta" id="freshness-meta">Estado web: pendiente | Proxima corrida estimada: N/D</p>
-      <p class="method">Primero revisa el bloque macro. Luego filtra productos para ver variaciones nominales y reales.</p>
+      <h1 class="title">Tracker de precios</h1>
+      <p class="meta">Actualizado: __GEN__</p>
+      <p class="meta">Rango: __FROM__ a __TO__</p>
+      <p class="meta" id="freshness-meta" title="Proxima corrida: N/D">Estado: pendiente · Ultimo dato: N/D</p>
     </div>
     <div>
-      <span id="quality-badge" class="badge">Datos completos</span>
+      <span id="quality-badge" class="badge">Completo</span>
       <div class="method ui-version">Version publica</div>
     </div>
   </section>
 
   <section class="card helper" id="quick-guide">
-    <div class="guide-title">Resumen de vista</div>
-    <p class="method">Aplicá filtros y compartí esta misma vista con "Copiar vista".</p>
+    <p class="method">Filtra rapido y usa "Copiar vista" para compartir exactamente este estado.</p>
     <div id="active-filters" class="pills"></div>
   </section>
 
@@ -2614,6 +1986,10 @@ td:first-child a{
         </div>
         <div id="macro-status" class="muted"></div>
       </div>
+      <details class="macro-details" id="macro-details">
+        <summary>Detalle tecnico</summary>
+        <div id="macro-detail-text"></div>
+      </details>
       <div id="macro-notice" class="macro-note" hidden></div>
       <div id="chart-secondary" class="chart small"><div class="chart-empty">Sin comparativa IPC</div></div>
       <div id="legend-secondary" class="legend"></div>
@@ -2652,7 +2028,7 @@ td:first-child a{
           </select>
         </div>
         <div class="filter-field">
-          <label for="mbase">Mes base variacion</label>
+          <label for="mbase">Mes base</label>
           <select id="mbase"></select>
         </div>
         <div class="filter-field">
@@ -2705,7 +2081,7 @@ td:first-child a{
         <section class="card table-section">
           <h2>Listado de productos</h2>
           <div class="table-toolbar">
-            <div id="table-meta" class="muted">0 productos</div>
+            <div id="table-meta" class="muted">0 resultados · 0 en grafico</div>
             <div class="table-actions">
               <label for="page-size">Filas</label>
               <select id="page-size" class="page-size"></select>
@@ -2721,7 +2097,7 @@ td:first-child a{
                   <th>Producto (hipervinculo)</th>
                   <th>Presentacion</th>
                   <th>Precio</th>
-                  <th>Var. % vs mes elegido</th>
+                  <th>Var. %</th>
                   <th id="th-var-real" style="display:none">Var. real %</th>
                 </tr>
               </thead>
@@ -2745,27 +2121,29 @@ td:first-child a{
           <div id="legend-bands" class="legend"></div>
         </section>
 
-        <section class="card quality" id="quality-panel">
-          <strong>Calidad de datos</strong>
-          <div class="quality-item" id="quality-coverage"></div>
-          <div class="quality-item" id="quality-panel-size"></div>
-          <div class="quality-item" id="quality-macro"></div>
-          <div class="quality-item" id="quality-ipc"></div>
-          <div class="quality-item" id="quality-segments"></div>
-          <div class="quality-item" id="quality-policy"></div>
-          <ul id="warnings" class="warn-list"></ul>
-        </section>
+        <details class="card quality" id="quality-panel">
+          <summary><strong>Calidad de datos</strong></summary>
+          <div class="quality-body">
+            <div class="quality-item" id="quality-coverage"></div>
+            <div class="quality-item" id="quality-panel-size"></div>
+            <div class="quality-item" id="quality-macro"></div>
+            <div class="quality-item" id="quality-ipc"></div>
+            <div class="quality-item" id="quality-segments"></div>
+            <div class="quality-item" id="quality-policy"></div>
+            <ul id="warnings" class="warn-list"></ul>
+          </div>
+        </details>
       </aside>
     </section>
   </div>
 </div>
 
 <div id="mobile-onboarding" class="onboarding-mobile" hidden role="dialog" aria-live="polite">
-  <div class="onboarding-title">Guia movil</div>
-  <div>Abrí filtros, buscá con <strong>/</strong> y compartí con "Copiar vista".</div>
+  <div class="onboarding-title">Vista movil</div>
+  <div>Abrir filtros para ver precios rapido.</div>
   <div class="onboarding-actions">
     <button id="onboarding-goto" type="button" class="primary">Ir a filtros</button>
-    <button id="onboarding-close" type="button">Entendido</button>
+    <button id="onboarding-close" type="button">Cerrar</button>
   </div>
 </div>
 
@@ -2852,6 +2230,7 @@ const el={
   macroRegion:document.getElementById("macro-region"),
   macroCategory:document.getElementById("macro-category"),
   macroStatus:document.getElementById("macro-status"),
+  macroDetailText:document.getElementById("macro-detail-text"),
   macroNotice:document.getElementById("macro-notice"),
   chartSecondary:document.getElementById("chart-secondary"),
   legendSecondary:document.getElementById("legend-secondary"),
@@ -3236,7 +2615,7 @@ function paginatedRows(rows){
 
 function updateTableMeta(total,totalPages){
   if(el.tableMeta){
-    el.tableMeta.textContent=`${total} productos filtrados | ${st.selected_products.length} en grafico`;
+    el.tableMeta.textContent=`${total} resultados · ${st.selected_products.length} en grafico`;
   }
   if(el.pageInfo){
     el.pageInfo.textContent=`${st.current_page} / ${totalPages}`;
@@ -3791,8 +3170,8 @@ function drawSecondaryChart(force=false){
     if((tracker.length>0 || official.length>0) && (plotMode==="independent_base" || !strictComparable)){
       el.macroNotice.hidden=false;
       el.macroNotice.textContent=
-        `Comparacion parcial: IPC oficial disponible hasta ${latestOfficialMonth} e IPC propio hasta ${latestTrackerMonth}. `
-        + "La brecha en puntos solo aparece cuando ambos tienen meses estrictamente comparables.";
+        `Comparacion parcial: tracker hasta ${latestTrackerMonth} y oficial hasta ${latestOfficialMonth}. `
+        + "La brecha en puntos requiere meses comparables.";
     }else{
       el.macroNotice.hidden=true;
       el.macroNotice.textContent="";
@@ -3800,7 +3179,6 @@ function drawSecondaryChart(force=false){
   }
 
   if(el.macroStatus){
-    const latest=[...src].reverse().find(x=>x.year_month)||null;
     const latestTracker=[...src].reverse().find(x=>x.tracker_index!=null)||null;
     const latestOfficial=[...src].reverse().find(x=>x.official_index!=null)||null;
     const pub=(p.publication_status_by_region?.[region]||p.publication_status||{});
@@ -3810,13 +3188,16 @@ function drawSecondaryChart(force=false){
     const officialMonth=safeText(pub.latest_official_month ?? latestOfficial?.year_month, "N/D");
     const pubStatus=safeText(pub.status, "sin_publicacion");
     const statusOrigin=safeText(pub.status_origin, "publication_run");
-    const latestMonth=safeText(latest?.year_month, "N/D");
-    const comparability=strictComparable ? "estricta" : "parcial";
-    const derivedNote=statusOrigin==="derived_from_series" ? " (derivado de series)" : "";
+    const latestMonth=safeText(([...src].reverse().find(x=>x.year_month)||{}).year_month, "N/D");
+    const comparability=strictComparable ? "comparables" : "parcial";
+    const originLabel=statusOrigin==="derived_from_series" ? "derivado de series" : "publicacion";
     el.macroStatus.textContent=
-      `${macroLabel} | region: ${regionLabel} | ultimo mes con dato: ${latestMonth} | `
-      + `IPC propio: ${trackerMonth} (${trackerStatus}) | IPC oficial: ${officialMonth} (${officialStatus}) | `
-      + `comparacion ${comparability} | publicacion: ${pubStatus}${derivedNote}`;
+      `Macro: ${regionLabel} · Tracker ${trackerMonth} · Oficial ${officialMonth} · ${comparability}`;
+    if(el.macroDetailText){
+      el.macroDetailText.textContent=
+        `${macroLabel}. Estado tracker: ${trackerStatus}. Estado oficial: ${officialStatus}. `
+        + `Publicacion: ${pubStatus} (${originLabel}). Ultimo mes con dato: ${latestMonth}.`;
+    }
   }
 }
 
@@ -3885,7 +3266,7 @@ function drawTable(rows){
   const {total,pageRows,totalPages}=paginatedRows(rows);
   updateTableMeta(total,totalPages);
   if(!total){
-    el.tb.innerHTML=`<tr><td colspan="${st.show_real_column?5:4}" class="muted">Sin datos para los filtros actuales.</td></tr>`;
+    el.tb.innerHTML=`<tr><td colspan="${st.show_real_column?5:4}" class="muted">No hay resultados con estos filtros.</td></tr>`;
     return;
   }
   for(const r of pageRows){
@@ -3913,29 +3294,38 @@ function drawKpis(){
   const periodLabel=k.kpi_fallback_used
     ? `Periodo efectivo ${monthLabel(k.from_month)} a ${monthLabel(k.to_month)} (fallback por datos)`
     : `Periodo ${monthLabel(k.from_month)} a ${monthLabel(k.to_month)}`;
-  const cards=[
-    ["Inflacion canasta nominal", pct(k.inflation_basket_nominal_pct), periodLabel],
-    ["IPC oficial periodo", pct(k.ipc_period_pct), "Benchmark INDEC"],
-    ["Brecha canasta - IPC", pct(k.gap_vs_ipc_pp), "puntos porcentuales"],
-    ["Inflacion real canasta", pct(k.inflation_basket_real_pct), "Deflactada por IPC"],
-    ["Amplitud de subas", pct(k.amplitude_up_pct), "% de productos con suba"],
-    ["Dispersion (IQR)", pct(k.dispersion_iqr_pct), "P75 - P25 de variaciones"],
+  const fullCards=[
+    {key:"basket_nominal",label:"Canasta (nominal)",value:pct(k.inflation_basket_nominal_pct),sub:periodLabel},
+    {key:"ipc",label:"IPC oficial",value:pct(k.ipc_period_pct),sub:"Periodo"},
+    {key:"gap",label:"Brecha",value:pct(k.gap_vs_ipc_pp),sub:"Canasta - IPC"},
+    {key:"basket_real",label:"Canasta (real)",value:pct(k.inflation_basket_real_pct),sub:"Deflactada"},
+    {key:"amplitude",label:"Amplitud de subas",value:pct(k.amplitude_up_pct),sub:"% con suba"},
+    {key:"dispersion",label:"Dispersion (IQR)",value:pct(k.dispersion_iqr_pct),sub:"P75 - P25"},
   ];
-  const tone=(label,value)=>{
+  const cards=st.view==="executive"
+    ? fullCards
+        .filter(card=>["basket_nominal","ipc","gap"].includes(card.key))
+        .map(card=>({...card,sub:card.key==="basket_nominal" ? periodLabel : ""}))
+    : fullCards;
+  const tone=(key,value)=>{
     if(value==null||Number.isNaN(Number(value))) return "warn";
     const n=Number(value);
-    if(label.includes("Brecha")) return n>0 ? "bad" : (n<0 ? "good" : "warn");
-    if(label.includes("Inflacion canasta nominal")) return n>0 ? "bad" : (n<0 ? "good" : "warn");
-    if(label.includes("Inflacion real")) return n>0 ? "bad" : (n<0 ? "good" : "warn");
-    if(label.includes("Amplitud")) return n>=50 ? "bad" : "good";
-    if(label.includes("Dispersion")) return n>15 ? "bad" : "good";
+    if(key==="gap") return n>0 ? "bad" : (n<0 ? "good" : "warn");
+    if(key==="basket_nominal") return n>0 ? "bad" : (n<0 ? "good" : "warn");
+    if(key==="basket_real") return n>0 ? "bad" : (n<0 ? "good" : "warn");
+    if(key==="amplitude") return n>=50 ? "bad" : "good";
+    if(key==="dispersion") return n>15 ? "bad" : "good";
     return n>0 ? "bad" : "good";
   };
   el.kpiGrid.innerHTML="";
-  cards.forEach(([label,value,sub])=>{
+  cards.forEach((cardData)=>{
+    const sub=cardData.sub||"";
     const card=document.createElement("article");
-    card.className=`kpi ${tone(label,value)}`;
-    card.innerHTML=`<div class="label">${esc(label)}</div><div class="value">${esc(value)}</div><div class="sub">${esc(sub)}</div>`;
+    card.className=`kpi ${tone(cardData.key,cardData.value)}`;
+    card.innerHTML=
+      `<div class="label">${esc(cardData.label)}</div>`
+      + `<div class="value">${esc(cardData.value)}</div>`
+      + `<div class="sub">${esc(sub)}</div>`;
     el.kpiGrid.appendChild(card);
   });
 }
@@ -3956,33 +3346,34 @@ function drawQuality(){
   const core=sq.daily_core||{};
   const rot=sq.daily_rotation||{};
   const missingMonths=(qf.missing_cpi_months||[]);
-  el.qualityBadge.textContent=qf.badge||"Datos parciales";
+  const qualityLabel=qf.is_partial ? "Parcial" : "Completo";
+  el.qualityBadge.textContent=qualityLabel;
   el.qualityBadge.className=`badge${qf.is_partial?" warn":""}`;
   el.qualityCoverage.textContent=
-    `Cobertura canasta: ${fmtNum(cov.coverage_total_pct)}% `
-    + `(${cov.observed_products_total ?? "N/D"} de ${cov.expected_products ?? "N/D"} productos esperados).`;
-  el.qualityPanelSize.textContent=`Panel util para lectura: ${qf.balanced_panel_n ?? "N/D"} productos.`;
+    `Cobertura: ${fmtNum(cov.coverage_total_pct)}% `
+    + `(${cov.observed_products_total ?? "N/D"} de ${cov.expected_products ?? "N/D"}).`;
+  el.qualityPanelSize.textContent=`Panel: ${qf.balanced_panel_n ?? "N/D"} productos.`;
   if(el.qualityMacro){
     el.qualityMacro.textContent=
-      `IPC propio: inicio ${(trackerSeries[0]?.year_month)||"N/D"} | ultimo ${(latestTracker?.year_month)||"N/D"} `
-      + `| estado ${(safeText(latestTracker?.status) || "N/D")}.`;
+      `Tracker IPC: ${(trackerSeries[0]?.year_month)||"N/D"} a ${(latestTracker?.year_month)||"N/D"} `
+      + `· estado ${(safeText(latestTracker?.status) || "N/D")}.`;
   }
   el.qualityIpc.textContent=
-    `IPC oficial (${regionLabel}): ultimo ${(latestOfficial?.year_month)||"N/D"} | `
-    + `fuente ${(pub.official_source_effective)||pub.official_source||"N/D"} | `
-    + `estado publicacion ${(pub.status)||"sin_publicacion"}`
-    + `${safeText(pub.status_origin,"publication_run")==="derived_from_series" ? " (derivado de series)." : "."}`
-    + ` Meses sin IPC: ${missingMonths.length? missingMonths.join(", ") : "ninguno"}.`;
+    `IPC oficial (${regionLabel}): ${(latestOfficial?.year_month)||"N/D"} · `
+    + `fuente ${(pub.official_source_effective)||pub.official_source||"N/D"} · `
+    + `estado ${(pub.status)||"sin_publicacion"}`
+    + `${safeText(pub.status_origin,"publication_run")==="derived_from_series" ? " (derivado)." : ""} · `
+    + `sin IPC: ${missingMonths.length? missingMonths.join(", ") : "ninguno"}.`;
   if(el.qualitySegments){
     el.qualitySegments.textContent=
-      `Segmentos del dia -> CBA: ${cba.observed ?? 0}/${cba.expected ?? 0} (${fmtNum(cba.coverage_pct)}%), `
-      + `Nucleo: ${core.observed ?? 0}/${core.expected ?? 0} (${fmtNum(core.coverage_pct)}%), `
-      + `Rotacion: ${rot.observed ?? 0}/${rot.expected ?? 0} (${fmtNum(rot.coverage_pct)}%).`;
+      `Segmentos: CBA ${cba.observed ?? 0}/${cba.expected ?? 0} (${fmtNum(cba.coverage_pct)}%), `
+      + `Nucleo ${core.observed ?? 0}/${core.expected ?? 0} (${fmtNum(core.coverage_pct)}%), `
+      + `Rotacion ${rot.observed ?? 0}/${rot.expected ?? 0} (${fmtNum(rot.coverage_pct)}%).`;
   }
   if(el.qualityPolicy){
     el.qualityPolicy.textContent=
-      `Regla de publicacion: ${p.publication_policy || "N/D"}. `
-      + `Se mantiene terna low/mid/high auditada con cumplimiento ${pct(sq.terna_compliance_pct)} `
+      `Publicacion: ${p.publication_policy || "N/D"}. `
+      + `terna low/mid/high auditada: ${pct(sq.terna_compliance_pct)} `
       + `(${sq.products_with_full_terna ?? 0}/${sq.products_with_bands ?? 0}).`;
   }
   el.warnings.innerHTML="";
@@ -3996,16 +3387,15 @@ function drawQuality(){
     li.textContent=`KPI calculado con ventana efectiva ${k.from_month} -> ${k.to_month} por disponibilidad de datos.`;
     el.warnings.appendChild(li);
   }
-  if(st.view==="executive"){
-    el.qualityPanel.style.display="none";
-  }else{
-    el.qualityPanel.style.display="";
+  if(el.qualityPanel){
+    el.qualityPanel.open=st.view!=="executive";
   }
   if(el.freshnessMeta){
     const status=p.web_status||"partial";
     const nextRun=p.next_update_eta||"N/D";
     const lastData=p.last_data_timestamp?fmtDate(p.last_data_timestamp):"N/D";
-    el.freshnessMeta.textContent=`Estado web: ${status} | ultimo dato: ${lastData} | proxima corrida estimada: ${nextRun}`;
+    el.freshnessMeta.textContent=`Estado: ${status} · Ultimo dato: ${lastData}`;
+    el.freshnessMeta.title=`Proxima corrida: ${nextRun}`;
   }
 }
 
@@ -4561,6 +3951,7 @@ init();
             template.replace("__PAYLOAD__", payload_json)
             .replace("__EXTERNAL_SCRIPT__", external_script)
             .replace("__ANALYTICS_SCRIPT__", analytics_script)
+            .replace("__TRACKER_STYLE_BLOCK__", tracker_style_block)
             .replace("__TRACKER_URL__", escape(tracker_url, quote=True))
             .replace("__OG_IMAGE_URL__", escape(og_image_url, quote=True))
             .replace("__GEN__", generated_at)
@@ -4621,6 +4012,9 @@ init();
         )
         html_path = out_dir / f"{base}.html"
         html_path.write_text(html, encoding="utf-8")
+        tracker_css_path = out_dir / "tracker-ui.css"
+        if offline_assets == "external":
+            tracker_css_path.write_text(get_tracker_css_bundle(), encoding="utf-8")
         pdf_path = self._write_pdf_if_requested(html, out_dir / f"{base}.pdf") if export_pdf else None
 
         payload_kb = len(json.dumps(payload, ensure_ascii=False).encode("utf-8")) / 1024.0
@@ -4675,7 +4069,11 @@ init();
             "next_update_eta": next_update_eta,
             "ad_slots_enabled": ad_slots_enabled,
             "premium_placeholders_enabled": premium_placeholders_enabled,
-            "artifacts": {"html": str(html_path), "pdf": pdf_path},
+            "artifacts": {
+                "html": str(html_path),
+                "pdf": pdf_path,
+                "tracker_css": str(tracker_css_path) if offline_assets == "external" else None,
+            },
         }
         metadata_path = out_dir / f"{base}.metadata.json"
         metadata_path.write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")

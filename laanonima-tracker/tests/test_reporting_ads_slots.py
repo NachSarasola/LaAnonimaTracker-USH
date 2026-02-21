@@ -108,6 +108,30 @@ class TestReportingAdsSlots(unittest.TestCase):
         self.assertIn('<meta property="og:url" content="https://tracker.example.com/tracker/"', html)
         self.assertIn('<meta property="og:image" content="https://tracker.example.com/assets/og-card.svg"', html)
 
+    def test_reporting_embeds_css_in_embed_mode(self):
+        df = self.generator._load_prices("2024-01", "2024-01", "all")
+        payload = self.generator._build_interactive_payload(df, "2024-01", "2024-01", "all")
+        html = self.generator._render_interactive_html(payload, "2026-02-19 00:00:00 UTC", offline_assets="embed")
+
+        self.assertIn("<style>@layer", html)
+        self.assertNotIn('href="./tracker-ui.css"', html)
+
+    def test_reporting_emits_tracker_css_in_external_mode(self):
+        result = self.generator.generate(
+            from_month="2024-01",
+            to_month="2024-01",
+            basket_type="all",
+            offline_assets="external",
+        )
+
+        html_path = Path(result["artifacts"]["html_path"])
+        html = html_path.read_text(encoding="utf-8")
+        css_path = html_path.parent / "tracker-ui.css"
+
+        self.assertIn('<link rel="stylesheet" href="./tracker-ui.css"/>', html)
+        self.assertTrue(css_path.exists())
+        self.assertGreater(len(css_path.read_text(encoding="utf-8").strip()), 1000)
+
 
 if __name__ == "__main__":
     unittest.main()

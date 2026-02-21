@@ -124,7 +124,7 @@ jobs:
           fi
           python scripts/run_data_pipeline.py \
             --basket all \
-            --view analyst \
+            --view executive \
             --benchmark ipc \
             --offline-assets external \
             --pdf-policy on_new_month \

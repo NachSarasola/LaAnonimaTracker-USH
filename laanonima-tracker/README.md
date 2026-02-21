@@ -124,13 +124,13 @@ Para publicar una web navegable (home + tracker + historico) en `public/`:
 
 ```bash
 # Generar reporte y empaquetar sitio estatico
-python -m src.cli publish-web --basket all --view analyst --offline-assets external
+python -m src.cli publish-web --basket all --view executive --offline-assets external
 
 # Usar el ultimo reporte ya generado
 python -m src.cli publish-web --basket all --skip-report
 
 # Rango explicito para publicacion mensual
-python -m src.cli publish-web --basket all --from 2026-01 --to 2026-02 --view analyst
+python -m src.cli publish-web --basket all --from 2026-01 --to 2026-02 --view executive
 ```
 
 Salida esperada:

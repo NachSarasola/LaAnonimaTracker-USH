@@ -194,6 +194,70 @@ class TestWebPublish(unittest.TestCase):
                 preferred_to_month="2027-02",
             )
 
+    def test_web_publish_shell_pages_use_stylesheet_link(self):
+        now = datetime.now(timezone.utc)
+        html_path, metadata_path = self._write_report("2026-01", "2026-02", now)
+        publisher = StaticWebPublisher(self.config)
+        publisher.report_dir = self.report_dir
+        publisher.publish(preferred_html=str(html_path), preferred_metadata=str(metadata_path))
+
+        home_html = (self.output_dir / "index.html").read_text(encoding="utf-8")
+        historico_html = (self.output_dir / "historico" / "index.html").read_text(encoding="utf-8")
+        contacto_html = (self.output_dir / "contacto" / "index.html").read_text(encoding="utf-8")
+        shell_css = (self.output_dir / "assets" / "css" / "shell-ui.css").read_text(encoding="utf-8")
+
+        self.assertIn("href='/assets/css/shell-ui.css'", home_html)
+        self.assertIn("href='/assets/css/shell-ui.css'", historico_html)
+        self.assertIn("href='/assets/css/shell-ui.css'", contacto_html)
+        self.assertNotIn("<style>", home_html)
+        self.assertGreater(len(shell_css.strip()), 1000)
+
+    def test_headers_include_assets_css_cache_rule(self):
+        now = datetime.now(timezone.utc)
+        html_path, metadata_path = self._write_report("2026-01", "2026-02", now)
+        publisher = StaticWebPublisher(self.config)
+        publisher.report_dir = self.report_dir
+        publisher.publish(preferred_html=str(html_path), preferred_metadata=str(metadata_path))
+
+        headers = (self.output_dir / "_headers").read_text(encoding="utf-8")
+        self.assertIn("/assets/css/*", headers)
+        self.assertIn("max-age=604800", headers)
+
+    def test_web_publish_copies_tracker_css_companion(self):
+        now = datetime.now(timezone.utc)
+        html_path, metadata_path = self._write_report("2026-01", "2026-02", now)
+        tracker_css_source = self.report_dir / "tracker-ui.css"
+        tracker_css_source.write_text("body{background:#fff;}", encoding="utf-8")
+
+        publisher = StaticWebPublisher(self.config)
+        publisher.report_dir = self.report_dir
+        publisher.publish(preferred_html=str(html_path), preferred_metadata=str(metadata_path))
+
+        tracker_css = self.output_dir / "tracker" / "tracker-ui.css"
+        month_css = self.output_dir / "historico" / "2026-02" / "tracker-ui.css"
+
+        self.assertTrue(tracker_css.exists())
+        self.assertTrue(month_css.exists())
+        self.assertEqual(tracker_css.read_text(encoding="utf-8"), "body{background:#fff;}")
+
+    def test_web_publish_writes_tracker_css_fallback_when_companion_missing(self):
+        now = datetime.now(timezone.utc)
+        html_path, metadata_path = self._write_report("2026-01", "2026-02", now)
+        html_path.write_text(
+            "<!doctype html><html><head><link rel=\"stylesheet\" href=\"./tracker-ui.css\"/></head><body>report</body></html>",
+            encoding="utf-8",
+        )
+
+        publisher = StaticWebPublisher(self.config)
+        publisher.report_dir = self.report_dir
+        publisher.publish(preferred_html=str(html_path), preferred_metadata=str(metadata_path))
+
+        tracker_css = self.output_dir / "tracker" / "tracker-ui.css"
+        month_css = self.output_dir / "historico" / "2026-02" / "tracker-ui.css"
+        self.assertTrue(tracker_css.exists())
+        self.assertTrue(month_css.exists())
+        self.assertGreater(len(tracker_css.read_text(encoding="utf-8").strip()), 1000)
+
 
 if __name__ == "__main__":
     unittest.main()

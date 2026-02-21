@@ -153,7 +153,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Run unified production pipeline (scrape + IPC + publish + smoke).")
     parser.add_argument("--config", default=None, help="Optional config.yaml path")
     parser.add_argument("--basket", default="all", help="Basket type for scrape/publish (default: all)")
-    parser.add_argument("--view", default="analyst", help="Public report view (default: analyst)")
+    parser.add_argument("--view", default="executive", help="Public report view (default: executive)")
     parser.add_argument("--benchmark", default="ipc", help="Benchmark mode for report (default: ipc)")
     parser.add_argument(
         "--offline-assets",

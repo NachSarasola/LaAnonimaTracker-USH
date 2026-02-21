@@ -13,6 +13,7 @@ from urllib.parse import urlparse
 
 from src.config_loader import load_config
 from src.reporting import run_report
+from src.web_styles import get_shell_css_bundle, get_tracker_css_bundle
 
 _REPORT_METADATA_RE = re.compile(r"report_interactive_(\d{6})_to_(\d{6})_(\d{8}_\d{6})\.metadata\.json$")
 _MONTH_RE = re.compile(r"^\d{4}-\d{2}$")
@@ -353,6 +354,7 @@ class StaticWebPublisher:
             f"<link rel='canonical' href='{canonical_url}'/>"
             "<link rel='icon' type='image/svg+xml' href='/favicon.svg'/>"
             "<link rel='manifest' href='/site.webmanifest'/>"
+            "<link rel='stylesheet' href='/assets/css/shell-ui.css'/>"
             "<link rel='preconnect' href='https://fonts.googleapis.com'/>"
             "<link rel='preconnect' href='https://fonts.gstatic.com' crossorigin/>"
             "<link href='https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap' rel='stylesheet'/>"
@@ -371,7 +373,9 @@ class StaticWebPublisher:
 
     def _write_brand_assets(self) -> None:
         assets_dir = self.output_dir / "assets"
+        css_dir = assets_dir / "css"
         self._ensure_dir(assets_dir)
+        self._ensure_dir(css_dir)
         favicon_svg = """<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'>
 <defs>
   <linearGradient id='g' x1='0' y1='0' x2='1' y2='1'>
@@ -417,6 +421,7 @@ class StaticWebPublisher:
         }
         (self.output_dir / "favicon.svg").write_text(favicon_svg, encoding="utf-8")
         (assets_dir / "og-card.svg").write_text(og_card_svg, encoding="utf-8")
+        (css_dir / "shell-ui.css").write_text(get_shell_css_bundle(), encoding="utf-8")
         (self.output_dir / "site.webmanifest").write_text(
             json.dumps(web_manifest, ensure_ascii=False, indent=2),
             encoding="utf-8",
@@ -424,388 +429,8 @@ class StaticWebPublisher:
 
     @staticmethod
     def _shell_css() -> str:
-        return """
-:root{
-  --bg:#f9fafb;
-  --panel:#ffffff;
-  --line:#e5e7eb;
-  --line-strong:#dbe2ea;
-  --text:#1e293b;
-  --muted:#64748b;
-  --primary:#1d4ed8;
-  --primary-strong:#1e3a8a;
-  --ok:#047857;
-  --warn:#b45309;
-  --danger:#b91c1c;
-  --shadow-sm:0 1px 2px rgba(15,23,42,.04), 0 10px 24px rgba(15,23,42,.05);
-  --radius-card:16px;
-  --radius-control:10px;
-  --radius-pill:999px;
-  --font-body:"Inter","Segoe UI","Roboto","Helvetica Neue",Arial,sans-serif;
-}
-*{box-sizing:border-box}
-html,body{
-  margin:0;
-  padding:0;
-  color:var(--text);
-  font-family:var(--font-body);
-}
-body{
-  background:
-    radial-gradient(920px 280px at 20% -12%, rgba(29,78,216,.08) 0%, rgba(29,78,216,0) 56%),
-    var(--bg);
-  line-height:1.5;
-}
-a{
-  color:var(--primary);
-  text-decoration:none;
-}
-a:hover{text-decoration:underline}
-main.shell{
-  max-width:1120px;
-  margin:0 auto;
-  padding:24px;
-  display:grid;
-  gap:16px;
-}
-.card{
-  background:var(--panel);
-  border:1px solid var(--line);
-  border-radius:var(--radius-card);
-  padding:24px;
-  box-shadow:var(--shadow-sm);
-}
-.topbar{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:14px;
-  flex-wrap:wrap;
-  padding-top:14px;
-  padding-bottom:14px;
-}
-.brand{
-  color:var(--text);
-  font-weight:800;
-  text-decoration:none;
-  letter-spacing:.01em;
-  font-size:1rem;
-}
-.nav{
-  display:flex;
-  gap:10px;
-  flex-wrap:wrap;
-}
-.nav a{
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  min-height:36px;
-  padding:8px 14px;
-  border-radius:var(--radius-pill);
-  border:1px solid transparent;
-  background:#f1f5f9;
-  color:#475569;
-  text-decoration:none;
-  font-size:.84rem;
-  font-weight:600;
-  transition:all .18s ease;
-}
-.nav a:hover{
-  background:#e8edf4;
-  color:#334155;
-  text-decoration:none;
-}
-.nav a.active{
-  background:#0f172a;
-  border-color:#0f172a;
-  color:#fff;
-}
-h1,h2{
-  margin:0 0 8px 0;
-  letter-spacing:-.01em;
-}
-h1{font-size:clamp(1.4rem,2.7vw,1.9rem);line-height:1.2}
-h2{font-size:1.08rem;line-height:1.3}
-.muted{color:var(--muted)}
-.status-chip{
-  display:inline-flex;
-  align-items:center;
-  min-height:30px;
-  padding:4px 10px;
-  border-radius:var(--radius-pill);
-  border:1px solid #dbeafe;
-  background:#eff6ff;
-  color:#1d4ed8;
-  font-size:.78rem;
-  font-weight:700;
-  letter-spacing:.03em;
-  text-transform:uppercase;
-}
-.cta-row{
-  display:flex;
-  flex-wrap:wrap;
-  gap:10px;
-}
-.hero-grid{
-  display:grid;
-  gap:16px;
-  grid-template-columns:minmax(0,1.35fr) minmax(240px,.9fr);
-  align-items:start;
-}
-.hero-stack{
-  display:grid;
-  gap:10px;
-}
-.metric-strip{
-  display:grid;
-  gap:10px;
-  grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
-}
-.metric-tile{
-  border:1px solid var(--line);
-  border-radius:14px;
-  padding:14px;
-  background:#fff;
-  display:grid;
-  gap:6px;
-}
-.metric-tile strong{
-  font-size:.72rem;
-  color:var(--muted);
-  text-transform:uppercase;
-  letter-spacing:.08em;
-  font-weight:600;
-}
-.metric-tile span{
-  font-size:1.08rem;
-  color:var(--text);
-  font-weight:700;
-  font-variant-numeric:tabular-nums;
-}
-.btn{
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  min-height:38px;
-  padding:8px 14px;
-  border-radius:var(--radius-control);
-  text-decoration:none;
-  font-weight:600;
-  border:1px solid transparent;
-  transition:all .18s ease;
-}
-.btn-primary{
-  background:var(--primary);
-  border-color:var(--primary);
-  color:#fff;
-}
-.btn-primary:hover{background:var(--primary-strong);border-color:var(--primary-strong)}
-.btn-secondary{
-  background:#fff;
-  border-color:var(--line);
-  color:var(--text);
-}
-.grid-2{
-  display:grid;
-  gap:16px;
-  grid-template-columns:repeat(2,minmax(0,1fr));
-}
-.kpis{
-  display:grid;
-  gap:12px;
-  grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
-}
-.kpi{
-  border:1px solid var(--line);
-  border-radius:14px;
-  padding:16px;
-  background:#fff;
-  display:grid;
-  gap:6px;
-  align-content:center;
-  min-height:112px;
-}
-.kpi strong{
-  margin:0;
-  font-size:.72rem;
-  color:var(--muted);
-  text-transform:uppercase;
-  letter-spacing:.08em;
-  font-weight:600;
-}
-.kpi span{
-  margin:0;
-  font-size:clamp(1.25rem,2.9vw,1.9rem);
-  line-height:1.1;
-  font-weight:700;
-  color:var(--text);
-  font-variant-numeric:tabular-nums;
-}
-.list-tools{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:12px;
-  flex-wrap:wrap;
-  margin-top:10px;
-}
-.list-tools input{
-  min-height:40px;
-  min-width:230px;
-  border:1px solid var(--line);
-  border-radius:var(--radius-control);
-  padding:8px 12px;
-  font:inherit;
-  color:var(--text);
-  background:#fff;
-}
-.list-tools input:focus{
-  border-color:#93c5fd;
-  outline:2px solid rgba(29,78,216,.25);
-  outline-offset:1px;
-}
-.history-list{
-  display:grid;
-  gap:12px;
-}
-.history-list a{
-  display:grid;
-  gap:10px;
-  padding:16px;
-  border:1px solid var(--line);
-  border-radius:14px;
-  text-decoration:none;
-  color:var(--text);
-  background:#fff;
-  transition:all .18s ease;
-}
-.history-list a:hover{
-  border-color:#cfd8e3;
-  box-shadow:var(--shadow-sm);
-  text-decoration:none;
-}
-.history-head{
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  gap:8px;
-}
-.history-sub{
-  display:flex;
-  flex-wrap:wrap;
-  gap:10px;
-  font-size:.8rem;
-  color:var(--muted);
-}
-.badge-mini{
-  display:inline-flex;
-  align-items:center;
-  min-height:24px;
-  padding:3px 10px;
-  border-radius:var(--radius-pill);
-  border:1px solid #bfdbfe;
-  background:#eff6ff;
-  color:#1d4ed8;
-  font-size:.75rem;
-  font-weight:700;
-  letter-spacing:.03em;
-  text-transform:uppercase;
-}
-.badge-mini.partial{
-  border-color:#fcd9bd;
-  background:#fff7ed;
-  color:#9a3412;
-}
-.badge-mini.stale{
-  border-color:#fecaca;
-  background:#fef2f2;
-  color:#991b1b;
-}
-.meta-line{
-  font-size:.82rem;
-  color:var(--muted);
-}
-.ads-grid{
-  display:grid;
-  gap:12px;
-  grid-template-columns:repeat(auto-fit,minmax(210px,1fr));
-}
-.ad-slot{
-  border:1px dashed #93a8c0;
-  border-radius:12px;
-  min-height:90px;
-  background:#f8fafc;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  color:#334155;
-  font-weight:600;
-}
-ul.clean{
-  margin:0;
-  padding-left:18px;
-}
-ul.clean li{margin:6px 0}
-.cookie-banner{
-  position:fixed;
-  left:12px;
-  right:12px;
-  bottom:12px;
-  z-index:9999;
-  border:1px solid var(--line);
-  border-radius:14px;
-  background:#fff;
-  color:var(--text);
-  padding:12px;
-  box-shadow:var(--shadow-sm);
-}
-.cookie-grid{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:12px;
-  flex-wrap:wrap;
-}
-.cookie-text{
-  font-size:.86rem;
-  color:var(--muted);
-  max-width:760px;
-}
-.cookie-actions{
-  display:flex;
-  align-items:center;
-  gap:8px;
-}
-.cookie-actions button{
-  border:1px solid var(--line);
-  border-radius:8px;
-  min-height:34px;
-  padding:7px 11px;
-  background:#fff;
-  color:var(--text);
-  cursor:pointer;
-  font:inherit;
-  font-weight:600;
-}
-.cookie-actions button.primary{
-  background:var(--primary);
-  border-color:var(--primary);
-  color:#fff;
-}
-@media (max-width:900px){
-  main.shell{padding:16px}
-  .hero-grid{grid-template-columns:1fr}
-  .grid-2{grid-template-columns:1fr}
-  .card{padding:18px}
-}
-@media (max-width:620px){
-  h1{font-size:1.28rem}
-  .nav a{flex:1 1 calc(50% - 6px);justify-content:center}
-  .list-tools input{min-width:100%}
-  .cookie-banner{left:8px;right:8px;bottom:8px}
-}
-"""
+        return get_shell_css_bundle()
+
 
     @staticmethod
     def _top_nav(active: str = "home") -> str:
@@ -837,9 +462,17 @@ ul.clean li{margin:6px 0}
         self._ensure_dir(history_data_dir)
 
         tracker_path = tracker_dir / "index.html"
+        tracker_css_path = tracker_dir / "tracker-ui.css"
         latest_meta_path = data_dir / "latest.metadata.json"
 
         shutil.copy2(latest.html_path, tracker_path)
+        source_tracker_css = latest.html_path.parent / "tracker-ui.css"
+        tracker_html = latest.html_path.read_text(encoding="utf-8")
+        expects_tracker_css = 'href="./tracker-ui.css"' in tracker_html or "href='./tracker-ui.css'" in tracker_html
+        if source_tracker_css.exists():
+            shutil.copy2(source_tracker_css, tracker_css_path)
+        elif expects_tracker_css:
+            tracker_css_path.write_text(get_tracker_css_bundle(), encoding="utf-8")
         shutil.copy2(latest.metadata_path, latest_meta_path)
 
         return {
@@ -861,6 +494,16 @@ ul.clean li{margin:6px 0}
             month_html = month_dir / "index.html"
             month_meta = data_history_root / f"{entry.month}.metadata.json"
             shutil.copy2(entry.html_path, month_html)
+            month_tracker_css = month_dir / "tracker-ui.css"
+            source_tracker_css = entry.html_path.parent / "tracker-ui.css"
+            month_html_text = entry.html_path.read_text(encoding="utf-8")
+            expects_tracker_css = (
+                'href="./tracker-ui.css"' in month_html_text or "href='./tracker-ui.css'" in month_html_text
+            )
+            if source_tracker_css.exists():
+                shutil.copy2(source_tracker_css, month_tracker_css)
+            elif expects_tracker_css:
+                month_tracker_css.write_text(get_tracker_css_bundle(), encoding="utf-8")
             shutil.copy2(entry.metadata_path, month_meta)
 
             rows.append(
@@ -896,9 +539,9 @@ ul.clean li{margin:6px 0}
             coverage = item.get("coverage_total_pct")
             coverage_label = "N/D" if coverage is None else f"{float(coverage):.1f}%"
             quality_badge = str(item.get("quality_badge") or "").strip() or "Sin badge"
-            data_label = "Con datos" if item.get("has_data") else "Sin datos"
+            row_title = f"{item['month']} | Calidad: {quality_badge}".replace("'", "&#39;")
             list_rows.append(
-                "<a href='{path}' data-month='{month}'>"
+                "<a href='{path}' data-month='{month}' title='{row_title}'>"
                 "<div class='history-head'>"
                 "<strong>{month}</strong>"
                 "<span class='{badge_classes}'>{state_label}</span>"
@@ -906,18 +549,15 @@ ul.clean li{margin:6px 0}
                 "<div class='history-sub'>"
                 "<span>Generado: {generated}</span>"
                 "<span>Cobertura: {coverage_label}</span>"
-                "<span>{data_label}</span>"
-                "<span>{quality_badge}</span>"
                 "</div>"
                 "</a>".format(
                     path=item["report_path"],
                     month=item["month"],
+                    row_title=row_title,
                     generated=item["generated_at"],
                     badge_classes=badge_classes,
                     state_label=state_label,
                     coverage_label=coverage_label,
-                    data_label=data_label,
-                    quality_badge=quality_badge,
                 )
             )
         list_html = "".join(list_rows) if list_rows else "<p class='muted'>Sin reportes historicos disponibles.</p>"
@@ -927,14 +567,13 @@ ul.clean li{margin:6px 0}
 <head>
 {self._meta_head('Historico | La Anonima Tracker', 'Historico mensual de reportes publicados del tracker.', '/historico/')}
 {self._analytics_head_script()}
-<style>{self._shell_css()}</style>
 </head>
 <body>
 <main class='shell'>
   {self._top_nav(active='historico')}
   <section class='card'>
-    <h1>Historico de reportes</h1>
-    <p class='muted'>Revisa meses publicados, cobertura y estado de calidad.</p>
+    <h1>Historico de precios</h1>
+    <p class='muted'>Elige un mes para ver precios.</p>
     <div class='list-tools'>
       <input id='history-search' type='search' placeholder='Filtrar por mes (YYYY-MM)'/>
       <div class='status-chip'><span id='history-count'>{len(rows)}</span> periodos</div>
@@ -1078,7 +717,6 @@ ul.clean li{margin:6px 0}
             items = "".join(f"<li>{str(item)}</li>" for item in quality_warnings)
             warnings_html = (
                 "<section class='card'>"
-                "<h2>Avisos del dia</h2>"
                 "<ul class='clean muted'>"
                 f"{items}"
                 "</ul>"
@@ -1119,13 +757,12 @@ ul.clean li{margin:6px 0}
         validation_status = str(quality_block.get("official_validation_status") or "N/D")
         policy_summary = str(manifest.get("publication_policy_summary") or _PUBLICATION_POLICY_SUMMARY)
         has_data = bool(latest_block.get("has_data", latest.metadata.get("has_data", False)))
-        data_label = "Con datos recientes" if has_data else "Sin datos recientes"
+        data_label = "Con datos" if has_data else "Sin datos"
         html = f"""<!doctype html>
 <html lang='es'>
 <head>
 {self._meta_head('La Anonima Tracker', 'Tracker publico de precios historicos e inflacion comparada.', '/')}
 {self._analytics_head_script()}
-<style>{self._shell_css()}</style>
 </head>
 <body>
 <main class='shell'>
@@ -1133,22 +770,21 @@ ul.clean li{margin:6px 0}
   <section class='card'>
     <div class='hero-grid'>
       <div class='hero-stack'>
-        <h1>Estado de hoy: precios en seguimiento diario</h1>
-        <div class='status-chip'>Estado del sitio: {latest_status}</div>
-        <p class='muted'>Rango activo: {from_month} a {to_month}</p>
-        <p class='muted'>Ultima actualizacion: {latest_generated} | Proxima corrida estimada: {manifest.get('next_update_eta')}</p>
-        <p class='muted'>Macro oficial: {publication_status} | validacion: {validation_status} | cobertura: {coverage_label}</p>
+        <h1>Precios en Ushuaia</h1>
+        <p class='muted'>Actualizado: {latest_generated}</p>
+        <p class='muted'>Rango: {from_month} a {to_month}</p>
+        <div class='status-chip'>Estado: {latest_status}</div>
         <div class='cta-row'>
           <a id='cta-open-tracker' href='/tracker/' class='btn btn-primary'>Abrir tracker</a>
-          <a href='/historico/' class='btn btn-secondary'>Explorar historico</a>
+          <a href='/historico/' class='btn btn-secondary'>Ver historico</a>
         </div>
       </div>
       <div class='metric-strip'>
-        <div class='metric-tile'><strong>Estado datos</strong><span>{data_label}</span></div>
+        <div class='metric-tile'><strong>Datos</strong><span>{data_label}</span></div>
         <div class='metric-tile'><strong>Cobertura</strong><span>{coverage_label}</span></div>
-        <div class='metric-tile'><strong>Publicacion</strong><span>{policy_summary}</span></div>
       </div>
     </div>
+    <p class='meta-line'>Publicacion: {policy_summary} | Macro: {publication_status} | Validacion: {validation_status}</p>
   </section>
 
   <section class='card'>
@@ -1156,31 +792,12 @@ ul.clean li{margin:6px 0}
     <div class='kpis'>{self._kpi_cards_from_metadata(latest.metadata)}</div>
   </section>
 
-  <section class='grid-2'>
-    <article class='card'>
-      <h2>Como leer en 30 segundos</h2>
-      <ul class='clean muted'>
-        <li>Revisa el bloque macro para contexto general.</li>
-        <li>Filtra por categoria y compara variacion nominal y real.</li>
-        <li>Si el estado es parcial, usa los avisos para interpretar limites.</li>
-      </ul>
-    </article>
-    <article class='card'>
-      <h2>Transparencia</h2>
-      <ul class='clean muted'>
-        <li>Frecuencia objetivo diaria con estado fresh/partial/stale.</li>
-        <li>Si falta IPC oficial, se publica con alerta visible.</li>
-        <li>Cada periodo queda trazable en Historico.</li>
-      </ul>
-    </article>
-  </section>
-
   {warnings_html}
   {ads_html}
   {premium_html}
 
   <section class='card muted'>
-    <strong>Legales:</strong>
+    <strong>Legal:</strong>
     <a href='/legal/privacy.html'>Privacidad</a> |
     <a href='/legal/terms.html'>Terminos</a> |
     <a href='/legal/cookies.html'>Cookies</a> |
@@ -1283,6 +900,9 @@ ul.clean li{margin:6px 0}
 /historico/*
   Cache-Control: public, max-age=86400
 
+/assets/css/*
+  Cache-Control: public, max-age=604800
+
 /assets/*
   Cache-Control: public, max-age=86400
 
@@ -1320,7 +940,7 @@ ul.clean li{margin:6px 0}
         not_found = (
             "<!doctype html><html lang='es'><head>"
             + self._meta_head("404 | La Anonima Tracker", "Pagina no encontrada.", "/404.html")
-            + f"<style>{self._shell_css()}</style></head><body><main class='shell'>"
+            + "</head><body><main class='shell'>"
             + self._top_nav(active="home")
             + "<section class='card'>"
             "<h1>404</h1>"
@@ -1341,7 +961,7 @@ ul.clean li{margin:6px 0}
                 "<!doctype html><html lang='es'><head>"
                 + self._meta_head(title, description, path)
                 + self._analytics_head_script()
-                + f"<style>{self._shell_css()}</style></head><body>"
+                + "</head><body>"
                 "<main class='shell'>"
                 f"{self._top_nav(active=active)}"
                 "<section class='card'>"
@@ -1548,7 +1168,7 @@ def run_web_publish(
     to_month: Optional[str] = None,
     basket_type: str = "all",
     benchmark_mode: str = "ipc",
-    analysis_depth: str = "analyst",
+    analysis_depth: str = "executive",
     offline_assets: str = "external",
     build_report: bool = True,
 ) -> Dict[str, Any]:
