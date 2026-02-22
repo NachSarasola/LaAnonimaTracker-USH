@@ -177,6 +177,8 @@ baskets:
         category: "azucar"
         unit: "kg"
         quantity: 2
+        semantic_family: ["azucar"]
+        forbidden_terms: ["cafe", "edulcorante", "stevia"]
         matching: "loose"
         
       - id: "cba_dulce_leche"
@@ -213,6 +215,8 @@ baskets:
         category: "bebidas"
         unit: "kg"
         quantity: 0.25
+        semantic_family: ["cafe"]
+        forbidden_terms: ["azucar", "edulcorante"]
         matching: "loose"
         
       - id: "cba_te"
@@ -231,6 +235,8 @@ baskets:
         category: "legumbres"
         unit: "kg"
         quantity: 1.5
+        semantic_family: ["arroz"]
+        forbidden_terms: ["galleta", "galletas", "snack", "cracker"]
         matching: "loose"
         
       - id: "cba_fideos"
@@ -377,6 +383,8 @@ baskets:
         category: "azucar"
         unit: "kg"
         quantity: 1
+        semantic_family: ["azucar"]
+        forbidden_terms: ["cafe", "edulcorante", "stevia"]
         matching: "loose"
         
       - id: "ext_galletas_dulces"
@@ -499,6 +507,8 @@ baskets:
         category: "legumbres"
         unit: "kg"
         quantity: 1
+        semantic_family: ["arroz"]
+        forbidden_terms: ["galleta", "galletas", "snack", "cracker"]
         matching: "loose"
 
       - id: "ext_arroz_parboil"
@@ -507,6 +517,8 @@ baskets:
         category: "legumbres"
         unit: "kg"
         quantity: 1
+        semantic_family: ["arroz"]
+        forbidden_terms: ["galleta", "galletas", "snack", "cracker"]
         matching: "loose"
 
       - id: "ext_arroz_yaman"
@@ -515,6 +527,8 @@ baskets:
         category: "legumbres"
         unit: "kg"
         quantity: 1
+        semantic_family: ["arroz"]
+        forbidden_terms: ["galleta", "galletas", "snack", "cracker"]
         matching: "loose"
 
       - id: "ext_fideos_spaghetti"
@@ -1027,6 +1041,8 @@ baskets:
         category: "bebidas"
         unit: "unidad"
         quantity: 1
+        semantic_family: ["cafe"]
+        forbidden_terms: ["azucar", "edulcorante"]
         matching: "loose"
 
       - id: "ext_mate_cocido"

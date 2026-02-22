@@ -3,12 +3,13 @@
 import json
 import re
 import time
+import unicodedata
 import uuid
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from time import perf_counter
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, List, Optional, Tuple, Any, Set
 from urllib.parse import quote, urljoin, urlsplit, urlunsplit
 
 from loguru import logger
@@ -46,6 +47,97 @@ class ProductNotFoundError(Exception):
 
 class LaAnonimaScraper:
     """Main scraper class for La Anonima supermarket."""
+
+    _SEMANTIC_STOPWORDS = {
+        "de",
+        "del",
+        "la",
+        "las",
+        "el",
+        "los",
+        "en",
+        "con",
+        "sin",
+        "por",
+        "para",
+        "tipo",
+        "x",
+        "pack",
+        "unidad",
+        "unidades",
+        "sabor",
+        "estuche",
+        "seleccion",
+        "premium",
+        "clasico",
+        "comun",
+        "fino",
+        "fina",
+        "extra",
+        "oferta",
+        "marca",
+    }
+
+    _FAMILY_MARKER_ALIASES = {
+        "arroz": "arroz",
+        "azucar": "azucar",
+        "cafe": "cafe",
+        "yerba": "yerba",
+        "te": "te",
+        "mate": "mate",
+        "leche": "leche",
+        "queso": "queso",
+        "manteca": "manteca",
+        "yogur": "yogur",
+        "yogurt": "yogur",
+        "huevo": "huevo",
+        "huevos": "huevo",
+        "aceite": "aceite",
+        "harina": "harina",
+        "fideo": "fideo",
+        "fideos": "fideo",
+        "spaghetti": "fideo",
+        "espagueti": "fideo",
+        "tallarin": "fideo",
+        "tallarines": "fideo",
+        "codito": "fideo",
+        "mono": "fideo",
+        "monito": "fideo",
+        "galleta": "galleta",
+        "galletas": "galleta",
+        "galletita": "galleta",
+        "galletitas": "galleta",
+        "cookie": "galleta",
+        "cookies": "galleta",
+        "cracker": "galleta",
+        "snack": "snack",
+        "pan": "pan",
+        "atun": "atun",
+        "lenteja": "lenteja",
+        "lentejas": "lenteja",
+        "poroto": "poroto",
+        "porotos": "poroto",
+        "papa": "papa",
+        "papas": "papa",
+        "cebolla": "cebolla",
+        "cebollas": "cebolla",
+        "tomate": "tomate",
+        "pure": "pure",
+        "polenta": "polenta",
+        "sal": "sal",
+        "mermelada": "mermelada",
+        "dulce": "dulce",
+        "jugo": "jugo",
+        "gaseosa": "gaseosa",
+        "agua": "agua",
+        "vino": "vino",
+        "cerveza": "cerveza",
+        "detergente": "detergente",
+        "lavandina": "lavandina",
+        "jabon": "jabon",
+        "papel": "papel",
+        "higienico": "papel",
+    }
     
     def __init__(self, config: Dict[str, Any], headless: Optional[bool] = None):
         """Initialize the scraper.
@@ -122,6 +214,7 @@ class LaAnonimaScraper:
         self.context = None
         self.current_branch: Optional[str] = None
         self._branch_attempt = 0
+        self._semantic_rules_cache: Dict[str, Dict[str, Any]] = {}
         
         logger.info(f"Scraper initialized (headless={self.headless})")
     
@@ -456,6 +549,228 @@ class LaAnonimaScraper:
             return "ml"
         return aliases.get(normalized, aliases.get(compact, compact))
 
+    @staticmethod
+    def _normalize_text(text: str) -> str:
+        """Normalize free text for semantic matching."""
+        if not text:
+            return ""
+        ascii_text = (
+            unicodedata.normalize("NFKD", str(text))
+            .encode("ascii", "ignore")
+            .decode("ascii")
+        )
+        return re.sub(r"[^a-z0-9]+", " ", ascii_text.lower()).strip()
+
+    @classmethod
+    def _tokenize_semantic_text(cls, text: str) -> List[str]:
+        normalized = cls._normalize_text(text)
+        if not normalized:
+            return []
+        return [token for token in normalized.split() if token and not token.isdigit()]
+
+    @staticmethod
+    def _as_text_list(value: Any) -> List[str]:
+        if value is None:
+            return []
+        if isinstance(value, str):
+            return [value]
+        if isinstance(value, (list, tuple, set)):
+            result: List[str] = []
+            for item in value:
+                if item is None:
+                    continue
+                text = str(item).strip()
+                if text:
+                    result.append(text)
+            return result
+        text = str(value).strip()
+        return [text] if text else []
+
+    @classmethod
+    def _canonical_family_marker(cls, term: str) -> Optional[str]:
+        normalized = cls._normalize_text(term).replace(" ", "")
+        if not normalized:
+            return None
+        return cls._FAMILY_MARKER_ALIASES.get(normalized)
+
+    @classmethod
+    def _extract_family_markers(cls, terms: Set[str]) -> Set[str]:
+        markers: Set[str] = set()
+        for term in terms:
+            marker = cls._canonical_family_marker(term)
+            if marker:
+                markers.add(marker)
+        return markers
+
+    def _semantic_rules_for_item(self, basket_item: Dict[str, Any]) -> Dict[str, Any]:
+        cache_key = str(
+            basket_item.get("id")
+            or basket_item.get("canonical_id")
+            or basket_item.get("name")
+            or id(basket_item)
+        )
+        cached = self._semantic_rules_cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        explicit_required = set(
+            token
+            for raw in self._as_text_list(basket_item.get("required_terms"))
+            for token in self._tokenize_semantic_text(raw)
+            if len(token) >= 2
+        )
+        explicit_forbidden = set(
+            token
+            for raw in self._as_text_list(basket_item.get("forbidden_terms"))
+            for token in self._tokenize_semantic_text(raw)
+            if len(token) >= 2
+        )
+        semantic_family_terms = set(
+            token
+            for raw in self._as_text_list(basket_item.get("semantic_family"))
+            for token in self._tokenize_semantic_text(raw)
+            if len(token) >= 2
+        )
+
+        keyword_list = [str(k) for k in basket_item.get("keywords", []) if k]
+        primary_phrase = keyword_list[0] if keyword_list else str(basket_item.get("name") or "")
+        primary_tokens = [
+            token
+            for token in self._tokenize_semantic_text(primary_phrase)
+            if len(token) >= 3 and token not in self._SEMANTIC_STOPWORDS
+        ]
+        derived_required = set(primary_tokens[:2])
+
+        required_mode = "all" if explicit_required else "any"
+        required_terms = explicit_required or derived_required
+
+        expected_terms = set(required_terms)
+        expected_terms.update(semantic_family_terms)
+        expected_terms.update(
+            token
+            for token in self._tokenize_semantic_text(str(basket_item.get("name") or ""))
+            if len(token) >= 3 and token not in self._SEMANTIC_STOPWORDS
+        )
+        for kw in keyword_list:
+            expected_terms.update(
+                token
+                for token in self._tokenize_semantic_text(kw)
+                if len(token) >= 3 and token not in self._SEMANTIC_STOPWORDS
+            )
+
+        expected_markers = self._extract_family_markers(expected_terms)
+        allowed_markers = {
+            marker
+            for marker in (
+                self._canonical_family_marker(raw)
+                for raw in self._as_text_list(basket_item.get("allowed_markers"))
+            )
+            if marker
+        }
+
+        rules = {
+            "required_mode": required_mode,
+            "required_terms": required_terms,
+            "forbidden_terms": explicit_forbidden,
+            "expected_markers": expected_markers,
+            "allowed_markers": allowed_markers,
+            "allow_marker_mix": bool(basket_item.get("allow_marker_mix", False)),
+        }
+        self._semantic_rules_cache[cache_key] = rules
+        return rules
+
+    def _passes_semantic_guard(
+        self,
+        product: Dict[str, Any],
+        basket_item: Dict[str, Any],
+    ) -> Tuple[bool, Dict[str, Any]]:
+        product_terms = set(
+            token
+            for token in self._tokenize_semantic_text(str(product.get("name") or ""))
+            if len(token) >= 2
+        )
+        rules = self._semantic_rules_for_item(basket_item)
+        debug: Dict[str, Any] = {}
+
+        required_terms = set(rules.get("required_terms", set()))
+        required_mode = str(rules.get("required_mode") or "any")
+        if required_terms:
+            if required_mode == "all":
+                missing = sorted(required_terms.difference(product_terms))
+                if missing:
+                    debug["semantic_rejection"] = "missing_required_terms"
+                    debug["missing_terms"] = missing
+                    return False, debug
+            elif not required_terms.intersection(product_terms):
+                debug["semantic_rejection"] = "missing_any_required_term"
+                debug["required_terms"] = sorted(required_terms)
+                return False, debug
+
+        forbidden_terms = set(rules.get("forbidden_terms", set()))
+        forbidden_hits = sorted(forbidden_terms.intersection(product_terms))
+        if forbidden_hits:
+            debug["semantic_rejection"] = "forbidden_terms_present"
+            debug["forbidden_terms"] = forbidden_hits
+            return False, debug
+
+        expected_markers = set(rules.get("expected_markers", set()))
+        allowed_markers = set(rules.get("allowed_markers", set()))
+        product_markers = self._extract_family_markers(product_terms)
+        if expected_markers:
+            if not product_markers.intersection(expected_markers):
+                debug["semantic_rejection"] = "missing_expected_family_marker"
+                debug["expected_markers"] = sorted(expected_markers)
+                debug["product_markers"] = sorted(product_markers)
+                return False, debug
+            disallowed = sorted(product_markers.difference(expected_markers).difference(allowed_markers))
+            if disallowed and not rules.get("allow_marker_mix", False):
+                debug["semantic_rejection"] = "unexpected_family_markers"
+                debug["unexpected_markers"] = disallowed
+                debug["expected_markers"] = sorted(expected_markers)
+                return False, debug
+
+        debug["required_terms"] = sorted(required_terms)
+        debug["expected_markers"] = sorted(expected_markers)
+        debug["product_markers"] = sorted(product_markers)
+        return True, debug
+
+    def _candidate_identity(
+        self,
+        product: Dict[str, Any],
+        presentation_key: Optional[Tuple[str, float]],
+    ) -> Tuple[str, str]:
+        canonical_url = self._canonical_product_url(product.get("url"))
+        if canonical_url:
+            return ("url", canonical_url)
+        normalized_name = self._normalize_text(str(product.get("name") or ""))
+        if presentation_key:
+            return (
+                "name",
+                f"{normalized_name}|{presentation_key[0]}|{presentation_key[1]}|{product.get('price')}",
+            )
+        return ("name", f"{normalized_name}|{product.get('price')}")
+
+    @staticmethod
+    def _candidate_sort_price(
+        row: Dict[str, Any],
+    ) -> float:
+        price = row.get("product", {}).get("price")
+        if price is None:
+            return float("inf")
+        try:
+            numeric_price = float(price)
+        except (TypeError, ValueError):
+            return float("inf")
+        presentation_key = row.get("presentation_key")
+        if presentation_key and len(presentation_key) == 2:
+            try:
+                qty = float(presentation_key[1])
+            except (TypeError, ValueError):
+                qty = 0.0
+            if qty > 0:
+                return numeric_price / qty
+        return numeric_price
+
     def _parse_presentation_from_name(self, name: str) -> Dict[str, Any]:
         """Extract presentation amount/unit from product name.
 
@@ -598,6 +913,25 @@ class LaAnonimaScraper:
         keyword_score = (keyword_matches / len(keywords)) * 0.6 if keywords else 0.0
         score += keyword_score
         breakdown["keyword_score"] = round(keyword_score, 4)
+
+        if keywords and keyword_matches == 0:
+            breakdown["keyword_gate_rejected"] = True
+            logger.debug(
+                "Score breakdown {}: {} (keyword gate)",
+                product.get("name", "<sin nombre>"),
+                breakdown,
+            )
+            return 0.0, breakdown, (0, 0, 0)
+
+        semantic_ok, semantic_debug = self._passes_semantic_guard(product, basket_item)
+        breakdown["semantic"] = semantic_debug
+        if not semantic_ok:
+            logger.debug(
+                "Score breakdown {}: {} (semantic gate)",
+                product.get("name", "<sin nombre>"),
+                breakdown,
+            )
+            return 0.0, breakdown, (0, 0, 0)
 
         brand_score = 0.0
         if brand_hints:
@@ -1313,15 +1647,26 @@ class LaAnonimaScraper:
             return [], None
 
         target_n = max(3, min_candidates or self.min_candidates_per_product)
+        target_base = self._to_base_quantity(
+            basket_item.get("quantity"),
+            self._normalize_unit(basket_item.get("unit")),
+        )
+        keywords = [str(k).lower() for k in basket_item.get("keywords", []) if k]
+
         scored: List[Dict[str, Any]] = []
-        scored_urls = set()
+        seen_identities: Set[Tuple[str, str]] = set()
+        scored_identities: Set[Tuple[str, str]] = set()
         for product in search_results:
             score, _breakdown, tie_break = self._score_product_match(product, basket_item)
             price = product.get("price")
             if score <= 0 or price is None:
                 continue
-            scored_urls.add(product.get("url") or "")
             presentation_key = self._presentation_group_key(product, basket_item)
+            identity = self._candidate_identity(product, presentation_key)
+            if identity in seen_identities:
+                continue
+            seen_identities.add(identity)
+            scored_identities.add(identity)
             scored.append(
                 {
                     "product": product,
@@ -1329,38 +1674,57 @@ class LaAnonimaScraper:
                     "tie_break": tie_break,
                     "fallback": False,
                     "presentation_key": presentation_key,
+                    "identity": identity,
                 }
             )
 
-        fallback_pool = [
-            p
-            for p in search_results
-            if p.get("price") is not None and (p.get("url") or "") not in scored_urls
-        ]
+        def _sort_key(row: Dict[str, Any]) -> Tuple[float, float, float, str]:
+            normalized_price = self._candidate_sort_price(row)
+            try:
+                absolute_price = float(row.get("product", {}).get("price"))
+            except (TypeError, ValueError):
+                absolute_price = float("inf")
+            return (
+                normalized_price,
+                absolute_price,
+                -float(row.get("confidence") or 0.0),
+                str(row.get("product", {}).get("name") or ""),
+            )
+
+        fallback_pool: List[Dict[str, Any]] = []
+        for product in search_results:
+            if product.get("price") is None:
+                continue
+            presentation_key = self._presentation_group_key(product, basket_item)
+            identity = self._candidate_identity(product, presentation_key)
+            if identity in scored_identities or identity in seen_identities:
+                continue
+            semantic_ok, _semantic_debug = self._passes_semantic_guard(product, basket_item)
+            if not semantic_ok:
+                continue
+            product_name = str(product.get("name") or "").lower()
+            if keywords and not any(keyword in product_name for keyword in keywords):
+                continue
+            seen_identities.add(identity)
+            fallback_pool.append(
+                {
+                    "product": product,
+                    "confidence": float(self.min_match_confidence),
+                    "tie_break": (0, 0, 0),
+                    "fallback": True,
+                    "presentation_key": presentation_key,
+                    "identity": identity,
+                }
+            )
+
         if not scored and not fallback_pool:
             return [], None
 
         if not scored and fallback_pool:
-            for product in fallback_pool:
-                presentation_key = self._presentation_group_key(product, basket_item)
-                scored.append(
-                    {
-                        "product": product,
-                        "confidence": float(self.min_match_confidence),
-                        "tie_break": (0, 0, 0),
-                        "fallback": True,
-                        "presentation_key": presentation_key,
-                    }
-                )
+            scored = [row.copy() for row in fallback_pool]
 
-        # Prefer ranking by price distribution, tie-breaking on confidence.
-        scored.sort(
-            key=lambda row: (
-                row["product"].get("price"),
-                -row["confidence"],
-                row["product"].get("name", ""),
-            )
-        )
+        # Prefer ranking by normalized unit price, tie-breaking on confidence.
+        scored.sort(key=_sort_key)
 
         # Keep intra-tier comparability by selecting candidates from the same
         # normalized presentation group (e.g. 1kg and 1000g are equivalent).
@@ -1370,11 +1734,6 @@ class LaAnonimaScraper:
             if key is None:
                 continue
             grouped_by_presentation.setdefault(key, []).append(row)
-
-        target_base = self._to_base_quantity(
-            basket_item.get("quantity"),
-            self._normalize_unit(basket_item.get("unit")),
-        )
 
         selected_pool = scored
         if grouped_by_presentation:
@@ -1413,16 +1772,18 @@ class LaAnonimaScraper:
                     ),
                 )
                 selected_pool = list(grouped_by_presentation.get(ranked_groups[0][0], []))
-            selected_pool.sort(
-                key=lambda row: (
-                    row["product"].get("price"),
-                    -row["confidence"],
-                    row["product"].get("name", ""),
-                )
-            )
+            selected_pool.sort(key=_sort_key)
+
+        if not selected_pool:
+            return [], None
 
         selected_positions = {0, len(selected_pool) // 2, len(selected_pool) - 1}
         selected = [selected_pool[idx].copy() for idx in sorted(selected_positions) if selected_pool]
+        selected_identities = {
+            row.get("identity")
+            for row in selected
+            if row.get("identity") is not None
+        }
 
         max_selectable = min(target_n, len(selected_pool))
         if len(selected) < max_selectable and fallback_pool:
@@ -1431,36 +1792,34 @@ class LaAnonimaScraper:
                 if target_base
                 else selected_pool[0].get("presentation_key")
             )
-            for product in fallback_pool:
-                fallback_key = self._presentation_group_key(product, basket_item)
+            for row in sorted(fallback_pool, key=_sort_key):
+                fallback_key = row.get("presentation_key")
                 if selected_pool and not self._is_presentation_comparable(fallback_key, reference_key):
                     continue
-                if any(product is s["product"] for s in selected):
+                identity = row.get("identity")
+                if identity in selected_identities:
                     continue
-                selected.append(
-                    {
-                        "product": product,
-                        "confidence": float(self.min_match_confidence),
-                        "tie_break": (0, 0, 0),
-                        "fallback": True,
-                        "presentation_key": fallback_key,
-                    }
-                )
+                selected.append(row.copy())
+                if identity is not None:
+                    selected_identities.add(identity)
                 if len(selected) >= max_selectable:
                     break
 
         if len(selected) < max_selectable:
             for row in selected_pool:
-                if any(row["product"] is s["product"] for s in selected):
+                identity = row.get("identity")
+                if identity in selected_identities:
                     continue
                 selected.append(row.copy())
+                if identity is not None:
+                    selected_identities.add(identity)
                 if len(selected) >= max_selectable:
                     break
 
         if not selected:
             return [], None
 
-        selected.sort(key=lambda row: row["product"].get("price"))
+        selected.sort(key=_sort_key)
         for idx, row in enumerate(selected):
             if len(selected) == 1:
                 row["tier"] = "single"
@@ -1473,7 +1832,7 @@ class LaAnonimaScraper:
             else:
                 row["tier"] = "mid"
 
-        representative = selected[len(selected) // 2]
+        representative = next((row for row in selected if row.get("tier") == "mid"), selected[len(selected) // 2])
         return selected, representative
 
     def open_selected_product(

@@ -192,6 +192,92 @@ class TestScraperContract(unittest.TestCase):
         self.assertIn("Arroz Premium 1000g", selected_names)
         self.assertNotIn("Arroz Familiar 1200g", selected_names)
 
+    def test_select_tiered_candidates_rejects_cross_family_candidates(self):
+        basket_item = {
+            "name": "Arroz integral",
+            "keywords": ["arroz integral"],
+            "quantity": 1,
+            "unit": "kg",
+            "semantic_family": ["arroz"],
+            "forbidden_terms": ["galletas", "snack", "cracker"],
+        }
+        search_results = [
+            {"name": "Arroz Integral A 1kg", "price": Decimal("1800"), "url": "https://www.laanonima.com.ar/a/art_41/"},
+            {"name": "Arroz Integral B 1kg", "price": Decimal("2100"), "url": "https://www.laanonima.com.ar/a/art_42/"},
+            {"name": "Galletas de Arroz Integral sin Sal x 1kg", "price": Decimal("1600"), "url": "https://www.laanonima.com.ar/a/art_43/"},
+            {"name": "Arroz Integral C 1kg", "price": Decimal("2300"), "url": "https://www.laanonima.com.ar/a/art_44/"},
+        ]
+
+        selected, representative = self.scraper.select_tiered_candidates(search_results, basket_item, min_candidates=3)
+
+        self.assertEqual(len(selected), 3)
+        self.assertIsNotNone(representative)
+        selected_names = {row["product"]["name"] for row in selected}
+        self.assertNotIn("Galletas de Arroz Integral sin Sal x 1kg", selected_names)
+
+    def test_select_tiered_candidates_does_not_fill_with_other_family_when_missing(self):
+        basket_item = {
+            "name": "Azucar comun",
+            "keywords": ["azucar"],
+            "quantity": 1,
+            "unit": "kg",
+            "semantic_family": ["azucar"],
+            "forbidden_terms": ["cafe"],
+        }
+        search_results = [
+            {"name": "Azucar Comun Tipo A 1kg", "price": Decimal("1350"), "url": "https://www.laanonima.com.ar/a/art_51/"},
+            {"name": "Azucar Comun Tipo B 1kg", "price": Decimal("1490"), "url": "https://www.laanonima.com.ar/a/art_52/"},
+            {"name": "Cafe en Grano Tostado 500g", "price": Decimal("25600"), "url": "https://www.laanonima.com.ar/a/art_53/"},
+        ]
+
+        selected, representative = self.scraper.select_tiered_candidates(search_results, basket_item, min_candidates=3)
+
+        self.assertEqual(len(selected), 2)
+        self.assertIsNotNone(representative)
+        for row in selected:
+            self.assertIn("Azucar", row["product"]["name"])
+
+    def test_select_tiered_candidates_orders_tiers_by_normalized_unit_price(self):
+        basket_item = {
+            "name": "Arroz",
+            "keywords": ["arroz"],
+            "quantity": 1,
+            "unit": "kg",
+            "semantic_family": ["arroz"],
+        }
+        search_results = [
+            {"name": "Arroz Oferta 900g", "price": Decimal("1700"), "url": "https://www.laanonima.com.ar/a/art_61/"},
+            {"name": "Arroz Clasico 1kg", "price": Decimal("1800"), "url": "https://www.laanonima.com.ar/a/art_62/"},
+            {"name": "Arroz Premium 1kg", "price": Decimal("2000"), "url": "https://www.laanonima.com.ar/a/art_63/"},
+        ]
+
+        selected, _representative = self.scraper.select_tiered_candidates(search_results, basket_item, min_candidates=3)
+
+        tier_to_name = {row["tier"]: row["product"]["name"] for row in selected}
+        self.assertEqual(tier_to_name.get("low"), "Arroz Clasico 1kg")
+        self.assertEqual(tier_to_name.get("mid"), "Arroz Oferta 900g")
+        self.assertEqual(tier_to_name.get("high"), "Arroz Premium 1kg")
+
+    def test_select_tiered_candidates_deduplicates_same_product_listing(self):
+        basket_item = {
+            "name": "Azucar",
+            "keywords": ["azucar"],
+            "quantity": 1,
+            "unit": "kg",
+            "semantic_family": ["azucar"],
+        }
+        search_results = [
+            {"name": "Azucar Comun Tipo A 1kg", "price": Decimal("1350"), "url": "https://www.laanonima.com.ar/a/art_71/"},
+            {"name": "Azucar Comun Tipo A 1kg", "price": Decimal("1350"), "url": "https://www.laanonima.com.ar/a/art_71/"},
+            {"name": "Azucar Comun Tipo B 1kg", "price": Decimal("1450"), "url": "https://www.laanonima.com.ar/a/art_72/"},
+            {"name": "Azucar Comun Tipo C 1kg", "price": Decimal("1580"), "url": "https://www.laanonima.com.ar/a/art_73/"},
+        ]
+
+        selected, _representative = self.scraper.select_tiered_candidates(search_results, basket_item, min_candidates=3)
+
+        selected_urls = [row["product"]["url"] for row in selected]
+        self.assertEqual(len(selected_urls), len(set(selected_urls)))
+
 
 if __name__ == "__main__":
     unittest.main()
