@@ -1,254 +1,266 @@
 <!doctype html>
 <html lang="es">
+
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Tracker de precios: La Anónima Ushuaia</title>
-<meta name="description" content="Precios de La Anónima Ushuaia con filtros y evolución."/>
-<meta name="theme-color" content="#1d4ed8"/>
-<link rel="canonical" href="__TRACKER_URL__"/>
-<meta property="og:type" content="website"/>
-<meta property="og:title" content="Tracker de precios: La Anónima Ushuaia"/>
-<meta property="og:description" content="Precios de La Anónima Ushuaia con filtros y evolución."/>
-<meta property="og:image" content="__OG_IMAGE_URL__"/>
-<meta property="og:url" content="__TRACKER_URL__"/>
-<meta name="twitter:card" content="summary_large_image"/>
-<meta name="twitter:title" content="Tracker de precios: La Anónima Ushuaia"/>
-<meta name="twitter:description" content="Precios de La Anónima Ushuaia con filtros y evolución."/>
-<meta name="twitter:image" content="__OG_IMAGE_URL__"/>
-<link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
-<link rel="manifest" href="/site.webmanifest"/>
-<link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
-__EXTERNAL_SCRIPT__
-__ANALYTICS_SCRIPT__
-__TRACKER_STYLE_BLOCK__
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Tracker de precios: La Anónima Ushuaia</title>
+  <meta name="description" content="Precios de La Anónima Ushuaia con filtros y evolución." />
+  <meta name="theme-color" content="#1d4ed8" />
+  <link rel="canonical" href="__TRACKER_URL__" />
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Tracker de precios: La Anónima Ushuaia" />
+  <meta property="og:description" content="Precios de La Anónima Ushuaia con filtros y evolución." />
+  <meta property="og:image" content="__OG_IMAGE_URL__" />
+  <meta property="og:url" content="__TRACKER_URL__" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Tracker de precios: La Anónima Ushuaia" />
+  <meta name="twitter:description" content="Precios de La Anónima Ushuaia con filtros y evolución." />
+  <meta name="twitter:image" content="__OG_IMAGE_URL__" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="manifest" href="/site.webmanifest" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  __ADSENSE_SCRIPT__
+  __EXTERNAL_SCRIPT__
+  __ANALYTICS_SCRIPT__
+  __TRACKER_STYLE_BLOCK__
 </head>
+
 <body>
-<main class="shell">
-  <section class="card topbar">
-    <a href="/" class="brand">Precios La Anónima Ushuaia</a>
-    <nav class="nav" aria-label="Navegacion del sitio">
-      <a href="/">Inicio</a>
-      <a href="/tracker/" class="active">Tracker</a>
-      <a href="/historico/">Histórico</a>
-      <a href="/metodologia/">Metodología</a>
-      <a href="/contacto/">Contacto</a>
-    </nav>
-  </section>
+  <main class="shell">
+    <section class="card topbar">
+      <a href="/" class="brand">Precios La Anónima Ushuaia</a>
+      <nav class="nav" aria-label="Navegacion del sitio">
+        <a href="/">Inicio</a>
+        <a href="/tracker/" class="active">Tracker</a>
+        <a href="/historico/">Histórico</a>
+        <a href="/metodologia/">Metodología</a>
+        <a href="/contacto/">Contacto</a>
+      </nav>
+    </section>
 
-  <section class="card" style="background:#fff; padding: 20px 24px;">
-    <h1 style="font-size: clamp(1.3rem, 2.4vw, 1.75rem); margin: 0 0 6px 0; letter-spacing: -.01em;">Tracker de precios: La Anónima Ushuaia</h1>
-    <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-top:8px;">
-      <p class="muted" style="margin:0; font-size:.88rem;">Actualizado: __GEN__</p>
-      <p class="muted" style="margin:0; font-size:.88rem;">Rango: __FROM__ a __TO__</p>
-      <p class="muted" style="margin:0; font-size:.88rem;" id="freshness-meta">Estado: pendiente · Último dato: N/D</p>
-      <span id="quality-badge" class="badge" style="margin-left:auto;">Completo</span>
-    </div>
-  </section>
-
-  <div id="app-root">
-
-  <section class="card helper" id="quick-guide">
-    <p class="method">Toca una fila para ver opciones low/mid/high.</p>
-    <div id="active-filters" class="pills"></div>
-  </section>
-
-  <section class="card premium-panel" id="premium-panel" style="display:none">
-    <h2>Opciones</h2>
-    <ul id="premium-features" class="premium-list"></ul>
-  </section>
-
-  <section id="empty" class="card" style="display:none">
-    <h2 class="empty-title">Sin datos para el rango seleccionado</h2>
-    <p class="muted empty-text">No hay observaciones de precios para este rango.</p>
-  </section>
-
-  <div id="tracker-loading" class="card" style="padding: 40px; text-align: center; margin-bottom: 24px;">
-    <h3>Procesando datos...</h3>
-    <p class="muted">Inicializando el panel de precios.</p>
-  </div>
-
-  <div id="app" class="stack" style="display:none">
-    <section class="kpis" id="kpi-grid"></section>
-
-    <details class="filters" id="filters-panel" open>
-      <summary>Filtros</summary>
-      <div class="filters-grid">
-        <div class="filter-field span-4">
-          <label for="q">Buscar</label>
-          <div class="search-wrap">
-            <input id="q" placeholder="nombre del producto" />
-            <button id="clear-search" type="button" class="soft">Limpiar</button>
-          </div>
-          <div class="field-meta">Atajo: presiona <strong>/</strong></div>
-        </div>
-        <div class="filter-field">
-          <label for="cba">CBA</label>
-          <select id="cba">
-            <option value="all">Todos</option>
-            <option value="yes">Si</option>
-            <option value="no">No</option>
-          </select>
-        </div>
-        <div class="filter-field">
-          <label for="cat">Categoría</label>
-          <select id="cat"></select>
-        </div>
-        <div class="filter-field">
-          <label for="ord">Ordenar por</label>
-          <select id="ord">
-            <option value="alphabetical">Alfabético</option>
-            <option value="price">Precio</option>
-            <option value="var_nominal">Var. nominal</option>
-            <option value="var_real">Var. real</option>
-          </select>
-        </div>
-        <div class="filter-field">
-          <label for="mbase">Mes base</label>
-          <select id="mbase"></select>
-        </div>
-        <div class="filter-field">
-          <label for="show-real">Tabla</label>
-          <div class="inline-toggle">
-            <input id="show-real" type="checkbox"/>
-            <span class="muted">Mostrar var. real %</span>
-          </div>
-        </div>
-        <div class="filter-field span-3">
-          <label>Modo precio</label>
-          <div class="switchers">
-            <button id="mode-nominal" type="button" class="active">Nominal</button>
-            <button id="mode-real" type="button">Real</button>
-          </div>
-        </div>
-        <div class="filter-field span-3">
-          <label>Selección rápida</label>
-          <div class="switchers">
-            <button id="quick-up" type="button">Ganadores</button>
-            <button id="quick-down" type="button">Perdedores</button>
-            <button id="quick-flat" type="button">Estables</button>
-          </div>
-        </div>
-        <div class="filter-field span-4">
-          <label for="sel">Productos en gráfico</label>
-          <select id="sel" multiple size="5"></select>
-          <div id="selection-meta" class="field-meta">0 seleccionados</div>
-        </div>
-        <div class="filter-field span-4 filter-actions">
-          <label>Acciones</label>
-          <div class="switchers">
-            <button id="reset" class="primary" type="button">Reset general</button>
-            <button id="copy-link" type="button" class="soft btn-inline">Copiar vista</button>
-            <button id="export-csv" type="button" class="ghost btn-inline">Exportar CSV</button>
-          </div>
-          <div id="copy-link-status" class="field-meta copy-status" aria-live="polite"></div>
-        </div>
-      </div>
-    </details>
-
-    <section id="tb-wrap" class="card table-section" style="width: 100%; margin-bottom: 24px;">
-      <h2>Listado de productos</h2>
-      <div class="table-toolbar">
-        <div id="table-meta" class="muted">0 resultados · 0 en gráfico</div>
-        <div class="table-actions">
-          <label for="page-size">Filas</label>
-          <select id="page-size" class="page-size"></select>
-          <button id="page-prev" type="button" class="ghost btn-inline">Anterior</button>
-          <div id="page-info" class="muted page-info">1 / 1</div>
-          <button id="page-next" type="button" class="ghost btn-inline">Siguiente</button>
-        </div>
-      </div>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Producto</th>
-              <th>Presentación</th>
-              <th>Precio</th>
-              <th>Var. %</th>
-              <th id="th-var-real" style="display:none">Var. real %</th>
-            </tr>
-          </thead>
-          <tbody id="tb"></tbody>
-        </table>
+    <section class="card" style="background:#fff; padding: 20px 24px;">
+      <h1 style="font-size: clamp(1.3rem, 2.4vw, 1.75rem); margin: 0 0 6px 0; letter-spacing: -.01em;">Tracker de
+        precios: La Anónima Ushuaia</h1>
+      <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-top:8px;">
+        <p class="muted" style="margin:0; font-size:.88rem;">Actualizado: __GEN__</p>
+        <p class="muted" style="margin:0; font-size:.88rem;">Rango: __FROM__ a __TO__</p>
+        <p class="muted" style="margin:0; font-size:.88rem;" id="freshness-meta">Estado: pendiente · Último dato: N/D
+        </p>
+        <span id="quality-badge" class="badge" style="margin-left:auto;">Completo</span>
       </div>
     </section>
 
-    <details class="card chart-panel" id="main-chart-panel" open style="margin-bottom: 16px;">
-      <summary><strong>Comparativa por producto</strong></summary>
-      <div class="chart-panel-body">
-        <div id="chart-main" class="chart"><div class="chart-empty">Sin datos para graficar</div></div>
-        <div id="legend-main" class="legend"></div>
-      </div>
-    </details>
+    <div id="app-root">
 
-    <details class="card chart-panel" id="panel-secondary" open style="margin-bottom: 16px;">
-      <summary><strong>Macro e IPC</strong><span id="macro-status" class="muted"></span></summary>
-      <div class="chart-panel-body">
-        <div class="band-toolbar">
-          <div class="band-select-wrap">
-            <label for="macro-scope">Vista</label>
-            <select id="macro-scope">
-              <option value="general">General</option>
-              <option value="rubros">Rubros</option>
-            </select>
+      <section class="card helper" id="quick-guide">
+        <p class="method">Toca una fila para ver opciones low/mid/high.</p>
+        <div id="active-filters" class="pills"></div>
+      </section>
+
+      <section class="card premium-panel" id="premium-panel" style="display:none">
+        <h2>Opciones</h2>
+        <ul id="premium-features" class="premium-list"></ul>
+      </section>
+
+      <section id="empty" class="card" style="display:none">
+        <h2 class="empty-title">Sin datos para el rango seleccionado</h2>
+        <p class="muted empty-text">No hay observaciones de precios para este rango.</p>
+      </section>
+
+      <div id="tracker-loading" class="card" style="padding: 40px; text-align: center; margin-bottom: 24px;">
+        <h3>Procesando datos...</h3>
+        <p class="muted">Inicializando el panel de precios.</p>
+      </div>
+
+      <div id="app" class="stack" style="display:none">
+        <section class="kpis" id="kpi-grid"></section>
+
+        <details class="filters" id="filters-panel" open>
+          <summary>Filtros</summary>
+          <div class="filters-grid">
+            <div class="filter-field span-4">
+              <label for="q">Buscar</label>
+              <div class="search-wrap">
+                <input id="q" placeholder="nombre del producto" />
+                <button id="clear-search" type="button" class="soft">Limpiar</button>
+              </div>
+              <div class="field-meta">Atajo: presiona <strong>/</strong></div>
+            </div>
+            <div class="filter-field">
+              <label for="cba">CBA</label>
+              <select id="cba">
+                <option value="all">Todos</option>
+                <option value="yes">Si</option>
+                <option value="no">No</option>
+              </select>
+            </div>
+            <div class="filter-field">
+              <label for="cat">Categoría</label>
+              <select id="cat"></select>
+            </div>
+            <div class="filter-field">
+              <label for="ord">Ordenar por</label>
+              <select id="ord">
+                <option value="alphabetical">Alfabético</option>
+                <option value="price">Precio</option>
+                <option value="var_nominal">Var. nominal</option>
+                <option value="var_real">Var. real</option>
+              </select>
+            </div>
+            <div class="filter-field">
+              <label for="mbase">Mes base</label>
+              <select id="mbase"></select>
+            </div>
+            <div class="filter-field">
+              <label for="show-real">Tabla</label>
+              <div class="inline-toggle">
+                <input id="show-real" type="checkbox" />
+                <span class="muted">Mostrar var. real %</span>
+              </div>
+            </div>
+            <div class="filter-field span-3">
+              <label>Modo precio</label>
+              <div class="switchers">
+                <button id="mode-nominal" type="button" class="active">Nominal</button>
+                <button id="mode-real" type="button">Real</button>
+              </div>
+            </div>
+            <div class="filter-field span-3">
+              <label>Selección rápida</label>
+              <div class="switchers">
+                <button id="quick-up" type="button">Ganadores</button>
+                <button id="quick-down" type="button">Perdedores</button>
+                <button id="quick-flat" type="button">Estables</button>
+              </div>
+            </div>
+            <div class="filter-field span-4">
+              <label for="sel">Productos en gráfico</label>
+              <select id="sel" multiple size="5"></select>
+              <div id="selection-meta" class="field-meta">0 seleccionados</div>
+            </div>
+            <div class="filter-field span-4 filter-actions">
+              <label>Acciones</label>
+              <div class="switchers">
+                <button id="reset" class="primary" type="button">Reset general</button>
+                <button id="copy-link" type="button" class="soft btn-inline">Copiar vista</button>
+                <button id="export-csv" type="button" class="ghost btn-inline">Exportar CSV</button>
+              </div>
+              <div id="copy-link-status" class="field-meta copy-status" aria-live="polite"></div>
+            </div>
           </div>
-          <div class="band-select-wrap">
-            <label for="macro-region">Región</label>
-            <select id="macro-region"></select>
-          </div>
-          <div class="band-select-wrap">
-            <label for="macro-category">Rubro</label>
-            <select id="macro-category"></select>
-          </div>
-        </div>
-        <details class="macro-details" id="macro-details">
-          <summary>Detalle técnico</summary>
-          <div id="macro-detail-text"></div>
         </details>
-        <div id="macro-notice" class="macro-note" hidden></div>
-        <div id="chart-secondary" class="chart small"><div class="chart-empty">Sin comparativa IPC</div></div>
-        <div id="legend-secondary" class="legend"></div>
-      </div>
-    </details>
 
-    <details class="card chart-panel" id="panel-bands" open style="margin-bottom: 16px;">
-      <summary><strong>Dispersión low/mid/high</strong></summary>
-      <div class="chart-panel-body">
-        <div class="band-toolbar">
-          <div class="band-select-wrap">
-            <label for="band-product">Producto</label>
-            <select id="band-product"></select>
+        <section id="tb-wrap" class="card table-section" style="width: 100%; margin-bottom: 24px;">
+          <h2>Listado de productos</h2>
+          <div class="table-toolbar">
+            <div id="table-meta" class="muted">0 resultados · 0 en gráfico</div>
+            <div class="table-actions">
+              <label for="page-size">Filas</label>
+              <select id="page-size" class="page-size"></select>
+              <button id="page-prev" type="button" class="ghost btn-inline">Anterior</button>
+              <div id="page-info" class="muted page-info">1 / 1</div>
+              <button id="page-next" type="button" class="ghost btn-inline">Siguiente</button>
+            </div>
           </div>
-          <div id="band-meta" class="muted"></div>
-        </div>
-        <div id="chart-bands" class="chart small"><div class="chart-empty">Sin datos de terna auditada</div></div>
-        <div id="legend-bands" class="legend"></div>
-      </div>
-    </details>
-  </div><!-- /#app-root -->
-</main><!-- /.shell -->
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Producto</th>
+                  <th>Presentación</th>
+                  <th>Precio</th>
+                  <th>Var. %</th>
+                  <th id="th-var-real" style="display:none">Var. real %</th>
+                </tr>
+              </thead>
+              <tbody id="tb"></tbody>
+            </table>
+          </div>
+        </section>
 
-<div id="mobile-onboarding" class="onboarding-mobile" hidden role="dialog" aria-live="polite">
-  <div class="onboarding-title">Vista movil</div>
-  <div>Abrí filtros para ver precios rápido.</div>
-  <div class="onboarding-actions">
-    <button id="onboarding-goto" type="button" class="primary">Ir a filtros</button>
-    <button id="onboarding-close" type="button">Cerrar</button>
-  </div>
-</div>
+        <details class="card chart-panel" id="main-chart-panel" open style="margin-bottom: 16px;">
+          <summary><strong>Comparativa por producto</strong></summary>
+          <div class="chart-panel-body">
+            <div id="chart-main" class="chart">
+              <div class="chart-empty">Sin datos para graficar</div>
+            </div>
+            <div id="legend-main" class="legend"></div>
+          </div>
+        </details>
 
-<div id="cookie-banner" class="cookie-banner" style="display:none" role="dialog" aria-live="polite">
-  <div class="cookie-grid">
-    <div>Usamos almacenamiento local para preferencias y, cuando aplique, consentimiento de anuncios.</div>
-    <div class="cookie-actions">
-      <button id="cookie-reject" type="button">Rechazar</button>
-      <button id="cookie-accept" type="button" class="primary">Aceptar</button>
+        <details class="card chart-panel" id="panel-secondary" open style="margin-bottom: 16px;">
+          <summary><strong>Macro e IPC</strong><span id="macro-status" class="muted"></span></summary>
+          <div class="chart-panel-body">
+            <div class="band-toolbar">
+              <div class="band-select-wrap">
+                <label for="macro-scope">Vista</label>
+                <select id="macro-scope">
+                  <option value="general">General</option>
+                  <option value="rubros">Rubros</option>
+                </select>
+              </div>
+              <div class="band-select-wrap">
+                <label for="macro-region">Región</label>
+                <select id="macro-region"></select>
+              </div>
+              <div class="band-select-wrap">
+                <label for="macro-category">Rubro</label>
+                <select id="macro-category"></select>
+              </div>
+            </div>
+            <details class="macro-details" id="macro-details">
+              <summary>Detalle técnico</summary>
+              <div id="macro-detail-text"></div>
+            </details>
+            <div id="macro-notice" class="macro-note" hidden></div>
+            <div id="chart-secondary" class="chart small">
+              <div class="chart-empty">Sin comparativa IPC</div>
+            </div>
+            <div id="legend-secondary" class="legend"></div>
+          </div>
+        </details>
+
+        <details class="card chart-panel" id="panel-bands" open style="margin-bottom: 16px;">
+          <summary><strong>Dispersión low/mid/high</strong></summary>
+          <div class="chart-panel-body">
+            <div class="band-toolbar">
+              <div class="band-select-wrap">
+                <label for="band-product">Producto</label>
+                <select id="band-product"></select>
+              </div>
+              <div id="band-meta" class="muted"></div>
+            </div>
+            <div id="chart-bands" class="chart small">
+              <div class="chart-empty">Sin datos de terna auditada</div>
+            </div>
+            <div id="legend-bands" class="legend"></div>
+          </div>
+        </details>
+      </div><!-- /#app-root -->
+  </main><!-- /.shell -->
+
+  <div id="mobile-onboarding" class="onboarding-mobile" hidden role="dialog" aria-live="polite">
+    <div class="onboarding-title">Vista movil</div>
+    <div>Abrí filtros para ver precios rápido.</div>
+    <div class="onboarding-actions">
+      <button id="onboarding-goto" type="button" class="primary">Ir a filtros</button>
+      <button id="onboarding-close" type="button">Cerrar</button>
     </div>
   </div>
-</div>
+
+  <div id="cookie-banner" class="cookie-banner" style="display:none" role="dialog" aria-live="polite">
+    <div class="cookie-grid">
+      <div>Usamos almacenamiento local para preferencias y, cuando aplique, consentimiento de anuncios.</div>
+      <div class="cookie-actions">
+        <button id="cookie-reject" type="button">Rechazar</button>
+        <button id="cookie-accept" type="button" class="primary">Aceptar</button>
+      </div>
+    </div>
+  </div>
 
 </body>
+
 </html>

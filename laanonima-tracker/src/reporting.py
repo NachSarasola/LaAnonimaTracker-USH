@@ -1918,6 +1918,20 @@ class ReportGenerator:
             analytics_script = (
                 f"<script defer data-domain=\"{analytics_domain}\" src=\"{analytics_src}\"></script>"
             )
+
+        adsense_script = ""
+        ads_payload = self.config.get("ads", {}) if isinstance(self.config.get("ads"), dict) else {}
+        ads_enabled = bool(ads_payload.get("enabled", False))
+        ads_provider = str(ads_payload.get("provider", "adsense"))
+        ads_client_id = str(ads_payload.get("client_id", "")).strip()
+        is_placeholder = not ads_client_id or "xxxxxxxx" in ads_client_id or ads_client_id in {"ca-pub-test", "ca-pub-0000000000000000"}
+        
+        if ads_enabled and ads_provider.lower() == "adsense" and not is_placeholder:
+            adsense_script = (
+                f"<script async src=\"https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={ads_client_id}\" "
+                f"crossorigin=\"anonymous\"></script>"
+            )
+
         tracker_url = f"{self._public_base_url()}/tracker/"
         og_image_url = f"{self._public_base_url()}/assets/og-card.svg"
 
@@ -1932,6 +1946,7 @@ class ReportGenerator:
         return (
             template.replace("__PAYLOAD__", payload_json)
             .replace("__EXTERNAL_SCRIPT__", external_script)
+            .replace("__ADSENSE_SCRIPT__", adsense_script)
             .replace("__ANALYTICS_SCRIPT__", analytics_script)
             .replace("__TRACKER_STYLE_BLOCK__", tracker_style_block)
             .replace("__TRACKER_URL__", escape(tracker_url, quote=True))

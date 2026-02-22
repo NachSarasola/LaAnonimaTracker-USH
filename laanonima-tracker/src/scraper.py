@@ -228,13 +228,39 @@ class LaAnonimaScraper:
         
         self.browser = self.playwright.chromium.launch(
             headless=self.headless,
-            args=["--no-sandbox", "--disable-dev-shm-usage"]
+            args=[
+                "--no-sandbox", 
+                "--disable-dev-shm-usage", 
+                "--disable-blink-features=AutomationControlled"
+            ]
+        )
+        
+        user_agent = browser_config.get(
+            "user_agent",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         )
         
         self.context = self.browser.new_context(
             viewport=viewport,
-            user_agent=browser_config.get("user_agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
+            user_agent=user_agent,
+            locale="es-AR",
+            timezone_id="America/Argentina/Buenos_Aires"
         )
+        
+        self.context.add_init_script("""
+            Object.defineProperty(navigator, 'webdriver', {
+                get: () => undefined
+            });
+            window.navigator.chrome = {
+                runtime: {},
+            };
+            Object.defineProperty(navigator, 'plugins', {
+                get: () => [1, 2, 3],
+            });
+            Object.defineProperty(navigator, 'languages', {
+                get: () => ['es-AR', 'es', 'en'],
+            });
+        """)
         
         self.page = self.context.new_page()
         self.page.set_default_timeout(self.timeout)

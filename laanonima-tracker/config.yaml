@@ -20,6 +20,13 @@ website:
   retry_delay: 2  # seconds
   headless: true
 
+# Advertisements
+# --------------
+ads:
+  enabled: true
+  provider: "adsense"
+  client_id: "ca-pub-0000000000000000"
+
 # Canonical business categories (rubros)
 # -------------------------------------
 canonical_categories:
@@ -1625,3 +1632,4 @@ premium_placeholders:
     - "Descarga avanzada CSV/API"
     - "Comparador multi-zona"
     - "Panel Pro sin anuncios"
+

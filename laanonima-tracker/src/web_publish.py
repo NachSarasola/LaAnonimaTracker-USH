@@ -171,6 +171,16 @@ class StaticWebPublisher:
             f"src='{script_url}'></script>"
         )
 
+    def _adsense_head_script(self) -> str:
+        if not self.ads_enabled or self.ads_provider.lower() != "adsense" or not self.ads_client_id:
+            return ""
+        if self._is_placeholder_adsense_client(self.ads_client_id):
+            return ""
+        return (
+            f"<script async src=\"https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={self.ads_client_id}\" "
+            f"crossorigin=\"anonymous\"></script>"
+        )
+
     @staticmethod
     def _parse_generated_at(value: Any) -> datetime:
         if value is None:
@@ -1009,6 +1019,7 @@ class StaticWebPublisher:
             return (
                 "<!doctype html><html lang='es'><head>"
                 + self._meta_head(title, description, path)
+                + self._adsense_head_script()
                 + self._analytics_head_script()
                 + "</head><body>"
                 "<main class='shell'>"
