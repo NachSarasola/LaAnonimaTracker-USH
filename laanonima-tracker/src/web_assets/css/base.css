@@ -1,4 +1,5 @@
 @layer reset {
+
   *,
   *::before,
   *::after {
@@ -7,6 +8,7 @@
 }
 
 @layer base {
+
   html,
   body {
     margin: 0;
@@ -21,7 +23,7 @@
   }
 
   body {
-    background: radial-gradient(980px 340px at 20% -16%, rgba(29, 78, 216, .08) 0%, rgba(29, 78, 216, 0) 58%), var(--bg);
+    background: radial-gradient(980px 340px at 20% -16%, rgba(14, 165, 233, 0.08) 0%, rgba(14, 165, 233, 0) 58%), var(--bg);
   }
 
   a {
@@ -45,7 +47,7 @@
   input:focus,
   select:focus,
   textarea:focus {
-    outline: 2px solid rgba(29, 78, 216, .35);
+    outline: 2px solid var(--focus);
     outline-offset: 2px;
   }
 
