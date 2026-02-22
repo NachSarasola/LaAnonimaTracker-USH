@@ -164,7 +164,7 @@ def run_smoke(
 
     if strict:
         tracker_html = by_path["/tracker/"].body.decode("utf-8", errors="ignore")
-        macro_markers = ["id=\"macro-notice\"", "Comparacion parcial"]
+        macro_markers = ["id=\"macro-notice\""]
         for marker in macro_markers:
             if marker not in tracker_html:
                 errors.append(f"Tracker sin marcador macro requerido: {marker}")

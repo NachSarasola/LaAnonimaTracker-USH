@@ -171,6 +171,16 @@ class StaticWebPublisher:
             f"src='{script_url}'></script>"
         )
 
+    def _adsense_head_script(self) -> str:
+        if not self.ads_enabled or self.ads_provider.lower() != "adsense" or not self.ads_client_id:
+            return ""
+        if self._is_placeholder_adsense_client(self.ads_client_id):
+            return ""
+        return (
+            f"<script async src=\"https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={self.ads_client_id}\" "
+            f"crossorigin=\"anonymous\"></script>"
+        )
+
     @staticmethod
     def _parse_generated_at(value: Any) -> datetime:
         if value is None:
@@ -519,6 +529,14 @@ class StaticWebPublisher:
             tracker_css_path.write_text(get_tracker_css_bundle(), encoding="utf-8")
         shutil.copy2(latest.metadata_path, latest_meta_path)
 
+        # Also copy per-product JSON files so build_product_detail_pages() can read them.
+        source_products_dir = latest.html_path.parent / "products"
+        dest_products_dir = tracker_dir / "products"
+        if source_products_dir.exists():
+            if dest_products_dir.exists():
+                shutil.rmtree(dest_products_dir)
+            shutil.copytree(source_products_dir, dest_products_dir)
+
         return {
             "tracker_path": str(tracker_path),
             "latest_metadata_path": str(latest_meta_path),
@@ -598,20 +616,17 @@ class StaticWebPublisher:
         def _run_item_html(item: Dict[str, Any]) -> str:
             state = "partial" if item.get("is_partial") else "fresh"
             state_label = "Parcial" if item.get("is_partial") else "Completo"
-            badge_classes = f"badge-mini {state}"
+            badge_classes = f"badge {state}"
             coverage = item.get("coverage_total_pct")
             coverage_label = "N/D" if coverage is None else f"{float(coverage):.1f}%"
             run_key = str(item.get("run_key") or "")
             row_title = f"{run_key} | Calidad: {str(item.get('quality_badge') or 'Sin badge')}".replace("'", "&#39;")
             return (
-                "<a href='{path}' data-month='{month}' data-run='{run_key}' title='{row_title}'>"
-                "<div class='history-head'>"
-                "<strong>{run_local}</strong>"
-                "<span class='{badge_classes}'>{state_label}</span>"
-                "</div>"
-                "<div class='history-sub'>"
-                "<span>Cobertura: {coverage_label}</span>"
-                "</div>"
+                "<a href='{path}' data-month='{month}' data-run='{run_key}' title='{row_title}' class='history-run-row'>"
+                "<div class='run-date'><strong>{run_local}</strong></div>"
+                "<div class='run-coverage'><span class='muted'>Cobertura:</span> {coverage_label}</div>"
+                "<div class='run-status'><span class='{badge_classes}'>{state_label}</span></div>"
+                "<div class='run-action'><span class='btn-text'>Ver Reporte &rarr;</span></div>"
                 "</a>"
             ).format(
                 path=item["report_path"],
@@ -628,18 +643,15 @@ class StaticWebPublisher:
         for idx, month in enumerate(sorted(rows_by_month.keys(), reverse=True)):
             items = rows_by_month[month]
             runs_html = "".join(_run_item_html(item) for item in items)
-            latest_run = str(items[0].get("run_date_local") or "N/D") if items else "N/D"
-            default_open = "1" if idx == 0 else "0"
-            open_attr = " open" if idx == 0 else ""
             month_sections.append(
-                f"<details class='card history-month' data-month-panel='{month}' data-default-open='{default_open}'{open_attr}>"
-                "<summary class='history-month-summary'>"
-                f"<div class='history-head'><h2>{month}</h2><span class='status-chip'>{len(items)} corridas</span></div>"
-                f"<div class='meta-line'>Última corrida: {latest_run}</div>"
-                "</summary>"
-                f"<div class='history-list'>{runs_html}</div>"
-                f"<p class='meta-line'><a href='/historico/{month}/'>Ver corridas del mes</a></p>"
-                "</details>"
+                f"<section class='card history-month-card' data-month-panel='{month}' style='margin-bottom: 24px;'>"
+                f"<div class='history-month-header' style='display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); padding-bottom: 16px; margin-bottom: 16px;'>"
+                f"  <h2 style='margin: 0; font-size: 1.25rem;'>{month}</h2>"
+                f"  <span class='status-chip'>{len(items)} corridas</span>"
+                f"</div>"
+                f"<div class='history-list-modern'>{runs_html}</div>"
+                f"<div style='margin-top: 16px; text-align: center;'><a href='/historico/{month}/' class='btn btn-secondary' style='font-size: 0.9rem;'>Ver mes completo</a></div>"
+                "</section>"
             )
 
         list_html = "".join(month_sections) if month_sections else "<p class='muted'>Sin corridas disponibles.</p>"
@@ -829,7 +841,9 @@ class StaticWebPublisher:
         from_month = str(latest_block.get("from_month") or "N/D")
         to_month = str(latest_block.get("to_month") or "N/D")
         latest_generated = str(latest_block.get("generated_at") or latest.metadata.get("generated_at") or "N/D")
-        latest_status = str(latest_block.get("web_status") or manifest.get("status") or "partial").upper()
+        latest_status_raw = str(latest_block.get("web_status") or manifest.get("status") or "partial").lower()
+        _STATUS_LABELS = {"fresh": "Actualizado", "partial": "En proceso", "stale": "Desactualizado"}
+        latest_status = _STATUS_LABELS.get(latest_status_raw, "En proceso")
         quality_flags = (
             latest.metadata.get("data_quality", {}).get("quality_flags", {})
             if isinstance(latest.metadata.get("data_quality"), dict)
@@ -856,24 +870,6 @@ class StaticWebPublisher:
                 f"<ul class='clean muted'>{premium_items}</ul></section>"
             )
 
-        ads_html = ""
-        if self.ads_enabled and self.ads_slots:
-            slot_blocks = "".join(
-                f"<div class='ad-slot' data-slot='{slot}'>Slot publicitario: {slot}</div>" for slot in self.ads_slots
-            )
-            ads_html = (
-                "<section class='card' id='home-ads-panel'><h2>Publicidad</h2>"
-                "<p class='muted' id='home-ads-meta'>Acepta cookies para cargar anuncios relevantes.</p>"
-                f"<div class='ads-grid' id='home-ads-grid'>{slot_blocks}</div></section>"
-            )
-
-        ads_config = {
-            "enabled": self.ads_enabled,
-            "provider": self.ads_provider,
-            "client_id": self.ads_client_id,
-            "slots": self.ads_slots,
-        }
-        ads_config_json = json.dumps(ads_config, ensure_ascii=False).replace("</", "<\\/")
         quality_block = manifest.get("quality") if isinstance(manifest.get("quality"), dict) else {}
         coverage_total = quality_block.get("coverage_total_pct")
         coverage_label = "N/D" if coverage_total is None else f"{float(coverage_total):.1f}%"
@@ -888,108 +884,51 @@ class StaticWebPublisher:
 <body>
 <main class='shell'>
   {self._top_nav(active='home')}
-  <section class='card'>
-    <div class='hero-grid'>
-      <div class='hero-stack'>
-        <h1>{_SITE_TITLE}</h1>
-        <p class='muted'>Actualizado: {latest_generated}</p>
-        <p class='muted'>Rango: {from_month} a {to_month}</p>
-        <div class='status-chip'>Estado: {latest_status}</div>
-        <div class='cta-row'>
-          <a id='cta-open-tracker' href='/tracker/' class='btn btn-primary'>Abrir tracker</a>
-          <a href='/historico/' class='btn btn-secondary'>Ver histórico</a>
-        </div>
-      </div>
-      <div class='metric-strip'>
-        <div class='metric-tile'><strong>Datos</strong><span>{data_label}</span></div>
-        <div class='metric-tile'><strong>Cobertura</strong><span>{coverage_label}</span></div>
+  <section style='text-align: center; padding: 64px 24px 32px 24px;'>
+    <div class='hero-stack' style='align-items: center; max-width: 680px; margin: 0 auto; gap: 20px;'>
+      <div class='status-chip' style='margin-bottom: 8px;'>Estado: {latest_status} &bull; Cobertura: {coverage_label}</div>
+      <h1 style='font-size: clamp(2.2rem, 4vw, 3.2rem); letter-spacing: -0.02em; line-height: 1.15; margin: 0;'>
+        Inflación medida en góndola<br><span style='color: var(--primary);'>en tiempo real.</span>
+      </h1>
+      <p class='muted' style='font-size: 1.15rem; max-width: 500px;'>
+        Tracker independiente de precios en {_SITE_TITLE}.<br>
+        Rango: {from_month} a {to_month}. Actualizado: {latest_generated}.
+      </p>
+      <div class='cta-row' style='justify-content: center; margin-top: 12px;'>
+        <a id='cta-open-tracker' href='/tracker/' class='btn btn-primary' style='font-size: 1.05rem; padding: 12px 24px; min-height: 48px; border-radius: 12px;'>Abrir Tracker Interactivo &rarr;</a>
+        <a href='/historico/' class='btn btn-secondary' style='font-size: 1.05rem; padding: 12px 24px; min-height: 48px; border-radius: 12px;'>Ver histórico</a>
       </div>
     </div>
   </section>
 
-  <section class='card'>
-    <h2>Resumen</h2>
+  <section class='card' style='margin-top: 24px;'>
+    <h2 style='font-size: 1.25rem; margin-bottom: 16px;'>Resumen del último mes</h2>
     <div class='kpis'>{self._kpi_cards_from_metadata(latest.metadata)}</div>
   </section>
 
   {warnings_html}
-  {ads_html}
   {premium_html}
 
-  <section class='card muted'>
+  <section class='card muted' style='text-align: center; border: none; background: transparent; box-shadow: none;'>
     <strong>Legal:</strong>
-    <a href='/legal/privacy.html'>Privacidad</a> |
-    <a href='/legal/terms.html'>Terminos</a> |
-    <a href='/legal/cookies.html'>Cookies</a> |
-    <a href='/legal/ads.html'>Publicidad</a>
+    <a href='/legal/privacy.html' style='color: var(--muted); margin: 0 8px;'>Privacidad</a> |
+    <a href='/legal/terms.html' style='color: var(--muted); margin: 0 8px;'>Terminos</a> |
+    <a href='/legal/cookies.html' style='color: var(--muted); margin: 0 8px;'>Cookies</a>
   </section>
 </main>
 {self._consent_banner_html()}
 {self._consent_script()}
 <script>
 (function(){{
-  const ADS={ads_config_json};
   const CONSENT_KEY='laanonima_tracker_cookie_consent_v1';
   function track(eventName, props){{
     if(typeof window.plausible==='function'){{
       try{{ window.plausible(eventName, {{ props: props || {{}} }}); }}catch(_e){{}}
     }}
   }}
-  function ensureAdSense(clientId){{
-    if(!clientId) return;
-    if(document.getElementById('adsense-script')) return;
-    const existing=document.querySelector(\"script[src*='pagead2.googlesyndication.com/pagead/js/adsbygoogle.js']\");
-    if(existing) return;
-    const script=document.createElement('script');
-    script.id='adsense-script';
-    script.async=true;
-    script.src='https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client='+encodeURIComponent(clientId);
-    script.crossOrigin='anonymous';
-    document.head.appendChild(script);
-  }}
-  function renderAds(consent){{
-    const panel=document.getElementById('home-ads-panel');
-    const grid=document.getElementById('home-ads-grid');
-    const meta=document.getElementById('home-ads-meta');
-    if(!panel || !grid) return;
-    if(!ADS.enabled){{
-      panel.style.display='none';
-      return;
-    }}
-    panel.style.display='';
-    if(consent!=='accepted'){{
-      if(meta) meta.textContent='Acepta cookies para habilitar anuncios.';
-      return;
-    }}
-    if((ADS.provider||'').toLowerCase()!=='adsense'){{
-      if(meta) meta.textContent='Proveedor de anuncios no soportado en Home.';
-      return;
-    }}
-    ensureAdSense(ADS.client_id);
-    if(meta) meta.textContent='Anuncios activos (AdSense).';
-    const slots=Array.isArray(ADS.slots)?ADS.slots:[];
-    grid.innerHTML='';
-    slots.forEach((slotId)=>{{
-      const wrap=document.createElement('div');
-      wrap.className='ad-slot';
-      const ins=document.createElement('ins');
-      ins.className='adsbygoogle';
-      ins.style.display='block';
-      ins.setAttribute('data-ad-client', ADS.client_id || '');
-      ins.setAttribute('data-ad-slot', String(slotId||'').replace(/[^0-9]/g,'') || '0000000000');
-      ins.setAttribute('data-ad-format', 'auto');
-      ins.setAttribute('data-full-width-responsive', 'true');
-      wrap.appendChild(ins);
-      grid.appendChild(wrap);
-      try{{ (window.adsbygoogle = window.adsbygoogle || []).push({{}}); }}catch(_e){{}}
-    }});
-  }}
   window.__laTrackerOnConsentChanged=function(state){{
-    renderAds(state);
+    // No-op for ads since removed.
   }};
-  let current='rejected';
-  try{{ current=localStorage.getItem(CONSENT_KEY)||'rejected'; }}catch(_e){{}}
-  renderAds(current);
   const cta=document.getElementById('cta-open-tracker');
   if(cta){{
     cta.addEventListener('click', ()=>track('open_tracker_click', {{origin:'home'}}));
@@ -1080,6 +1019,7 @@ class StaticWebPublisher:
             return (
                 "<!doctype html><html lang='es'><head>"
                 + self._meta_head(title, description, path)
+                + self._adsense_head_script()
                 + self._analytics_head_script()
                 + "</head><body>"
                 "<main class='shell'>"
@@ -1112,8 +1052,7 @@ class StaticWebPublisher:
             (
                 "<p class='muted'>La informacion se publica con fines informativos. Los precios pueden variar por sucursal, fecha y disponibilidad.</p>"
                 "<p class='muted'>No se garantiza disponibilidad continua ni exactitud absoluta en cada observacion individual.</p>"
-                "<p class='muted'>El estado del sitio puede figurar como fresh, partial o stale segun cobertura y disponibilidad de fuentes oficiales.</p>"
-                f"<p class='muted'>Politica de publicacion vigente: <code>{_PUBLICATION_POLICY}</code> ({_PUBLICATION_POLICY_SUMMARY.lower()})</p>"
+                "<p class='muted'>El indicador de estado refleja la cobertura actual de datos y puede cambiar a medida que se incorporan nuevas fuentes oficiales.</p>"
             ),
             "/legal/terms.html",
             "Terminos de uso del tracker publico de precios.",
@@ -1144,8 +1083,14 @@ class StaticWebPublisher:
             "Metodologia",
             "metodologia",
             (
+                "<div style='max-width: 650px; line-height: 1.7;'>"
                 "<p class='muted'>Se comparan precios observados por producto entre meses y se muestra el estado de datos.</p>"
-                "<p class='muted'><a href='/tracker/'>Ver tracker</a> | <a href='/historico/'>Ver histórico</a></p>"
+                "<aside class='callout' style='background: #FFF7ED; border-left: 4px solid #F59E0B; padding: 16px; margin: 24px 0; border-radius: 0 8px 8px 0;'>"
+                "  <strong style='color: #B45309; display: block; margin-bottom: 8px;'>Importante sobre la fidelidad de datos</strong>"
+                "  <p style='color: #92400E; margin: 0; font-size: 0.95rem;'>Los precios reflejan una captura en un momento específico. Pueden existir discrepancias menores por sucursal o cambios intradiarios no capturados en el scraping.</p>"
+                "</aside>"
+                "<p class='muted'><a href='/tracker/' class='btn btn-primary btn-inline' style='display: inline-flex; align-items: center; justify-content: center; height: 36px; padding: 0 16px;'>Ver tracker</a> <a href='/historico/' class='btn btn-secondary btn-inline' style='display: inline-flex; align-items: center; justify-content: center; height: 36px; padding: 0 16px; margin-left: 8px;'>Ver histórico</a></p>"
+                "</div>"
             ),
             "/metodologia/",
             "Metodologia del tracker: recoleccion, calculo y comparativa de series.",
@@ -1154,8 +1099,26 @@ class StaticWebPublisher:
             "Contacto",
             "contacto",
             (
-                "<p class='muted'>Consultas sobre datos o funcionamiento del tracker.</p>"
-                f"<p class='muted'>Correo: <a href='mailto:{self.contact_email}'>{self.contact_email}</a></p>"
+                "<div style='max-width: 500px; line-height: 1.6;'>"
+                "<p class='muted' style='margin-bottom: 24px;'>Consultas sobre datos o funcionamiento del tracker.</p>"
+                f"<div class='contact-card' style='background: #F8FAFC; border: 1px solid var(--line); border-radius: 12px; padding: 24px; text-align: center; margin-bottom: 32px;'>"
+                "  <p style='margin: 0 0 16px 0; font-weight: 600;'>Envíanos un correo directamente</p>"
+                f"  <a href='mailto:{self.contact_email}' class='btn btn-primary' style='display: block; width: 100%; box-sizing: border-box;'>{self.contact_email}</a>"
+                "</div>"
+                "<h3 style='margin-bottom: 16px;'>Preguntas Frecuentes</h3>"
+                "<details style='margin-bottom: 12px; padding: 12px; background: #fff; border: 1px solid var(--line); border-radius: 8px;'>"
+                "  <summary style='font-weight: 600; cursor: pointer; color: var(--text);'>¿Con qué frecuencia se actualizan los datos?</summary>"
+                "  <p class='muted' style='margin-top: 12px; margin-bottom: 0; font-size: 0.9rem;'>Intentamos realizar una recolección al menos una vez por semana, dependiendo de la disponibilidad de los sistemas de origen.</p>"
+                "</details>"
+                "<details style='margin-bottom: 12px; padding: 12px; background: #fff; border: 1px solid var(--line); border-radius: 8px;'>"
+                "  <summary style='font-weight: 600; cursor: pointer; color: var(--text);'>¿Por qué un producto figura sin datos?</summary>"
+                "  <p class='muted' style='margin-top: 12px; margin-bottom: 0; font-size: 0.9rem;'>Puede suceder si el producto no está en stock online durante la recolección, o si cambió su identificador interno o presentación.</p>"
+                "</details>"
+                "<details style='margin-bottom: 12px; padding: 12px; background: #fff; border: 1px solid var(--line); border-radius: 8px;'>"
+                "  <summary style='font-weight: 600; cursor: pointer; color: var(--text);'>¿Cómo se calcula el índice de inflación?</summary>"
+                "  <p class='muted' style='margin-top: 12px; margin-bottom: 0; font-size: 0.9rem;'>Se calcula la variación nominal y real (ajustada por IPC general) únicamente sobre el subconjunto de productos idénticos presentes en ambos meses analizados (panel balanceado).</p>"
+                "</details>"
+                "</div>"
             ),
             "/contacto/",
             "Canales de contacto para consultas y propuestas comerciales.",
@@ -1222,6 +1185,7 @@ class StaticWebPublisher:
             preferred_to_month=preferred_to_month,
         )
         copied = self._copy_latest_artifacts(latest)
+        self.build_product_detail_pages(copied, {})
         history_rows = self.build_history_index()
         manifest = self.build_manifest(latest, history_rows)
 
@@ -1265,6 +1229,7 @@ class StaticWebPublisher:
 
         self.build_home_page(manifest, latest)
         self.copy_legal_assets(manifest)
+        self.build_api_endpoint(manifest, latest)
 
         return PublishWebResult(
             status="completed",
@@ -1279,6 +1244,340 @@ class StaticWebPublisher:
             source_report_metadata=str(latest.metadata_path),
             next_update_eta=str(manifest.get("next_update_eta") or ""),
         )
+
+    def build_product_detail_pages(self, copied: Dict[str, str], manifest: Dict[str, Any]) -> None:
+        """Generate one /tracker/{canonical_id}/index.html per product."""
+        tracker_path = Path(copied["tracker_path"])
+        source_report_dir = tracker_path.parent  # public/tracker/
+        products_source_dir = source_report_dir / "products"
+
+        # products/ dir is written by reporting.py alongside the tracker HTML.
+        # Look in the source report dir first, then in the original report dir.
+        if not products_source_dir.exists():
+            return  # no per-product data available yet
+
+        tracker_css_bundle = get_tracker_css_bundle()
+        analytics_script = self._analytics_head_script()
+        site_url = str((self.config or {}).get("site_url") or "").rstrip("/")
+
+        def _money(v: Any) -> str:
+            if v is None:
+                return "N/D"
+            try:
+                return f"${float(v):,.0f}".replace(",", ".")
+            except (TypeError, ValueError):
+                return "N/D"
+
+        def _pct_signed(v: Any) -> str:
+            if v is None:
+                return "N/D"
+            try:
+                fv = float(v)
+                sign = "+" if fv >= 0 else ""
+                return f"{sign}{fv:.1f}%"
+            except (TypeError, ValueError):
+                return "N/D"
+
+        def _pct_class(v: Any) -> str:
+            if v is None:
+                return ""
+            try:
+                return "pos" if float(v) >= 0 else "neg"
+            except (TypeError, ValueError):
+                return ""
+
+        def _fmt_month(m: Optional[str]) -> str:
+            if not m:
+                return "N/D"
+            months_es = {
+                "01": "ene", "02": "feb", "03": "mar", "04": "abr",
+                "05": "may", "06": "jun", "07": "jul", "08": "ago",
+                "09": "sep", "10": "oct", "11": "nov", "12": "dic",
+            }
+            parts = str(m).split("-")
+            if len(parts) == 2:
+                return f"{months_es.get(parts[1], parts[1])} {parts[0]}"
+            return str(m)
+
+        def _terna_row(tier: str, info: Dict[str, Any]) -> str:
+            name = str(info.get("candidate_name") or "").strip() or "—"
+            price = _money(info.get("candidate_price"))
+            scraped = str(info.get("scraped_at") or "")[:10] or "—"
+            label_map = {"low": "Mínimo", "mid": "Representativo", "high": "Máximo"}
+            label = label_map.get(tier, tier.upper())
+            return (
+                f"<tr>"
+                f"<td><span class='terna-tier {tier}'>{label}</span></td>"
+                f"<td>{name}</td>"
+                f"<td style='font-weight:600;font-variant-numeric:tabular-nums;'>{price}</td>"
+                f"<td class='muted' style='font-size:.8rem;'>{scraped}</td>"
+                f"</tr>"
+            )
+
+        for json_file in sorted(products_source_dir.glob("*.json")):
+            try:
+                pd_data = json.loads(json_file.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+
+            canonical_id = str(pd_data.get("canonical_id") or json_file.stem)
+            product_name = str(pd_data.get("product_name") or canonical_id)
+            category = str(pd_data.get("category") or "").replace("_", " ").title()
+            presentation = str(pd_data.get("presentation") or "")
+            from_month = _fmt_month(pd_data.get("from_month"))
+            to_month = _fmt_month(pd_data.get("to_month"))
+            current_price = _money(pd_data.get("current_price"))
+            var_pct = pd_data.get("var_pct")
+            var_real_pct = pd_data.get("var_real_pct")
+
+            # -- Terna table HTML --
+            terna_latest = pd_data.get("terna_latest") or {}
+            terna_rows_html = ""
+            for tier in ("low", "mid", "high"):
+                info = terna_latest.get(tier)
+                if info:
+                    terna_rows_html += _terna_row(tier, info)
+            terna_section = ""
+            if terna_rows_html:
+                terna_section = f"""
+  <section class='card'>
+    <h2>Variantes de precio</h2>
+    <div class='table-wrap' style='border-radius:var(--radius-card);margin-top:8px;'>
+      <table class='terna-table'>
+        <thead><tr>
+          <th>Nivel</th><th>Variante</th><th>Último precio</th><th>Relevado</th>
+        </tr></thead>
+        <tbody>{terna_rows_html}</tbody>
+      </table>
+    </div>
+  </section>"""
+
+            # -- Monthly series for Plotly --
+            monthly = pd_data.get("monthly_series") or []
+            plot_js = ""
+            if monthly:
+                months_x = [str(r.get("month") or "") for r in monthly]
+                prices_y = [r.get("avg_price") for r in monthly]
+                series_json = json.dumps({"x": months_x, "y": prices_y}, ensure_ascii=False)
+                plot_js = f"""
+<script>
+(function(){{
+  var data={series_json};
+  var el=document.getElementById('product-chart');
+  if(!el||!data.x.length) return;
+  var traces=[{{
+    x:data.x.map(function(m){{return new Date(m+'-01T00:00:00');}}),
+    y:data.y,
+    mode:'lines+markers',
+    line:{{color:'#1d4ed8',width:2.5,shape:'spline'}},
+    marker:{{size:5,color:'#1d4ed8'}},
+    name:'Precio promedio',
+    hovertemplate:'%{{x|%b %Y}}: $%{{y:,.0f}}<extra></extra>',
+  }}];
+  var layout={{
+    paper_bgcolor:'transparent',
+    plot_bgcolor:'transparent',
+    margin:{{l:72,r:20,t:16,b:52}},
+    autosize:true,
+    height:360,
+    xaxis:{{
+      type:'date',
+      tickformat:'%b %Y',
+      showgrid:true,
+      gridcolor:'#e5e7eb',
+      zeroline:false,
+      tickfont:{{size:11,color:'#64748b'}},
+    }},
+    yaxis:{{
+      title:{{text:'Precio promedio ($)',font:{{size:12,color:'#64748b'}}}},
+      showgrid:true,
+      gridcolor:'#e5e7eb',
+      zeroline:false,
+      tickfont:{{size:11,color:'#64748b'}},
+      tickformat:',.0f',
+      tickprefix:'$',
+    }},
+    hovermode:'x unified',
+    showlegend:false,
+    font:{{family:'Inter, Segoe UI, sans-serif',color:'#1e293b'}},
+  }};
+  try{{
+    Plotly.react(el,traces,layout,{{displayModeBar:false,responsive:true}});
+  }}catch(e){{
+    el.innerHTML='<div class="detail-empty"><span>No se pudo cargar el gráfico.</span></div>';
+  }}
+}})();
+</script>"""
+
+            chart_section = f"""
+  <details class='card chart-panel' open>
+    <summary><strong>Evolución de precio</strong></summary>
+    <div class='chart-panel-body'>
+      <div id='product-chart' class='chart'></div>
+    </div>
+  </details>"""
+
+            # -- KPI stats section --
+            var_html = f"<div class='product-stat'><span class='stat-label'>Variación nominal</span><span class='stat-value {_pct_class(var_pct)}'>{_pct_signed(var_pct)}</span><span class='stat-sub'>{from_month} → {to_month}</span></div>"
+            real_html = f"<div class='product-stat'><span class='stat-label'>Variación real</span><span class='stat-value {_pct_class(var_real_pct)}'>{_pct_signed(var_real_pct)}</span><span class='stat-sub'>Ajustado por IPC</span></div>" if var_real_pct is not None else ""
+
+            # -- Build page --
+            canonical_url = f"{site_url}/tracker/{canonical_id}/"
+            og_image = f"{site_url}/assets/og-card.svg"
+            summary_meta = f"{product_name} — evolución y comparativa de precios en La Anónima Ushuaia."
+
+            page_html = f"""<!doctype html>
+<html lang='es'>
+<head>
+<meta charset='utf-8'/>
+<meta name='viewport' content='width=device-width,initial-scale=1'/>
+<title>{product_name} | Tracker La Anónima Ushuaia</title>
+<meta name='description' content='{summary_meta}'/>
+<meta name='theme-color' content='#1d4ed8'/>
+<link rel='canonical' href='{canonical_url}'/>
+<meta property='og:type' content='website'/>
+<meta property='og:title' content='{product_name} | La Anónima Ushuaia'/>
+<meta property='og:description' content='{summary_meta}'/>
+<meta property='og:image' content='{og_image}'/>
+<link rel='icon' type='image/svg+xml' href='/favicon.svg'/>
+<link rel='manifest' href='/site.webmanifest'/>
+<link rel='preconnect' href='https://fonts.googleapis.com'/>
+<link rel='preconnect' href='https://fonts.gstatic.com' crossorigin/>
+<link href='https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap' rel='stylesheet'/>
+<script src='https://cdn.plot.ly/plotly-basic-2.35.2.min.js'></script>
+{analytics_script}
+<link rel='stylesheet' href='/tracker/tracker-ui.css'/>
+</head>
+<body>
+<main class='shell'>
+  {self._top_nav(active='tracker')}
+
+  <section class='card'>
+    <div class='breadcrumb'>
+      <a href='/'>Inicio</a>
+      <span class='breadcrumb-sep'>›</span>
+      <a href='/tracker/'>Tracker</a>
+      <span class='breadcrumb-sep'>›</span>
+      <span>{product_name}</span>
+    </div>
+    <div class='product-header'>
+      <h1>{product_name}</h1>
+      <div class='product-header-meta'>
+        {f"<span>{category}</span>" if category else ""}
+        {f"<span class='breadcrumb-sep'>·</span><span>{presentation}</span>" if presentation else ""}
+        <span class='breadcrumb-sep'>·</span>
+        <span>{from_month} – {to_month}</span>
+      </div>
+    </div>
+  </section>
+
+  <div class='product-stats'>
+    <div class='product-stat'>
+      <span class='stat-label'>Precio actual</span>
+      <span class='stat-value'>{current_price}</span>
+      <span class='stat-sub'>Último relevado</span>
+    </div>
+    {var_html}
+    {real_html}
+  </div>
+
+{chart_section}
+{terna_section}
+
+  <section class='card'>
+    <a href='/tracker/' class='back-link'>← Volver al Tracker</a>
+  </section>
+</main>
+{plot_js}
+</body>
+</html>"""
+
+            # Write to public/tracker/{canonical_id}/index.html
+            safe_id = "".join(c if c.isalnum() or c in "-_" else "_" for c in canonical_id)
+            detail_dir = self.output_dir / "tracker" / safe_id
+            detail_dir.mkdir(parents=True, exist_ok=True)
+            (detail_dir / "index.html").write_text(page_html, encoding="utf-8")
+
+    def build_api_endpoint(self, manifest: Dict[str, Any], latest: ReportEntry) -> None:
+
+        """Write a clean public JSON API at /api/latest.json for external consumers."""
+        from_month, to_month = self._range_from_metadata(latest.metadata)
+        kpis = latest.metadata.get("kpis", {}) if isinstance(latest.metadata.get("kpis"), dict) else {}
+        coverage = latest.metadata.get("coverage", {}) if isinstance(latest.metadata.get("coverage"), dict) else {}
+        web_status_raw = str(manifest.get("status") or "partial")
+        _STATUS_LABELS = {"fresh": "actualizado", "partial": "en_proceso", "stale": "desactualizado"}
+        api_payload = {
+            "_info": {
+                "description": "API pública del Tracker de Precios La Anónima Ushuaia.",
+                "generated_at": manifest.get("generated_at", ""),
+                "next_update_eta": manifest.get("next_update_eta", ""),
+                "license": "Datos de dominio público con fines informativos. Ver /legal/terms.html",
+            },
+            "status": _STATUS_LABELS.get(web_status_raw, web_status_raw),
+            "periodo": {
+                "desde": from_month,
+                "hasta": to_month,
+            },
+            "indicadores": {
+                "inflacion_canasta_nominal_pct": kpis.get("inflation_basket_nominal_pct"),
+                "ipc_oficial_periodo_pct": kpis.get("ipc_period_pct"),
+                "brecha_canasta_vs_ipc_pp": kpis.get("gap_vs_ipc_pp"),
+                "panel_balanceado_n": kpis.get("balanced_panel_n"),
+            },
+            "cobertura": {
+                "total_pct": coverage.get("coverage_total_pct"),
+                "productos_observados": coverage.get("total_observed"),
+            },
+            "links": {
+                "tracker": "/tracker/",
+                "historico": "/historico/",
+                "manifest": "/data/manifest.json",
+                "metadata": "/data/latest.metadata.json",
+            },
+        }
+        api_dir = self.output_dir / "api"
+        self._ensure_dir(api_dir)
+        api_json_path = api_dir / "latest.json"
+        api_json_path.write_text(json.dumps(api_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+        # Simple human-readable index page for the API
+        meta_head = self._meta_head("API Pública | Tracker La Anónima", "Endpoint JSON público del tracker de precios.", "/api/")
+        api_index_html = f"""<!doctype html>
+<html lang='es'>
+<head>{meta_head}{self._analytics_head_script()}</head>
+<body>
+<main class='shell'>
+  {self._top_nav(active='home')}
+  <section class='card'>
+    <h1>API Pública</h1>
+    <p class='muted'>Acceso programático a los datos del tracker para periodistas, investigadores y desarrolladores.</p>
+  </section>
+  <section class='card'>
+    <h2>Endpoint</h2>
+    <p><code>/api/latest.json</code> — Datos del período más reciente. Sin autenticación, sin límites.</p>
+    <pre style='background:var(--panel-soft);border:1px solid var(--line);border-radius:12px;padding:16px;overflow-x:auto;font-size:.82rem;line-height:1.6;'>{{
+  &quot;status&quot;: &quot;en_proceso | actualizado | desactualizado&quot;,
+  &quot;periodo&quot;: {{ &quot;desde&quot;: &quot;2025-09&quot;, &quot;hasta&quot;: &quot;2026-02&quot; }},
+  &quot;indicadores&quot;: {{
+    &quot;inflacion_canasta_nominal_pct&quot;: 31.62,
+    &quot;ipc_oficial_periodo_pct&quot;: null,
+    &quot;brecha_canasta_vs_ipc_pp&quot;: null,
+    &quot;panel_balanceado_n&quot;: 20
+  }},
+  &quot;cobertura&quot;: {{ &quot;total_pct&quot;: 30.7 }},
+  &quot;links&quot;: {{ &quot;tracker&quot;: &quot;/tracker/&quot; }}
+}}</pre>
+  </section>
+  <section class='card'>
+    <h2>Uso</h2>
+    <pre style='background:var(--panel-soft);border:1px solid var(--line);border-radius:12px;padding:16px;font-size:.82rem;'>fetch('https://tu-dominio.com/api/latest.json')
+  .then(r =&gt; r.json())
+  .then(data =&gt; console.log(data.indicadores))</pre>
+    <p class='muted' style='margin-top:12px;'>Para datos históricos completos: <a href='/data/manifest.json'>/data/manifest.json</a> y <a href='/data/latest.metadata.json'>/data/latest.metadata.json</a>.</p>
+  </section>
+</main>
+</body></html>"""
+        (api_dir / "index.html").write_text(api_index_html, encoding="utf-8")
 
 
 def run_web_publish(

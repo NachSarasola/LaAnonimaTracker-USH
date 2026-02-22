@@ -48,7 +48,7 @@ def get_shell_css_bundle() -> str:
 
 @lru_cache(maxsize=1)
 def get_tracker_css_bundle() -> str:
-    return _build_bundle(*_BASE_PARTS, *_TRACKER_PARTS, *_UTILITY_PARTS)
+    return _build_bundle(*_BASE_PARTS, *_SHELL_PARTS, *_TRACKER_PARTS, *_UTILITY_PARTS)
 
 
 @lru_cache(maxsize=1)
